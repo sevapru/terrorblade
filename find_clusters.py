@@ -2,8 +2,15 @@ import os
 import polars as pl
 
 from datetime import timedelta
+import numpy as np
+from sentence_transformers import SentenceTransformer
+import cupy as cp
+from cuml.cluster import HDBSCAN
+from sklearn.metrics.pairwise import cosine_similarity
+import matplotlib.pyplot as plt
 
-input_folder = '~/data/parquet'  # Adjust the path to your folder
+input_folder = '/home/seva/data/parquet'  # Adjust the path to your folder
+
 
 def parse_timestamp(df, timestamp_col):
     """
@@ -133,17 +140,114 @@ def create_recipient_column(df, author_col):
     return df.with_columns(
         pl.Series("recipients", recipients_str)
     )
+
+def find_simmilar_messages_in_chat(df, embeddings):
+    """
+    Finds similar messages in a chat based on the provided embeddings.
+        
+    Args:
+    df (pl.DataFrame): DataFrame containing the chat messages.
+    embeddings (torch.Tensor): Embeddings for the chat messages.
+    """
+    # Convert the embeddings to a CuPy array
+    embeddings_cupy = cp.asarray(embeddings.cpu().numpy())
     
+    clustering = HDBSCAN(
+            min_cluster_size=5,
+            metric='euclidean',
+            cluster_selection_epsilon=0.5
+        )
+    cluster_labels = clustering.fit_predict(embeddings_cupy)
+    df = df.with_columns(pl.Series('cluster_label', cp.asnumpy(cluster_labels)))
+    df_split = df.group_by('cluster_label').agg([
+            pl.col('author').first().alias('author'),
+            pl.col('recipients').first().alias('author2'),
+            pl.col('timestamp').min().alias('timestamp_start'),
+            pl.col('timestamp').max().alias('timestamp_end'),
+            pl.concat_str('text', separator=' ').alias('text')
+        ])
+    
+    return df_split
+            
 # Load and concatenate all Parquet files
+model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
 dataframes = []
+df_splits = []
 for file_name in os.listdir(input_folder):
     if file_name.endswith('.parquet'):
         df = pl.read_parquet(os.path.join(input_folder, file_name))
         
         df = parse_timestamp(df, "timestamp")
         df = clean_author(df, "author")
-        df = create_clusters(df, "1h", 5, 100)
+        df = create_clusters(df, "30m", 3, 20)
         df = create_recipient_column(df, "author")
+        texts = df['text'].to_list()
+        embeddings = model.encode(
+            texts,
+            batch_size=256,
+            show_progress_bar=True,
+            convert_to_tensor=True,
+            device='cuda'
+        )
+        embeddings = embeddings.cpu()
+        similarities = cosine_similarity(embeddings[:-1], embeddings[1:]).diagonal()
+        distances = 1 - similarities
+        plt.figure(figsize=(12, 6))
+        plt.plot(distances, label='Cosine Distance')
+        y_upper_bound = 0.2
+        plt.ylim(0, y_upper_bound)
+        plt.xlim(0, len(distances))
+        breakpoint_percentile_threshold = 95
+        breakpoint_distance_threshold = np.percentile(distances, breakpoint_percentile_threshold)
+        plt.axhline(y=breakpoint_distance_threshold, color='r', linestyle='-', label='Threshold')
+
+        num_distances_above_threshold = np.sum(distances > breakpoint_distance_threshold)
+        plt.text(len(distances)*0.01, y_upper_bound/50, f"{num_distances_above_threshold + 1} Chunks")
+
+        indices_above_thresh = np.where(distances > breakpoint_distance_threshold)[0]
+
+        boundaries = [0] + (indices_above_thresh + 1).tolist() + [len(df)]
+        segments = []
+        for i in range(len(boundaries)-1):
+            start_idx = boundaries[i]
+            end_idx = boundaries[i+1]
+            
+            segment_df = df.slice(start_idx, end_idx - start_idx)
+            
+            segments.append({
+                'author': segment_df['author'].first(),
+                'author2': segment_df['recipients'].first(),
+                'timestamp_start': segment_df['timestamp'].min(),
+                'timestamp_end': segment_df['timestamp'].max(),
+                'text': ' '.join(segment_df['text'].to_list())
+            })
+            
+            plt.axvspan(start_idx, end_idx, facecolor=plt.cm.tab10(i % 10), alpha=0.25)
+            plt.text(
+                x=(start_idx + end_idx) / 2,
+                y=breakpoint_distance_threshold + y_upper_bound / 20,
+                s=f"Chunk #{i+1}",
+                horizontalalignment='center',
+                rotation='vertical'
+            )
+        
+        if indices_above_thresh.size > 0:
+            last_breakpoint = indices_above_thresh[-1] + 1
+            if last_breakpoint < len(df):
+                plt.axvspan(last_breakpoint, len(df), facecolor=plt.cm.tab10(len(indices_above_thresh) % 10), alpha=0.25)
+                plt.text(
+                    x=(last_breakpoint + len(df)) / 2,
+                    y=breakpoint_distance_threshold + y_upper_bound / 20,
+                    s=f"Chunk #{len(boundaries)-1}",
+                    rotation='vertical'
+                )
+        
+        plt.title("Dialog Chunks Based on Embedding Breakpoints")
+        plt.xlabel("Message Index")
+        plt.ylabel("Cosine Distance")
+        plt.legend()
+        plt.show()
+        df_split = pl.DataFrame(segments)          
         dataframes.append(df)
 
 all_data = pl.concat(dataframes)
