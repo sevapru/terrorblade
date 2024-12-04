@@ -8,6 +8,10 @@ import cupy as cp
 from cuml.cluster import HDBSCAN
 from sklearn.metrics.pairwise import cosine_similarity
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
+
+import seaborn as sns
+from ipywidgets import interact
 
 class TextPreprocessor:
     """
@@ -222,59 +226,75 @@ class TextPreprocessor:
             })
         return pl.DataFrame(segments)   
     
-    def display_dialog_chucks(self, embeddings=None, breakpoint_percentile_threshold=95):
-        """
-        Displays the dialog chunks based on the provided distances.
-        
-        Args:
-            embeddings (torch.Tensor): Embeddings for the chat messages.
-            breakpoint_percentile_threshold (int): Percentile threshold for determining breakpoints.
-        """
+    def display_dialog_chunks(self, embeddings=None):
         if embeddings is None:
             embeddings = self.embeddings
-        
-        print("Calculating distances...")
+
         distances = self.calculate_distances(embeddings)
-        plt.figure(figsize=(12, 6))
-        plt.plot(distances, label='Cosine Distance')
+
+        # Initial threshold value
+        init_threshold = 99  # Starting at 99%
+
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(12, 6))
+        plt.subplots_adjust(bottom=0.25)
         y_upper_bound = 0.2
-        plt.ylim(0, y_upper_bound)
-        plt.xlim(0, len(distances))
-        breakpoint_distance_threshold = np.percentile(distances, breakpoint_percentile_threshold)
-        plt.axhline(y=breakpoint_distance_threshold, color='r', linestyle='-', label='Threshold')
 
-        num_distances_above_threshold = np.sum(distances > breakpoint_distance_threshold)
-        plt.text(len(distances)*0.01, y_upper_bound/50, f"{num_distances_above_threshold + 1} Chunks")
+        # Plot function
+        def plot_chunks(breakpoint_percentile_threshold):
+            ax.clear()
+            sns.lineplot(x=range(len(distances)), y=distances, label='Cosine Distance', ax=ax)
+            ax.set_ylim(0, y_upper_bound)
+            ax.set_xlim(0, len(distances))
 
-        indices_above_thresh = np.where(distances > breakpoint_distance_threshold)[0]
-        boundaries = [0] + (indices_above_thresh + 1).tolist() + [embeddings.shape[0]]        
-        for i in range(len(boundaries)-1):
-            start_idx = boundaries[i]
-            end_idx = boundaries[i+1]
-            plt.axvspan(start_idx, end_idx, facecolor=plt.cm.tab10(i % 10), alpha=0.25)
-            plt.text(
-                x=(start_idx + end_idx) / 2,
-                y=breakpoint_distance_threshold + y_upper_bound / 20,
-                s=f"Chunk #{i+1}",
-                horizontalalignment='center',
-                rotation='vertical'
-            )
-        
-        if indices_above_thresh.size > 0:
-            last_breakpoint = indices_above_thresh[-1] + 1
-            if last_breakpoint < embeddings.shape[0]:
-                plt.axvspan(last_breakpoint, embeddings.shape[0], facecolor=plt.cm.tab10(len(indices_above_thresh) % 10), alpha=0.25)
-                plt.text(
-                    x=(last_breakpoint + embeddings.shape[0]) / 2,
+            breakpoint_distance_threshold = np.percentile(distances, breakpoint_percentile_threshold)
+            ax.axhline(y=breakpoint_distance_threshold, color='r', linestyle='-', label='Threshold')
+
+            num_distances_above_threshold = np.sum(distances > breakpoint_distance_threshold)
+            ax.text(len(distances)*0.01, y_upper_bound/50, f"{num_distances_above_threshold + 1} Chunks")
+
+            indices_above_thresh = np.where(distances > breakpoint_distance_threshold)[0]
+            boundaries = [0] + (indices_above_thresh + 1).tolist() + [embeddings.shape[0]]
+
+            for i in range(len(boundaries)-1):
+                start_idx = boundaries[i]
+                end_idx = boundaries[i+1]
+                ax.axvspan(start_idx, end_idx, facecolor=plt.cm.tab10(i % 10), alpha=0.25)
+                ax.text(
+                    x=(start_idx + end_idx) / 2,
                     y=breakpoint_distance_threshold + y_upper_bound / 20,
-                    s=f"Chunk #{len(boundaries)-1}",
+                    s=f"Chunk #{i+1}",
+                    horizontalalignment='center',
                     rotation='vertical'
                 )
-        
-        plt.title("Dialog Chunks Based on Embedding Breakpoints")
-        plt.xlabel("Message Index")
-        plt.ylabel("Cosine Distance")
-        plt.legend()
+
+            ax.set_title("Dialog Chunks Based on Embedding Breakpoints")
+            ax.set_xlabel("Message Index")
+            ax.set_ylabel("Cosine Distance")
+            ax.legend()
+
+        # Initial plot
+        plot_chunks(init_threshold)
+
+        # Slider
+        axcolor = 'lightgoldenrodyellow'
+        ax_thresh = plt.axes([0.15, 0.1, 0.65, 0.03], facecolor=axcolor)
+        thresh_slider = Slider(
+            ax=ax_thresh,
+            label='Threshold (%)',
+            valmin=0,
+            valmax=100,
+            valinit=init_threshold,
+            valstep=1
+        )
+
+        # Update function
+        def update(val):
+            plot_chunks(thresh_slider.val)
+            fig.canvas.draw_idle()
+
+        thresh_slider.on_changed(update)
+
         plt.show()
     
 class TelegramPreprocessor(TextPreprocessor):
@@ -434,7 +454,7 @@ def main():
         df = preprocessor.prepare_data(file_name)
         dataframes.append(df)
         df_split = preprocessor.process_chat(file_name, time_window, cluster_size, big_cluster_size)
-        preprocessor.display_dialog_chucks(breakpoint_percentile_threshold=95)
+        preprocessor.display_dialog_chunks()
         df_splits.append(df_split)
 
     all_data = pl.concat(dataframes)
