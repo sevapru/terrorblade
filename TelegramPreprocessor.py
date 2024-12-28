@@ -2,7 +2,7 @@ import os
 import json
 import polars as pl
 import pandas as pd
-from dtypes import telegram_schema
+from dtypes import telegram_import_schema, telegram_process_schema
 
 from TextPreprocessor import TextPreprocessor
 
@@ -78,9 +78,11 @@ class TelegramPreprocessor(TextPreprocessor):
             pd.DataFrame: DataFrame with parsed members.
         """
         if 'members' in chat_df.columns:
+            all_members = set()
             for idx, val in chat_df['members'].items():
                 if isinstance(val, list):
-                    chat_df.at[idx, 'members'] = str(val)
+                    all_members.update(val)
+            chat_df['members'] = str(list(all_members))
         return chat_df
 
     def parse_reactions(self, chat_df):
@@ -108,12 +110,12 @@ class TelegramPreprocessor(TextPreprocessor):
         Returns:
             pl.DataFrame: Standardized DataFrame.
         """
-        chat = chat.reindex(columns=telegram_schema.keys())
+        chat = chat.reindex(columns=telegram_import_schema.keys())
         return pl.DataFrame(chat).with_columns([
-            pl.col(col).cast(dtype) for col, dtype in telegram_schema.items()
+            pl.col(col).cast(dtype) for col, dtype in telegram_import_schema.items()
         ])
     
-    def parse_timestamp(self, df, date_col: str = 'date', date_unixtime_col: str = 'date_unixtime') -> pl.DataFrame:
+    def parse_timestamp(self, df, date_col: str = 'date') -> pl.DataFrame:
         """
         Parses and formats the date and date_unixtime columns in the provided DataFrame.
         
@@ -129,10 +131,9 @@ class TelegramPreprocessor(TextPreprocessor):
         Returns:
             pl.DataFrame: DataFrame with the date and date_unixtime columns parsed and formatted.
         """
-        return df.with_columns([
-            pl.col(date_col).str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S"),
-            (pl.col(date_unixtime_col).cast(pl.Int64) * 1000).cast(pl.Datetime("ms"))
-        ])
+        return df.with_columns(
+            pl.col(date_col).str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S")
+        )
 
     def create_recipient_column(self, df, author_col):
         """
@@ -158,70 +159,8 @@ class TelegramPreprocessor(TextPreprocessor):
         return df.with_columns(
             pl.Series("recipients", recipients_str)
         )
-        
-    def parse_stickers(self, chat_df):
-        """
-        Parses stickers in the chat DataFrame.
-        
-        Args:
-            chat_df (pd.DataFrame): DataFrame containing chat messages.
-        
-        Returns:
-            pd.DataFrame: DataFrame with parsed stickers.
-        """
-        for idx, val in chat_df['sticker_emoji'].items():
-            if isinstance(val, list):
-                if len(val) == 1 and isinstance(val[0], dict) and 'emoji' in val[0]:
-                    chat_df.at[idx, 'sticker_emoji'] = val[0]['emoji']
-        return chat_df
     
-
-    def prepare_data(self, file_path: str) -> pl.DataFrame:
-        """
-        Loads and prepares chat data from a JSON file.
-        
-        Args:
-            file_path (str): Path to the JSON file
-            
-        Returns:
-            pl.DataFrame: Processed and combined chat data
-        """
-        if not file_path.endswith('.json'):
-            raise ValueError("File must be a JSON file")
-            
-        chats_dict = self.load_json(file_path)
-        
-        for key, chat_df in chats_dict.items():
-            chat_df = self.parse_links(chat_df)
-            chat_df = self.parse_members(chat_df)
-            chat_pl = self.standartize_chat(chat_df)
-            chat_pl = self.parse_timestamp(chat_pl)
-            chat_pl = self.handle_additional_types(chat_pl)
-            
-            chats_dict[key] = chat_pl
-            
-        return chats_dict
-
-    def process_chats(self, file_path: str, time_window: str, 
-                      cluster_size: int = 3, big_cluster_size: int = 10) -> pl.DataFrame:
-        """
-        Processes a single chat file by creating clusters and calculating embeddings.
-        
-        Args:
-            file_path (str): Path to the chat file
-            time_window (str): Time window for clustering (e.g. "1h", "30m")
-            cluster_size (int): Minimum cluster size
-            big_cluster_size (int): Minimum size for big clusters
-            
-        Returns:
-            pl.DataFrame: Processed chat data with clusters
-        """
-        chats = self.prepare_data(file_path)
-        for key, chat_df in chats.values():
-            clusters = self.create_clusters(chat_df, time_window, cluster_size, big_cluster_size)
-            chats[key] = clusters
-
-    def handle_sticker_and_files(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
+    def handle_media(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
         """
         Modifies the 'text' column based on 'media_type' to unify message representation.
 
@@ -269,6 +208,13 @@ class TelegramPreprocessor(TextPreprocessor):
         chat_pl = chat_pl.with_columns(
             pl.when(pl.col("media_type") == "animation")
              .then(pl.format("{} [animation]({})", pl.col("text"), pl.col("file_name")))
+             .otherwise(pl.col("text"))
+             .alias("text")
+        )
+        # Video message filter
+        chat_pl = chat_pl.with_columns(
+            pl.when(pl.col("media_type") == "video_message")
+             .then(pl.format("[video_message]({})", pl.col("file_name")))
              .otherwise(pl.col("text"))
              .alias("text")
         )
@@ -344,6 +290,48 @@ class TelegramPreprocessor(TextPreprocessor):
             .otherwise(pl.col("text"))
             .alias("text")
         )
+        
+    def handle_files(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
+        """
+        Modifies the 'text' column based on the presence of photo information.
+        
+        If media_type is missing and file is present, appends '[file](file)' to the text.
+        If file starts with "(": appends '[file]' to the text.
+        Args:
+            chat_pl (pl.DataFrame): DataFrame containing chat messages.
+            
+        Returns:
+            pl.DataFrame: DataFrame with modified 'text' column.
+        """
+        return chat_pl.with_columns(
+            pl.when(
+                (pl.col("media_type").is_null()) & (pl.col("file").is_not_null())
+            )
+            .then(pl.format("[file]({})", pl.col("file_name")))
+            .otherwise(pl.col("text"))
+            .alias("text")
+        )
+        
+    def handle_photos(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
+        """
+        Modifies the 'text' column based on the presence of photo information.
+        
+        If media_type is missing and file is present, appends '[file](file)' to the text.
+        If file starts with "(": appends '[file]' to the text.
+        Args:
+            chat_pl (pl.DataFrame): DataFrame containing chat messages.
+            
+        Returns:
+            pl.DataFrame: DataFrame with modified 'text' column.
+        """
+        return chat_pl.with_columns(
+            pl.when(
+                (pl.col("photo").is_not_null())
+            )
+            .then(pl.format("{} [photo]({})", pl.col("text"), pl.col("file_name").fill_null("")))
+            .otherwise(pl.col("text"))
+            .alias("text")
+        )
 
     def handle_additional_types(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
         """
@@ -355,9 +343,70 @@ class TelegramPreprocessor(TextPreprocessor):
         Returns:
             pl.DataFrame: DataFrame with modified 'text' column.
         """
-        chat_pl = self.handle_sticker_and_files(chat_pl)
+        chat_pl = self.handle_media(chat_pl)
         chat_pl = self.handle_location(chat_pl)
+        chat_pl = self.handle_files(chat_pl)
+        chat_pl = self.handle_photos(chat_pl)
         chat_pl = self.handle_service_messages(chat_pl)
         chat_pl = self.handle_contacts(chat_pl)
         return chat_pl
+    
+    def delete_service_messages(self, chat_pl: pl.DataFrame) -> pl.DataFrame:  
+        """
+        Deletes service messages from the chat DataFrame.
+        
+        Args:
+            chat_pl (pl.DataFrame): DataFrame containing chat messages.
+            
+        Returns:
+            pl.DataFrame: DataFrame with service messages removed.
+        """
+        return chat_pl.filter(pl.col("type") != "service")
 
+    def prepare_data(self, file_path: str) -> pl.DataFrame:
+        """
+        Loads and prepares chat data from a JSON file.
+        
+        Args:
+            file_path (str): Path to the JSON file
+            
+        Returns:
+            pl.DataFrame: Processed and combined chat data
+        """
+        if not file_path.endswith('.json'):
+            raise ValueError("File must be a JSON file")
+            
+        chats_dict = self.load_json(file_path)
+        
+        for key, chat_df in chats_dict.items():
+            chat_df = self.parse_links(chat_df)
+            chat_df = self.parse_members(chat_df)
+            chat_pl = self.standartize_chat(chat_df)
+            chat_pl = self.parse_timestamp(chat_pl)
+            chat_pl = self.handle_additional_types(chat_pl)
+            chat_pl = self.delete_service_messages(chat_pl)
+            # Huge cut in columns
+            chat_pl = chat_pl.select([pl.col(k).cast(v) for k, v in telegram_process_schema.items()])
+            
+            chats_dict[key] = chat_pl
+            
+        return chats_dict
+
+    def process_chats(self, file_path: str, time_window: str, 
+                      cluster_size: int = 3, big_cluster_size: int = 10) -> pl.DataFrame:
+        """
+        Processes a single chat file by creating clusters and calculating embeddings.
+        
+        Args:
+            file_path (str): Path to the chat file
+            time_window (str): Time window for clustering (e.g. "1h", "30m")
+            cluster_size (int): Minimum cluster size
+            big_cluster_size (int): Minimum size for big clusters
+            
+        Returns:
+            pl.DataFrame: Processed chat data with clusters
+        """
+        chats = self.prepare_data(file_path)
+        for key, chat_df in chats.values():
+            clusters = self.create_clusters(chat_df, time_window, cluster_size, big_cluster_size)
+            chats[key] = clusters
