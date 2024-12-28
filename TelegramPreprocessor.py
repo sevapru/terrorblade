@@ -131,7 +131,7 @@ class TelegramPreprocessor(TextPreprocessor):
         """
         return df.with_columns([
             pl.col(date_col).str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S"),
-            pl.col(date_unixtime_col).cast(pl.Int64).cast(pl.Datetime)
+            (pl.col(date_unixtime_col).cast(pl.Int64) * 1000).cast(pl.Datetime("ms"))
         ])
 
     def create_recipient_column(self, df, author_col):
@@ -158,6 +158,23 @@ class TelegramPreprocessor(TextPreprocessor):
         return df.with_columns(
             pl.Series("recipients", recipients_str)
         )
+        
+    def parse_stickers(self, chat_df):
+        """
+        Parses stickers in the chat DataFrame.
+        
+        Args:
+            chat_df (pd.DataFrame): DataFrame containing chat messages.
+        
+        Returns:
+            pd.DataFrame: DataFrame with parsed stickers.
+        """
+        for idx, val in chat_df['sticker_emoji'].items():
+            if isinstance(val, list):
+                if len(val) == 1 and isinstance(val[0], dict) and 'emoji' in val[0]:
+                    chat_df.at[idx, 'sticker_emoji'] = val[0]['emoji']
+        return chat_df
+    
 
     def prepare_data(self, file_path: str) -> pl.DataFrame:
         """
@@ -179,6 +196,7 @@ class TelegramPreprocessor(TextPreprocessor):
             chat_df = self.parse_members(chat_df)
             chat_pl = self.standartize_chat(chat_df)
             chat_pl = self.parse_timestamp(chat_pl)
+            chat_pl = self.handle_additional_types(chat_pl)
             
             chats_dict[key] = chat_pl
             
@@ -202,4 +220,144 @@ class TelegramPreprocessor(TextPreprocessor):
         for key, chat_df in chats.values():
             clusters = self.create_clusters(chat_df, time_window, cluster_size, big_cluster_size)
             chats[key] = clusters
+
+    def handle_sticker_and_files(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
+        """
+        Modifies the 'text' column based on 'media_type' to unify message representation.
+
+        1) Sticker filter: replaces message text with the 'sticker_emoji'.
+        2) Video file filter: appends '[video](file_name)' to the text.
+        3) Voice message filter: appends '[voice_message](file)' to the text.
+        4) Audio file filter: replaces text with '[audio](performer-title)'.
+        5) Animation filter: appends '[animation](file_name)' to the text.
+        
+        Args:
+            chat_pl (pl.DataFrame): DataFrame containing chat messages.
             
+        Returns:
+            pl.DataFrame: DataFrame with modified 'text' column.
+        """
+        # Sticker filter
+        chat_pl = chat_pl.with_columns(
+            pl.when(pl.col("media_type") == "sticker")
+             .then(pl.col("sticker_emoji"))
+            .otherwise(pl.col("text"))
+             .alias("text")
+        )
+        # Video file filter
+        chat_pl = chat_pl.with_columns(
+            pl.when(pl.col("media_type") == "video_file")
+             .then(pl.format("{} [video]({})", pl.col("text"), pl.col("file_name")))
+             .otherwise(pl.col("text"))
+             .alias("text")
+        )
+        # Voice message filter
+        chat_pl = chat_pl.with_columns(
+            pl.when(pl.col("media_type") == "voice_message")
+             .then(pl.format("[voice_message]({})", pl.col("file")))
+            .otherwise(pl.col("text"))
+             .alias("text")
+        )
+        # Audio file filter
+        chat_pl = chat_pl.with_columns(
+            pl.when(pl.col("media_type") == "audio_file")
+             .then(pl.format("[audio]({}-{})", pl.col("title"), pl.col("performer").fill_null("")))
+            .otherwise(pl.col("text"))
+             .alias("text")
+        )
+        # Animation filter
+        chat_pl = chat_pl.with_columns(
+            pl.when(pl.col("media_type") == "animation")
+             .then(pl.format("{} [animation]({})", pl.col("text"), pl.col("file_name")))
+             .otherwise(pl.col("text"))
+             .alias("text")
+        )
+        return chat_pl
+
+    def handle_location(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
+        """
+        Modifies the 'text' column based on the presence of location information.
+        
+        Appends '[location](longitude, latitude)' to the text if location information is present.
+        
+        Args:
+            chat_pl (pl.DataFrame): DataFrame containing chat messages.
+            
+        Returns:
+            pl.DataFrame: DataFrame with modified 'text' column.
+        """
+        return chat_pl.with_columns(
+            pl.when(
+                pl.col("location_information.longitude").is_not_null() &
+                pl.col("location_information.latitude").is_not_null()
+            )
+            .then(pl.format("[location]({}, {})",
+                            pl.col("location_information.longitude"),
+                            pl.col("location_information.latitude")))
+            .otherwise(pl.col("text"))
+            .alias("text")
+        )
+
+    def handle_service_messages(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
+        """
+        Modifies the 'text' and 'from' columns based on the message type.
+        
+        1) Replaces 'text' with 'discard_reason' for service messages with a discard reason.
+        2) Replaces 'from' with 'actor' for service messages.
+        
+        Args:
+            chat_pl (pl.DataFrame): DataFrame containing chat messages.
+            
+        Returns:
+            pl.DataFrame: DataFrame with modified 'text' and 'from' columns.
+        """
+        return chat_pl.with_columns([
+            pl.when(
+                (pl.col("type") == "service") & (pl.col("discard_reason").is_not_null())
+            )
+            .then(pl.format("[phone_call]({})", pl.col("discard_reason")))
+            .otherwise(pl.col("text"))
+            .alias("text"),
+            pl.when(pl.col("type") == "service")
+            .then(pl.col("actor"))
+            .otherwise(pl.col("from"))
+            .alias("from"),
+            pl.when(pl.col("type") == "service")
+            .then(pl.col("actor_id"))
+            .otherwise(pl.col("from_id"))
+            .alias("from_id")
+        ])
+
+    def handle_contacts(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
+        """
+        If contact information is present, appends a contact note to 'text'.
+        """
+        return chat_pl.with_columns(
+            pl.when(
+                (pl.col("contact_information.first_name").is_not_null()) |
+                (pl.col("contact_information.last_name").is_not_null())
+            )
+            .then(pl.format("[contact]({} {} : {})",
+                            pl.col("contact_information.first_name").fill_null(""),
+                            pl.col("contact_information.last_name").fill_null(""),
+                            pl.col("contact_information.phone_number")))
+            .otherwise(pl.col("text"))
+            .alias("text")
+        )
+
+    def handle_additional_types(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
+        """
+        Modifies the 'text' column based on additional message types.
+        
+        Args:
+            chat_pl (pl.DataFrame): DataFrame containing chat messages.
+            
+        Returns:
+            pl.DataFrame: DataFrame with modified 'text' column.
+        """
+        chat_pl = self.handle_sticker_and_files(chat_pl)
+        chat_pl = self.handle_location(chat_pl)
+        chat_pl = self.handle_service_messages(chat_pl)
+        chat_pl = self.handle_contacts(chat_pl)
+        return chat_pl
+
