@@ -58,7 +58,7 @@ telegram_import_schema = {
 
 telegram_process_schema = {
         "chat_name": pl.Utf8,
-        "date": pl.Utf8,
+        "date": pl.Datetime,
         "from": pl.Utf8,
         "text": pl.Utf8,
         "reply_to_message_id": pl.Int64,
