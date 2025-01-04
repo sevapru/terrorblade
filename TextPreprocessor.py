@@ -2,13 +2,12 @@ import polars as pl
 
 from datetime import timedelta
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, util
 import cupy as cp
 from cuml.cluster import HDBSCAN
-from sklearn.metrics.pairwise import cosine_similarity
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
-
+import torch
 import seaborn as sns
 
 class TextPreprocessor:
@@ -36,8 +35,8 @@ class TextPreprocessor:
         """
         time_window = timedelta(minutes=time_window_minutes)
         df = df.with_columns([
-            (pl.col('author') != pl.col('author').shift(1)).alias('author_changed'),
-            ((pl.col('timestamp') - pl.col('timestamp').shift(1)) > time_window).fill_null(True).alias('time_exceeded'),
+            (pl.col('from_id') != pl.col('from_id').shift(1)).alias('author_changed'),
+            ((pl.col('date') - pl.col('date').shift(1)) > time_window).fill_null(True).alias('time_exceeded'),
         ])
 
         df = df.with_columns(
@@ -49,16 +48,22 @@ class TextPreprocessor:
         )
 
         df = df.group_by('message_group').agg([
-            pl.col('author').first(),
-            pl.col('timestamp').min().alias('timestamp'),
-            pl.col('text').str.join('. ').alias('text')
+            pl.col('chat_name').first(),
+            pl.col('date').min().alias('date'),
+            pl.col('from').first().alias('from'),
+            pl.col('text').str.join('. ').alias('text'),
+            pl.col('reply_to_message_id').first().alias('reply_to_message_id'),
+            pl.col('forwarded_from').first().alias('forwarded_from'),
+            pl.col('id').alias('id'),
+            pl.col('from_id').first().alias('from_id'),
+            pl.col('chat_id').first().alias('chat_id'),
         ])
-        df = df.sort('timestamp')
+        df = df.sort('date')
         df = df.drop('message_group')
 
         return df
         
-    def create_clusters(self, df, time_window, cluster_size=3, big_cluster_size=10):
+    def create_clusters(self, df, time_window=None, cluster_size=1, big_cluster_size=10):
         """
         Creates cluster assignments for messages that are considered part of the same conversation if they are 
         sent within a specified time window proximity.
@@ -73,8 +78,9 @@ class TextPreprocessor:
             pl.DataFrame: DataFrame augmented with a 'cluster' column indicating normal clusters and a 'big_cluster'
             column indicating big clusters.
         """
-
         # Convert the time window string to a timedelta object
+        if time_window is None:
+            time_window = self.time_window
         if time_window.endswith('h'):
             window_duration = timedelta(hours=int(time_window[:-1]))
         elif time_window.endswith('m'):
@@ -84,7 +90,7 @@ class TextPreprocessor:
 
         # Create a column for time differences between consecutive messages
         time_diffs = df.with_columns(
-            (pl.col("timestamp").diff().dt.total_seconds()).alias("time_diff")
+            (pl.col("date").diff().dt.total_seconds()).alias("time_diff")
         )
         
         # Determine where new clusters should start based on time differences exceeding the window duration
@@ -125,7 +131,7 @@ class TextPreprocessor:
         )
         
         # Cleaning up: drop temporary columns
-        return df.drop(["pre_cluster", "is_big_cluster"])
+        return df.drop(["is_big_cluster", "big_cluster", "size"])
     
     def find_simmilar_messages_in_chat(self, df, embeddings):
         """
@@ -164,24 +170,62 @@ class TextPreprocessor:
         """
         return self.embeddings_model.encode(
             df['text'].to_list(),
-            batch_size=256,
+            batch_size=1024,
             show_progress_bar=True,
             convert_to_tensor=True,
+            normalize_embeddings=True,
             device='cuda'
-        ).cpu()
-    
+        )
+        
     def calculate_distances(self, embeddings):
         """
-        Calculates distances based on cosine similarities between embeddings.
+        Calculates distances based on cosine pair similarities between embeddings.
             
         Args:
         embeddings (torch.Tensor): Embeddings for the chat messages.
         """
-        similarities = cosine_similarity(embeddings[:-1], embeddings[1:]).diagonal()
+        similarities = self.embeddings_model.similarity_pairwise(embeddings, embeddings)
         distances = 1 - similarities
-        return distances
+        return distances.cpu()
     
-    def process_clusters(self, df, time_window, cluster_size=3, big_cluster_size=10):
+    def calculate_sliding_distances(self, embeddings, window_size=5):
+        distances = torch.zeros(len(embeddings), device=embeddings.device)
+        for i in range(len(embeddings)):
+            start = max(0, i - window_size)
+            end = min(len(embeddings), i)
+            main_embedding = embeddings[i].unsqueeze(0)
+            window_embeddings = embeddings[start:end]
+            similarities = util.cos_sim(main_embedding, window_embeddings)
+            avg_similarity = similarities.mean()
+            distances[i] = 1 - avg_similarity
+            
+        # What a great hotfix, happy new year 2025, my lads
+        distances[0] = 0
+
+        return distances.cpu()
+            
+    
+    def calculate_groups(self, df):
+        """
+        Merges the segments with same semantic_segment number or either from the same cluster
+        
+        Args:
+            df_split (pl.DataFrame): DataFrame containing the segments.
+        
+        Returns:
+            pl.DataFrame: DataFrame with segments merged back in.
+        """
+        group_changes = (
+            (df['semantic_segment'] != df['semantic_segment'].shift(1)) &
+            (df['pre_cluster'] != df['pre_cluster'].shift(1))
+        )
+        df = df.with_columns(
+            group_changes.cum_sum().alias('group')
+        ).drop(["pre_cluster", "cluster", "semantic_segment"])
+        df[0, 'group'] = 0
+        return df.sort('date')
+    
+    def process_message_groups(self, df, time_window=None, cluster_size=1, big_cluster_size=10):
         """
         Processes the provided DataFrame by creating clusters and calculating embeddings.
         
@@ -191,10 +235,12 @@ class TextPreprocessor:
         Returns:
             pl.DataFrame: DataFrame with clusters and embeddings added.
         """
+        df = self.concat_author_messages(df)
         df = self.create_clusters(df, time_window, cluster_size, big_cluster_size)
         self.embeddings = self.calculate_embeddings(df)
-        df_split = self.calculate_segments(df, self.embeddings)
-        return df_split
+        df = self.calculate_segments(df, self.embeddings)
+        df = self.calculate_groups(df)
+        return df
     
     def show_cluster(self, df, cluster_id):
         """
@@ -214,7 +260,7 @@ class TextPreprocessor:
         Args:
             df (pl.DataFrame): DataFrame containing the chat messages.
         """
-        biggest_cluster_id = df.group_by("big_cluster").agg(pl.len().alias("size")).sort("size", reverse=True)["big_cluster"].first()
+        biggest_cluster_id = df.group_by("big_cluster").agg(pl.len().alias("size")).sort("size")["big_cluster"].first()
         self.show_cluster(df, biggest_cluster_id)
         
     def show_all_clusters(self, df):
@@ -227,7 +273,8 @@ class TextPreprocessor:
         for cluster_id in df['cluster'].unique().to_list():
             self.show_cluster(df, cluster_id)
             
-    def calculate_segments(self, df, embeddings, breakpoint_percentile_threshold=95):
+
+    def calculate_segments(self, df, embeddings, breakpoint_percentile_threshold=95, semantic_threshold=None):
         """
         Calculates the segments based on the provided distances.
         
@@ -238,32 +285,26 @@ class TextPreprocessor:
         Returns:
             list: List of dictionaries containing the segments.
         """
-        distances = self.calculate_distances(embeddings)
-        breakpoint_distance_threshold = np.percentile(distances, breakpoint_percentile_threshold)
-        indices_above_thresh = np.where(distances > breakpoint_distance_threshold)[0]
+        distances = self.calculate_sliding_distances(embeddings, 1)
 
-        boundaries = [0] + (indices_above_thresh + 1).tolist() + [len(df)]
-        segments = []
-        for i in range(len(boundaries)-1):
-            start_idx = boundaries[i]
-            end_idx = boundaries[i+1]
-
-            segment_df = df.slice(start_idx, end_idx - start_idx)
-
-            segments.append({
-                'author': segment_df['author'].first(),
-                'author2': segment_df['recipients'].first(),
-                'timestamp_start': segment_df['timestamp'].min(),
-                'timestamp_end': segment_df['timestamp'].max(),
-                'text': '. '.join(segment_df['text'].to_list())
-            })
-        return pl.DataFrame(segments)   
+        
+        if semantic_threshold is None:
+            semantic_threshold = float(np.mean(distances.tolist()))
+        
+        breaks = distances > semantic_threshold
+        semantic_segment_ids = breaks.cumsum(dim=0)
+        
+        return df.with_columns(
+            pl.Series("semantic_segment", 
+                      semantic_segment_ids.tolist()).fill_null(strategy="forward")
+)
+        
     
     def display_dialog_chunks(self, embeddings=None):
         if embeddings is None:
             embeddings = self.embeddings
 
-        distances = self.calculate_distances(embeddings)
+        distances = self.calculate_sliding_distances(embeddings)
 
         # Initial threshold value
         init_threshold = 99  # Starting at 99%
@@ -329,7 +370,7 @@ class TextPreprocessor:
         thresh_slider.on_changed(update)
 
         plt.show()
-    
+
 
 
 
