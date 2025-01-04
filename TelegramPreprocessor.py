@@ -407,6 +407,11 @@ class TelegramPreprocessor(TextPreprocessor):
             pl.DataFrame: Processed chat data with clusters
         """
         chats = self.prepare_data(file_path)
-        for key, chat_df in chats.values():
-            clusters = self.create_clusters(chat_df, time_window, cluster_size, big_cluster_size)
-            chats[key] = clusters
+        for key, chat_df in chats.items():
+            messages = self.process_message_groups(chat_df, time_window, cluster_size, big_cluster_size)
+            chats[key] = {
+                'messages': messages,
+                'embeddings': self.embeddings
+            }
+            
+        return chats
