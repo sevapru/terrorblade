@@ -14,7 +14,7 @@ class TextPreprocessor:
     """
     Preprocesses text data by removing special characters and converting to lowercase.
     """
-    def __init__(self, time_window, cluster_size, big_cluster_size):
+    def __init__(self, time_window='5m', cluster_size=3, big_cluster_size=10):
         self.embeddings_model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
         self.time_window = time_window
         self.cluster_size = cluster_size
@@ -189,6 +189,10 @@ class TextPreprocessor:
         return distances.cpu()
     
     def calculate_sliding_distances(self, embeddings, window_size=5):
+        
+        if embeddings.shape[0] == 0:
+            return torch.zeros(0)
+        
         distances = torch.zeros(len(embeddings), device=embeddings.device)
         for i in range(len(embeddings)):
             start = max(0, i - window_size)
