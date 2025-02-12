@@ -67,3 +67,23 @@ telegram_process_schema = {
         "from_id": pl.Utf8, # Unique user id of sender (same as from)
         "chat_id": pl.Int64,
     }
+
+# Base categories for dialogues
+dialogue_categories = {
+    "personal": ["family", "relationships", "health", "hobbies", "education"],
+    "professional": ["work", "business", "career", "finance", "projects"],
+    "social": ["politics", "society", "culture", "events", "news"],
+    "entertainment": ["movies", "games", "music", "sports", "travel"],
+    "technical": ["technology", "science", "engineering", "software", "hardware"]
+}
+
+# Base emotions
+base_emotions = {
+    "fear": "fear",
+    "anger": "anger",
+    "joy": "joy",
+    "disgust": "disgust",
+    "surprise": "surprise",
+    "contempt": "contempt",
+    "sadness": "sadness"
+}
