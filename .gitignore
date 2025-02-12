@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+*.pyzw
+
+# Virtual environment
+.venv/
+
+# Environment variables
+.env
+
+# DuckDB
+*.db
+
+# Telegram session
+session_name/
+
+# Telegram logs
+telegram.log
+telegram.log.1
