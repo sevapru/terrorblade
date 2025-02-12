@@ -2,9 +2,9 @@ import os
 import json
 import polars as pl
 import pandas as pd
-from src.data.dtypes import telegram_import_schema, telegram_process_schema
+from terrorblade.data.dtypes import telegram_import_schema, telegram_process_schema
 
-from src.data.preprocessing.TextPreprocessor import TextPreprocessor
+from terrorblade.data.preprocessing.TextPreprocessor import TextPreprocessor
 
 class TelegramPreprocessor(TextPreprocessor):
     """

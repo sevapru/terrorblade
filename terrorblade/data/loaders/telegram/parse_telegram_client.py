@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from telethon.errors import FloodWaitError
 import logging
 import duckdb
+from terrorblade import Logger
 
 load_dotenv('.env')
 
@@ -31,13 +32,12 @@ class TelegramParser:
         self.phone = phone
         self.client = None
         
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
+        self.logger = Logger(
+            name="TelegramParser",
+            level=logging.INFO,
+            log_file="telegram.log",
+            log_dir="logs"
+        )
 
         self.db = duckdb.connect('telegram_data.db')
         self._init_database()
@@ -144,7 +144,7 @@ class TelegramParser:
                 messages.append(msg_dict)
 
             if not messages:
-                self.logger.warning(f"No messages found in chat {chat_id}")
+                self.logger.nice(f"No messages found in chat {chat_id}")
                 return None
 
             df = pl.DataFrame(messages)
@@ -286,7 +286,7 @@ async def main(phone: str):
     
     try:
         await parser.connect()
-        chats = await parser.get_all_chats(limit_dialogs=10, limit_messages=100)
+        chats = await parser.get_all_chats(limit_dialogs=None, limit_messages=None)
         
         for chat_id, df in chats.items():
             print(f"Chat ID: {chat_id}")

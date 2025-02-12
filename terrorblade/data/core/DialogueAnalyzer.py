@@ -1,16 +1,27 @@
-from src.data.preprocessing.TextPreprocessor import TextPreprocessor
+from terrorblade.data.preprocessing.TextPreprocessor import TextPreprocessor
 from vllm import LLM, SamplingParams
 import polars as pl
 
 from typing import Dict, List, Tuple
 import json
-from src.data.dtypes import dialogue_categories, base_emotions
+from terrorblade.data.dtypes import dialogue_categories, base_emotions
 
 class DialogueAnalyzer(TextPreprocessor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        self.llm = LLM(model="mistralai/Mistral-7B-Instruct-v0.2")
+        try:
+            self.llm = LLM(model="mistralai/Mistral-7B-Instruct-v0.2", trust_remote_code=True)
+        except Exception as e:
+            print(f"Warning: vLLM initialization error: {e}")
+            print("Falling back to CPU execution")
+            self.llm = LLM(
+                model="mistralai/Mistral-7B-Instruct-v0.2",
+                trust_remote_code=True,
+                dtype="float32",
+                gpu_memory_utilization=0.0
+            )
+        
         self.sampling_params = SamplingParams(
             temperature=0.7,
             top_p=0.95,
