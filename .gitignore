@@ -30,3 +30,6 @@ telegram.log.1
 
 # Fun files
 fun/
+
+# Logs
+logs/
