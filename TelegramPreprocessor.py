@@ -363,6 +363,17 @@ class TelegramPreprocessor(TextPreprocessor):
         """
         return chat_pl.filter(pl.col("type") != "service")
 
+    def delete_empty_messages(self, chat_pl: pl.DataFrame) -> pl.DataFrame:
+        '''
+        Delete messages with empty text field
+        '''
+        return chat_pl.with_columns(
+            pl.when(pl.col(pl.String).str.len_chars() == 0)
+            .then(None)
+            .otherwise(pl.col(pl.String))
+            .name.keep()).filter(pl.col("text").is_not_null())
+    
+    
     def prepare_data(self, file_path: str) -> pl.DataFrame:
         """
         Loads and prepares chat data from a JSON file.
@@ -383,8 +394,9 @@ class TelegramPreprocessor(TextPreprocessor):
             chat_df = self.parse_members(chat_df)
             chat_pl = self.standartize_chat(chat_df)
             chat_pl = self.parse_timestamp(chat_pl)
-            chat_pl = self.handle_additional_types(chat_pl)
+            #chat_pl = self.handle_additional_types(chat_pl)
             chat_pl = self.delete_service_messages(chat_pl)
+            chat_pl = self.delete_empty_messages(chat_pl)
             # Huge cut in columns
             chat_pl = chat_pl.select([pl.col(k).cast(v) for k, v in telegram_process_schema.items()])
             
@@ -392,8 +404,8 @@ class TelegramPreprocessor(TextPreprocessor):
             
         return chats_dict
 
-    def process_chats(self, file_path: str, time_window: str, 
-                      cluster_size: int = 3, big_cluster_size: int = 10) -> pl.DataFrame:
+    def process_chats(self, file_path: str, time_window: str = '5m', 
+                      cluster_size: int = 3, big_cluster_size: int = 10) -> pl.DataFrame:   
         """
         Processes a single chat file by creating clusters and calculating embeddings.
         
