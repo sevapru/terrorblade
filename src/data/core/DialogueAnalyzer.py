@@ -1,10 +1,10 @@
-from TextPreprocessor import TextPreprocessor
+from src.data.preprocessing.TextPreprocessor import TextPreprocessor
 from vllm import LLM, SamplingParams
 import polars as pl
 
 from typing import Dict, List, Tuple
 import json
-from dtypes import dialogue_categories, base_emotions
+from src.data.dtypes import dialogue_categories, base_emotions
 
 class DialogueAnalyzer(TextPreprocessor):
     def __init__(self, *args, **kwargs):

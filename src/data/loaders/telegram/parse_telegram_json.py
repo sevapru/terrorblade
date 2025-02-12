@@ -1,7 +1,7 @@
 import json
 import polars as pl
 import pandas as pd
-from dtypes import telegram_schema
+from src.data.dtypes import telegram_schema
 
 def load_json(file_path: str) -> dict:
     with open(file_path) as file:

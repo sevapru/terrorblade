@@ -1,6 +1,6 @@
 import pickle
 import polars as pl
-from TelegramPreprocessor import TelegramPreprocessor
+from src.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
 
 def main():
     # file_path = '/home/seva/data/all_chats.parquet'
