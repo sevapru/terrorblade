@@ -3,6 +3,8 @@ import json
 import polars as pl
 import pandas as pd
 from terrorblade.data.dtypes import telegram_import_schema, telegram_process_schema
+import duckdb
+from typing import Optional, Dict, Union
 
 from terrorblade.data.preprocessing.TextPreprocessor import TextPreprocessor
 
@@ -10,16 +12,93 @@ class TelegramPreprocessor(TextPreprocessor):
     """
     Preprocesses Telegram chat data.
     """
-    def __init__(self, input_folder=None, *args, **kwargs):
+    def __init__(self, input_folder=None, use_duckdb=False, db_path='telegram_data.db', *args, **kwargs):
         """
         Initializes the TelegramPreprocessor with the specified input folder.
         
         Args:
             input_folder (str): Path to the folder containing input files.
+            use_duckdb (bool): Whether to use DuckDB for data processing
+            db_path (str): Path to DuckDB database file
         """
         super().__init__(*args, **kwargs)
         self.input_folder = input_folder
+        self.use_duckdb = use_duckdb
+        if use_duckdb:
+            self.db = duckdb.connect(db_path)
+            self._init_cluster_tables()
         
+    def _init_cluster_tables(self):
+        """Initialize tables for storing cluster information"""
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS message_clusters (
+                message_id BIGINT,
+                chat_id BIGINT,
+                group_id INTEGER,
+                PRIMARY KEY (message_id, chat_id)
+            )
+        """)
+
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS cluster_embeddings (
+                cluster_id INTEGER,
+                chat_id BIGINT,
+                embedding DOUBLE[],
+                PRIMARY KEY (cluster_id, chat_id)
+            )
+        """)
+
+    def _get_messages_from_db(self, phone: str, chat_id: Optional[int] = None) -> pl.DataFrame:
+        """
+        Retrieve messages from DuckDB for a specific phone number and optionally chat_id
+        
+        Args:
+            phone (str): Phone number to identify the messages table
+            chat_id (int, optional): Specific chat ID to filter messages
+            
+        Returns:
+            pl.DataFrame: DataFrame containing messages
+        """
+        messages_table = f"messages_{phone.replace('+', '')}"
+        query = f"SELECT * FROM {messages_table}"
+        if chat_id is not None:
+            query += f" WHERE chat_id = {chat_id}"
+        query += " ORDER BY date"
+        
+        return pl.from_arrow(self.db.execute(query).arrow())
+
+    def _update_clusters_in_db(self, clusters_df: pl.DataFrame):
+        """
+        Update cluster information in DuckDB
+        
+        Args:
+            clusters_df (pl.DataFrame): DataFrame containing cluster information
+        """
+        # Convert polars DataFrame to format suitable for DuckDB
+        for row in clusters_df.to_dicts():
+            self.db.execute("""
+                INSERT OR REPLACE INTO message_clusters 
+                (message_id, chat_id, group_id)
+                VALUES (?, ?, ?)
+            """, [
+                row['message_id'], row['chat_id'], row['group_id']
+            ])
+
+    def _update_embeddings_in_db(self, cluster_id: int, chat_id: int, embedding: list):
+        """
+        Update embedding information in DuckDB
+        
+        Args:
+            cluster_id (int): ID of the cluster
+            chat_id (int): ID of the chat
+            embedding (list): Embedding vector
+        """
+        self.db.execute("""
+            INSERT OR REPLACE INTO cluster_embeddings 
+            (cluster_id, chat_id, embedding)
+            VALUES (?, ?, ?)
+        """, [cluster_id, chat_id, embedding])
+
     def load_json(self, file_path: str, min_messges=3) -> dict:
         """
         Loads chat data from a JSON file and filters chats with a minimum number of messages.
@@ -404,26 +483,44 @@ class TelegramPreprocessor(TextPreprocessor):
             
         return chats_dict
 
-    def process_chats(self, file_path: str, time_window: str = '5m', 
-                      cluster_size: int = 3, big_cluster_size: int = 10) -> pl.DataFrame:   
+    def process_chats(self, file_path: str = None, phone: str = None, time_window: str = '5m', 
+                     cluster_size: int = 3, big_cluster_size: int = 10) -> Union[Dict, pl.DataFrame]:   
         """
-        Processes a single chat file by creating clusters and calculating embeddings.
+        Processes chat data either from a file or DuckDB
         
         Args:
-            file_path (str): Path to the chat file
+            file_path (str, optional): Path to the chat file
+            phone (str, optional): Phone number for DuckDB processing
             time_window (str): Time window for clustering (e.g. "1h", "30m")
             cluster_size (int): Minimum cluster size
             big_cluster_size (int): Minimum size for big clusters
             
         Returns:
-            pl.DataFrame: Processed chat data with clusters
+            Union[Dict, pl.DataFrame]: Processed chat data with clusters
         """
-        chats = self.prepare_data(file_path)
-        for key, chat_df in chats.items():
-            messages = self.process_message_groups(chat_df, time_window, cluster_size, big_cluster_size)
-            chats[key] = {
-                'messages': messages,
-                'embeddings': self.embeddings
-            }
+        if self.use_duckdb and phone:
+            # Process data from DuckDB
+            messages_df = self._get_messages_from_db(phone)
+            processed_messages = self.process_message_groups(
+                messages_df, time_window, cluster_size, big_cluster_size
+            )
             
-        return chats
+            # Update cluster information in DB
+            self._update_clusters_in_db(processed_messages)
+            
+            # Update embeddings in DB
+            for cluster_id, embedding in self.embeddings.items():
+                chat_id = processed_messages.filter(
+                    pl.col("cluster_id") == cluster_id
+                ).select("chat_id").unique().item()
+                self._update_embeddings_in_db(cluster_id, chat_id, embedding.tolist())
+                
+            return processed_messages
+        else:
+            # Use existing file processing logic
+            return super().process_chats(file_path, time_window, cluster_size, big_cluster_size)
+
+    def close(self):
+        """Close the DuckDB connection if it exists"""
+        if self.use_duckdb:
+            self.db.close()

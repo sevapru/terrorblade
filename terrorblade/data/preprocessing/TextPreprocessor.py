@@ -54,7 +54,7 @@ class TextPreprocessor:
             pl.col('text').str.join('. ').alias('text'),
             pl.col('reply_to_message_id').first().alias('reply_to_message_id'),
             pl.col('forwarded_from').first().alias('forwarded_from'),
-            pl.col('id').alias('id'),
+            pl.col('message_id').alias('message_id'),
             pl.col('from_id').first().alias('from_id'),
             pl.col('chat_id').first().alias('chat_id'),
         ])
@@ -224,9 +224,9 @@ class TextPreprocessor:
             (df['pre_cluster'] != df['pre_cluster'].shift(1))
         )
         df = df.with_columns(
-            group_changes.cum_sum().alias('group')
+            group_changes.cum_sum().alias('group_id')
         ).drop(["pre_cluster", "cluster", "semantic_segment"])
-        df[0, 'group'] = 0
+        df[0, 'group_id'] = 0
         return df.sort('date')
     
     def process_message_groups(self, df, time_window=None, cluster_size=1, big_cluster_size=10):
