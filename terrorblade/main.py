@@ -32,8 +32,8 @@ def main():
     
     
 def alt_main():
-    preprocessor = TelegramPreprocessor(use_duckdb=True, db_path='telegram_data.db')
-    processed_data = preprocessor.process_chats(phone='+31627866359')
+    preprocessor = TelegramPreprocessor(use_duckdb=True, db_path='telegram_data.db', phone='+31627866359')
+    processed_data = preprocessor.process_chats()
     preprocessor.close()
 
 if __name__ == "__main__":
