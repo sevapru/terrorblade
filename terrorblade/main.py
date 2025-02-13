@@ -1,6 +1,6 @@
 import pickle
 import polars as pl
-from src.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
+from terrorblade.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
 
 def main():
     # file_path = '/home/seva/data/all_chats.parquet'
@@ -31,5 +31,10 @@ def main():
     pickle.dump(embeddings_dict, open('/home/seva/data/all_embeddings.pkl', 'wb'))
     
     
+def alt_main():
+    preprocessor = TelegramPreprocessor(use_duckdb=True, db_path='telegram_data.db')
+    processed_data = preprocessor.process_chats(phone='+31627866359')
+    preprocessor.close()
 
-main()
+if __name__ == "__main__":
+    alt_main()
