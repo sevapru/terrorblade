@@ -54,16 +54,18 @@ class TelegramParser:
         messages_table = f"messages_{self.phone.replace('+', '')}"
         self.db.execute(f"""
             CREATE TABLE IF NOT EXISTS {messages_table} (
-                id BIGINT,
+                message_id BIGINT,
                 chat_id BIGINT,
                 date TIMESTAMP,
                 text TEXT,
                 from_id BIGINT,
-                reply_to_msg_id BIGINT,
+                reply_to_message_id BIGINT,
                 media_type TEXT,
                 file_name TEXT,
                 "from" TEXT,
-                PRIMARY KEY (id, chat_id)
+                chat_name TEXT,
+                forwarded_from TEXT,
+                PRIMARY KEY (message_id, chat_id)
             )
         """)
 
@@ -102,7 +104,7 @@ class TelegramParser:
             self.logger.error(f"Error fetching dialogs: {str(e)}")
             raise
 
-    async def get_chat_messages(self, chat_id: int, limit: Optional[int] = None, min_id: Optional[int] = None) -> pl.DataFrame:
+    async def get_chat_messages(self, chat_id: int, limit: Optional[int] = None, min_id: Optional[int] = None, dialog_name: str = None) -> pl.DataFrame:
         """
         Getting messages from specific chat.
         
@@ -110,6 +112,7 @@ class TelegramParser:
             chat_id (int): ID chat
             limit (int, optional): Limit of messages
             min_id (int, optional): Get messages after specified ID
+            dialog_name (str, optional): Name of the dialog
             
         Returns:
             pl.DataFrame: DataFrame with messages
@@ -125,15 +128,17 @@ class TelegramParser:
                     continue
                 
                 msg_dict = {
-                    'id': message.id,
+                    'message_id': message.id,
                     'date': message.date,
                     'from_id': message.from_id.user_id if message.from_id else None,
                     'text': message.text,
                     'chat_id': chat_id,
-                    'reply_to_msg_id': message.reply_to_msg_id,
+                    'reply_to_message_id': message.reply_to_msg_id,
                     'media_type': message.media.__class__.__name__ if message.media else None,
                     'file_name': message.file.name if message.file else None,
-                    'from': message.from_id.user_id if message.from_id else None
+                    'from': message.from_id.user_id if message.from_id else None,
+                    'chat_name': dialog_name,
+                    'forwarded_from': message.fwd_from.from_name if message.fwd_from else None
                 }
                 
                 # Get information about sender
@@ -155,11 +160,12 @@ class TelegramParser:
                 pl.col('date').cast(pl.Datetime),
                 pl.col('from_id').cast(pl.Int64),
                 pl.col('chat_id').cast(pl.Int64),
-                pl.col('reply_to_msg_id').cast(pl.Int64),
+                pl.col('reply_to_message_id').cast(pl.Int64),
                 pl.col('text').cast(pl.Utf8),
                 pl.col('media_type').cast(pl.Utf8),
-                pl.col('file_name').cast(pl.Utf8), 
-                pl.col('id').alias('message_id').cast(pl.Int64)
+                pl.col('file_name').cast(pl.Utf8),
+                pl.col('forwarded_from').cast(pl.Utf8),
+                pl.col('message_id').alias('message_id').cast(pl.Int64)
             ])
 
             return df
@@ -190,7 +196,7 @@ class TelegramParser:
                 
                 # Get the latest message ID and count for this chat from user-specific table
                 chat_stats = self.db.execute(f"""
-                    SELECT MAX(id), COUNT(*) FROM {messages_table}
+                    SELECT MAX(message_id), COUNT(*) FROM {messages_table}
                     WHERE chat_id = ?
                 """, [chat_id]).fetchone()
                 latest_msg_id, existing_messages = chat_stats[0], chat_stats[1]
@@ -201,12 +207,14 @@ class TelegramParser:
                 if latest_msg_id:
                     df = await self.get_chat_messages(
                         chat_id, 
-                        min_id=latest_msg_id
+                        min_id=latest_msg_id,
+                        dialog_name=dialog.name
                     )
                 else:
                     df = await self.get_chat_messages(
                         chat_id, 
-                        limit=limit_messages
+                        limit=limit_messages,
+                        dialog_name=dialog.name
                     )
                 
                 if df is not None and not df.is_empty():
@@ -218,10 +226,12 @@ class TelegramParser:
                         pl.col('date').cast(pl.Datetime),
                         pl.col('from_id').cast(pl.Int64),
                         pl.col('text').cast(pl.Utf8),
-                        pl.col('reply_to_msg_id').cast(pl.Int64),
+                        pl.col('reply_to_message_id').cast(pl.Int64),
                         pl.col('media_type').cast(pl.Utf8),
                         pl.col('file_name').cast(pl.Utf8),
                         pl.col('from').cast(pl.Utf8),
+                        pl.col('chat_name').cast(pl.Utf8),
+                        pl.col('forwarded_from').cast(pl.Utf8)
                     ])
                     
                     # Convert to DuckDB-compatible format
@@ -230,26 +240,28 @@ class TelegramParser:
                     # Insert using parameterized query
                     for row in df_dict:
                         existing = self.db.execute(f"""
-                            SELECT id FROM {messages_table}
-                            WHERE id = ?
+                            SELECT message_id FROM {messages_table}
+                            WHERE message_id = ?
                         """, [row['message_id']]).fetchone()
                         
                         if not existing:
                             self.db.execute(f"""
                                 INSERT INTO {messages_table}
-                                (id, chat_id, date, from_id, text, reply_to_msg_id, 
-                                 media_type, file_name, "from")
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                (message_id, chat_id, date, from_id, text, reply_to_message_id, 
+                                 media_type, file_name, "from", chat_name, forwarded_from)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, [
                                 row['message_id'],
                                 row['chat_id'], 
                                 row['date'],
                                 row['from_id'],
                                 row['text'],
-                                row['reply_to_msg_id'],
+                                row['reply_to_message_id'],
                                 row['media_type'],
                                 row['file_name'],
-                                row['from']
+                                row['from'],
+                                row['chat_name'],
+                                row['forwarded_from']
                             ])
                     chats_dict[chat_id] = df
             
