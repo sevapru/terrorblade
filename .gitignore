@@ -28,8 +28,7 @@ session_name/
 telegram.log
 telegram.log.1
 
-# Fun files
-fun/
+proto/
 
 # Logs
 logs/
