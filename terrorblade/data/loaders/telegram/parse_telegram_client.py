@@ -34,9 +34,9 @@ class TelegramParser:
         
         self.logger = Logger(
             name="TelegramParser",
-            level=logging.INFO,
-            log_file="telegram.log",
-            log_dir="logs"
+            level=getattr(logging, os.getenv('LOG_LEVEL', 'INFO')),
+            log_file=os.getenv('LOG_FILE', 'telegram.log'),
+            log_dir=os.getenv('LOG_DIR', 'logs')
         )
 
         self.db = duckdb.connect('telegram_data.db')
