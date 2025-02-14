@@ -1,26 +1,44 @@
 import polars as pl
-
 from datetime import timedelta
 import numpy as np
-from sentence_transformers import SentenceTransformer, util
-import cupy as cp
-from cuml.cluster import HDBSCAN
-import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
 import torch
 import seaborn as sns
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
 
 class TextPreprocessor:
     """
     Preprocesses text data by removing special characters and converting to lowercase.
     """
     def __init__(self, time_window='5m', cluster_size=3, big_cluster_size=10):
-        self.embeddings_model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
         self.time_window = time_window
         self.cluster_size = cluster_size
         self.big_cluster_size = big_cluster_size
+        self.embeddings = None
+        self._embeddings_model = None
+        self._hdbscan = None
+        self._cupy = None
         
-        self.embeddings=None
+    @property
+    def embeddings_model(self):
+        if self._embeddings_model is None:
+            from sentence_transformers import SentenceTransformer
+            self._embeddings_model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
+        return self._embeddings_model
+    
+    @property
+    def hdbscan(self):
+        if self._hdbscan is None:
+            from cuml.cluster import HDBSCAN
+            self._hdbscan = HDBSCAN
+        return self._hdbscan
+    
+    @property
+    def cupy(self):
+        if self._cupy is None:
+            import cupy as cp
+            self._cupy = cp
+        return self._cupy
         
     def concat_author_messages(self, df, time_window_minutes=5):
         """
@@ -141,40 +159,51 @@ class TextPreprocessor:
         df (pl.DataFrame): DataFrame containing the chat messages.
         embeddings (torch.Tensor): Embeddings for the chat messages.
         """
-        embeddings_cupy = cp.asarray(embeddings.cpu().numpy())
-        
-        clustering = HDBSCAN(
+        # Convert embeddings to cupy array only if needed
+        if not hasattr(self, '_cached_cluster_labels') or self._cached_embeddings_hash != hash(str(embeddings.cpu().numpy().data.tobytes())):
+            embeddings_cupy = self.cupy.asarray(embeddings.cpu().numpy())
+            
+            clustering = self.hdbscan(
                 min_cluster_size=5,
                 metric='euclidean',
-                cluster_selection_epsilon=0.5
+                cluster_selection_epsilon=0.5,
+                min_samples=1  # Reduce noise points
             )
-        cluster_labels = clustering.fit_predict(embeddings_cupy)
-        df = df.with_columns(pl.Series('cluster_label', cp.asnumpy(cluster_labels)))
-        df_split = df.group_by('cluster_label').agg([
-                pl.col('author').first().alias('author'),
-                pl.col('recipients').first().alias('author2'),
-                pl.col('timestamp').min().alias('timestamp_start'),
-                pl.col('timestamp').max().alias('timestamp_end'),
-                pl.concat_str('text', separator='. ').alias('text')
-            ])
-    
-        return df_split
+            self._cached_cluster_labels = clustering.fit_predict(embeddings_cupy)
+            self._cached_embeddings_hash = hash(str(embeddings.cpu().numpy().data.tobytes()))
+            
+        df = df.with_columns(pl.Series('cluster_label', self.cupy.asnumpy(self._cached_cluster_labels)))
+        
+        # Optimize aggregation by pre-filtering valid clusters
+        valid_clusters = df.filter(pl.col('cluster_label') >= 0)
+        if len(valid_clusters) == 0:
+            return pl.DataFrame()
+            
+        return valid_clusters.group_by('cluster_label').agg([
+            pl.col('author').first().alias('author'),
+            pl.col('recipients').first().alias('author2'),
+            pl.col('timestamp').min().alias('timestamp_start'),
+            pl.col('timestamp').max().alias('timestamp_end'),
+            pl.concat_str('text', separator='. ').alias('text')
+        ])
     
     def calculate_embeddings(self, df):
         """
         Calculates embeddings for the provided texts using the provided model.
             
         Args:
-        model (SentenceTransformer): SentenceTransformer model to use for embedding calculation.
         df (pl.DataFrame): DataFrame containing the chat messages.
         """
+        texts = df['text'].to_list()
+        # Batch processing to save memory
+        batch_size = min(1024, len(texts))
         return self.embeddings_model.encode(
-            df['text'].to_list(),
-            batch_size=1024,
+            texts,
+            batch_size=batch_size,
             show_progress_bar=True,
             convert_to_tensor=True,
             normalize_embeddings=True,
-            device='cuda'
+            device='cuda' if torch.cuda.is_available() else 'cpu'
         )
         
     def calculate_distances(self, embeddings):
@@ -184,28 +213,64 @@ class TextPreprocessor:
         Args:
         embeddings (torch.Tensor): Embeddings for the chat messages.
         """
-        similarities = self.embeddings_model.similarity_pairwise(embeddings, embeddings)
+        from sentence_transformers import util
+        # Move computation to GPU if available
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        embeddings = embeddings.to(device)
+        
+        # Calculate similarities in batches to save memory
+        batch_size = 1024
+        n = len(embeddings)
+        similarities = torch.zeros((n, n), device=device)
+        
+        for i in range(0, n, batch_size):
+            end = min(i + batch_size, n)
+            batch = embeddings[i:end]
+            similarities[i:end] = util.cos_sim(batch, embeddings)
+            
         distances = 1 - similarities
         return distances.cpu()
     
     def calculate_sliding_distances(self, embeddings, window_size=5):
+        """
+        Calculates sliding window distances for embeddings.
         
+        Args:
+        embeddings (torch.Tensor): Input embeddings
+        window_size (int): Size of the sliding window
+        
+        Returns:
+        torch.Tensor: Distances tensor
+        """
         if embeddings.shape[0] == 0:
             return torch.zeros(0)
         
-        distances = torch.zeros(len(embeddings), device=embeddings.device)
-        for i in range(len(embeddings)):
-            start = max(0, i - window_size)
-            end = min(len(embeddings), i)
-            main_embedding = embeddings[i].unsqueeze(0)
-            window_embeddings = embeddings[start:end]
-            similarities = util.cos_sim(main_embedding, window_embeddings)
-            avg_similarity = similarities.mean()
-            distances[i] = 1 - avg_similarity
+        from sentence_transformers import util
+        device = embeddings.device
+        n = len(embeddings)
+        distances = torch.zeros(n, device=device)
+        
+        # Process in batches for memory efficiency
+        batch_size = 1024
+        for i in range(0, n, batch_size):
+            end = min(i + batch_size, n)
+            batch_indices = torch.arange(i, end, device=device)
             
-        # What a great hotfix, happy new year 2025, my lads
-        distances[0] = 0
-
+            # Calculate window boundaries for current batch
+            starts = torch.clamp(batch_indices - window_size, min=0)
+            ends = torch.clamp(batch_indices + 1, max=n)
+            
+            # Process each element in the batch
+            for j, (start, end, idx) in enumerate(zip(starts, ends, batch_indices)):
+                if idx == 0:  # Special case for first element
+                    distances[idx] = 0
+                    continue
+                    
+                main_embedding = embeddings[idx].unsqueeze(0)
+                window_embeddings = embeddings[start:end]
+                similarities = util.cos_sim(main_embedding, window_embeddings)
+                distances[idx] = 1 - similarities.mean()
+        
         return distances.cpu()
             
     
@@ -239,9 +304,38 @@ class TextPreprocessor:
         Returns:
             pl.DataFrame: DataFrame with clusters and embeddings added.
         """
+        # First filter out empty messages to avoid unnecessary processing
+        df = df.filter(pl.col('text').is_not_null() & (pl.col('text').str.len_chars() > 0))
+        
+        if len(df) == 0:
+            return df
+            
+        # Process in batches if dataset is large
+        batch_size = 1000
+        if len(df) > batch_size:
+            processed_dfs = []
+            for i in range(0, len(df), batch_size):
+                batch_df = df.slice(i, min(batch_size, len(df) - i))
+                processed_batch = self._process_message_batch(batch_df, time_window, cluster_size, big_cluster_size)
+                processed_dfs.append(processed_batch)
+            return pl.concat(processed_dfs)
+        else:
+            return self._process_message_batch(df, time_window, cluster_size, big_cluster_size)
+            
+    def _process_message_batch(self, df, time_window, cluster_size, big_cluster_size):
+        """
+        Process a batch of messages.
+        """
         df = self.concat_author_messages(df)
         df = self.create_clusters(df, time_window, cluster_size, big_cluster_size)
-        self.embeddings = self.calculate_embeddings(df)
+        
+        # Calculate embeddings only if needed
+        if not hasattr(self, '_cached_embeddings') or len(self._cached_embeddings) != len(df):
+            self.embeddings = self.calculate_embeddings(df)
+            self._cached_embeddings = self.embeddings
+        else:
+            self.embeddings = self._cached_embeddings
+            
         df = self.calculate_segments(df, self.embeddings)
         df = self.calculate_groups(df)
         return df
