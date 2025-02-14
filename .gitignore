@@ -11,6 +11,9 @@ __pycache__/
 *.pywz
 *.pyzw
 
+# Performance logs
+stats/
+
 # Virtual environment
 .venv/
 
