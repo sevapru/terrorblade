@@ -30,7 +30,12 @@ class TextPreprocessor:
     def hdbscan(self):
         if self._hdbscan is None:
             from cuml.cluster import HDBSCAN
-            self._hdbscan = HDBSCAN
+            self._hdbscan = HDBSCAN(
+                min_cluster_size=5,
+                metric='euclidean',
+                cluster_selection_epsilon=0.5,
+                min_samples=1
+            )
         return self._hdbscan
     
     @property
@@ -159,19 +164,34 @@ class TextPreprocessor:
         df (pl.DataFrame): DataFrame containing the chat messages.
         embeddings (torch.Tensor): Embeddings for the chat messages.
         """
-        # Convert embeddings to cupy array only if needed
-        if not hasattr(self, '_cached_cluster_labels') or self._cached_embeddings_hash != hash(str(embeddings.cpu().numpy().data.tobytes())):
+        # Check if cache needs to be invalidated
+        cache_is_valid = (
+            hasattr(self, '_cached_cluster_labels') and
+            hasattr(self, '_cached_embeddings_shape') and
+            hasattr(self, '_cached_embeddings_sum') and
+            self._cached_embeddings_shape == embeddings.shape and
+            len(self._cached_cluster_labels) == len(df) and
+            torch.allclose(
+                self._cached_embeddings_sum,
+                embeddings.sum(dim=1),
+                rtol=1e-5,
+                atol=1e-8
+            )
+        )
+        
+        if not cache_is_valid:
+            # Convert embeddings to cupy array
             embeddings_cupy = self.cupy.asarray(embeddings.cpu().numpy())
             
-            clustering = self.hdbscan(
-                min_cluster_size=5,
-                metric='euclidean',
-                cluster_selection_epsilon=0.5,
-                min_samples=1  # Reduce noise points
-            )
+            # Perform clustering
+            clustering = self.hdbscan
             self._cached_cluster_labels = clustering.fit_predict(embeddings_cupy)
-            self._cached_embeddings_hash = hash(str(embeddings.cpu().numpy().data.tobytes()))
             
+            # Update cache metadata
+            self._cached_embeddings_shape = embeddings.shape
+            self._cached_embeddings_sum = embeddings.sum(dim=1).detach()
+            
+        # Add cluster labels to DataFrame
         df = df.with_columns(pl.Series('cluster_label', self.cupy.asnumpy(self._cached_cluster_labels)))
         
         # Optimize aggregation by pre-filtering valid clusters
