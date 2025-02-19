@@ -625,12 +625,14 @@ class TelegramPreprocessor(TextPreprocessor):
                     self._update_clusters_in_db(processed_chat_messages)
                     
                     # Store embeddings for each message in this chat
-                    for idx, message in enumerate(processed_chat_messages.iter_rows()):
-                        message_id = message[processed_chat_messages.get_column_index("message_id")]
-                        if isinstance(message_id, list):
-                            message_id = message_id[0]
-                        embedding = self.embeddings[idx].cpu().detach().numpy().tolist()
-                        self._update_embeddings_in_db(message_id, chat_id, embedding)
+                    if hasattr(self, 'embeddings') and self.embeddings is not None:
+                        embeddings_list = self.embeddings.cpu().detach().numpy()
+                        for idx, message in enumerate(processed_chat_messages.iter_rows()):
+                            message_id = message[processed_chat_messages.get_column_index("message_id")]
+                            if isinstance(message_id, list):
+                                message_id = message_id[0]
+                            embedding = embeddings_list[idx].tolist()
+                            self._update_embeddings_in_db(message_id, chat_id, embedding)
                     
                     all_processed_messages.append(processed_chat_messages)
                     self.logger.info(f"Finished processing chat {chat_id}")
