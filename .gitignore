@@ -10,6 +10,7 @@ __pycache__/
 *.pyz
 *.pywz
 *.pyzw
+*.egg-info
 
 # Performance logs
 stats/
@@ -36,3 +37,4 @@ proto/
 # Logs
 logs/
 *.wal
+
