@@ -10,60 +10,156 @@ A Python-based Telegram message parser that allows you to fetch and store messag
 - Support for media messages and reply tracking
 - Comprehensive logging system
 - Rate limiting protection with automatic retry
+- GPU acceleration for data processing (optional)
+- Semantic search in messages
+- Message sentiment analysis
+- Topic modeling and clustering
 
 ## Prerequisites
 
 - Python 3.12+
-- CUDA-compatible GPU (for GPU-accelerated features)
+- DuckDB CLI (for database operations)
+- CUDA-compatible GPU (optional, for GPU-accelerated features)
 - Telegram API credentials (API ID and API Hash)
 
 ## Installation
 
 1. Clone the repository:
+
 ```bash
 git clone git@github.com:sevapru/terrorblade.git
 cd terrorblade
 ```
 
-2. Create and activate a virtual environment:
+2. Set up the environment:
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Copy environment configuration
+cp .env.example .env
+
+# Edit .env file with your credentials
+# Required: API_ID, API_HASH
+# Optional: Adjust DUCKDB_PATH, LOG_LEVEL, etc.
 ```
 
-3. Install dependencies:
+3. Install the package:
+
+For basic installation (CPU only):
+
 ```bash
-pip install -r requirements.txt
+make install
 ```
 
-4. Create a `.env` file in the project root with your Telegram credentials:
-```env
-API_ID=your_api_id
-API_HASH=your_api_hash
-PHONE=your_phone_number # Not necessary for json parsing
-```
+For development (includes testing and linting tools):
 
-## Usage
-
-Run the parser with:
 ```bash
-python src/data/loaders/telegram/parse_telegram_client.py
+make dev
 ```
 
-The script will:
-1. Connect to Telegram using your credentials
-2. Fetch messages from your chats
-3. Store them in a DuckDB database (`telegram_data.db`)
+For GPU-accelerated features:
+
+```bash
+make install-cuda
+```
+
+The installation process will:
+
+- Check for required system dependencies
+- Set up a virtual environment using `uv`
+- Install all required Python packages
+- Verify the presence of configuration files
+
+## Quick Start Demo
+
+### 1. Message Loading
+
+```python
+from terrorblade.data.loaders import TelegramLoader
+
+# Initialize the loader
+loader = TelegramLoader()
+
+# Load messages from a specific chat
+chat_id = "your_chat_id"
+messages = await loader.load_messages(chat_id)
+```
+
+### 2. Basic Analysis
+
+```python
+from terrorblade.analysis import MessageAnalyzer
+
+# Initialize analyzer
+analyzer = MessageAnalyzer()
+
+# Get basic statistics
+stats = analyzer.get_chat_statistics(chat_id)
+print(f"Total messages: {stats.total_messages}")
+print(f"Active users: {stats.unique_users}")
+print(f"Media messages: {stats.media_count}")
+```
+
+### 3. Semantic Search
+
+```python
+from terrorblade.search import SemanticSearcher
+
+# Initialize searcher
+searcher = SemanticSearcher()
+
+# Search for semantically similar messages
+query = "What do you think about AI?"
+results = searcher.search(query, limit=5)
+
+for msg in results:
+    print(f"Score: {msg.score:.2f} | Message: {msg.text}")
+```
+
+### 4. Topic Modeling
+
+```python
+from terrorblade.analysis import TopicModeler
+
+# Initialize topic modeler
+modeler = TopicModeler()
+
+# Extract topics from chat
+topics = modeler.extract_topics(chat_id)
+
+for topic in topics:
+    print(f"Topic: {topic.name}")
+    print(f"Keywords: {', '.join(topic.keywords)}")
+```
+
+### 5. GPU-Accelerated Analysis (if CUDA is enabled)
+
+```python
+from terrorblade.analysis import GPUMessageAnalyzer
+
+# Initialize GPU-accelerated analyzer
+analyzer = GPUMessageAnalyzer()
+
+# Perform clustering on messages
+clusters = analyzer.cluster_messages(chat_id)
+```
+
+## Development Commands
+
+- `make lint`: Run code formatting and type checking
+- `make test`: Run test suite
+- `make clean`: Clean up temporary files and caches
 
 ## Database Schema
 
 The parser creates two main tables:
 
 ### Users Table
+
 - `phone`: VARCHAR (Primary Key)
 - `last_update`: TIMESTAMP
 
 ### Messages Table
+
 - `id`: BIGINT
 - `chat_id`: BIGINT
 - `date`: TIMESTAMP
@@ -76,10 +172,23 @@ The parser creates two main tables:
 
 ## GPU Acceleration
 
-This project includes support for GPU acceleration through NVIDIA RAPIDS libraries. Make sure you have a compatible CUDA installation to use these features.
+This project includes support for GPU acceleration through NVIDIA RAPIDS libraries. To enable GPU features:
+
+1. Ensure you have a CUDA-compatible GPU
+2. Install with CUDA support: `make install-cuda`
+3. Set `USE_CUDA=true` in your `.env` file
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
+
+Creative Commons Attribution-NonCommercial 4.0 International License
+
+Copyright (c) 2024 Vsevolod Prudius
+
+This work is licensed under the Creative Commons Attribution-NonCommercial 4.0
+International License. To view a copy of this license, visit
+<http://creativecommons.org/licenses/by-nc/4.0/> or send a letter to Creative Commons,
+PO Box 1866, Mountain View, CA 94042, USA.
