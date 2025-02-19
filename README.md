@@ -24,6 +24,8 @@ A Python-based Telegram message parser that allows you to fetch and store messag
 
 ## Installation
 
+The project uses `uv` for fast Python package management and virtual environment handling.
+
 1. Clone the repository:
 
 ```bash
@@ -39,10 +41,10 @@ cp .env.example .env
 
 # Edit .env file with your credentials
 # Required: API_ID, API_HASH
-# Optional: Adjust DUCKDB_PATH, LOG_LEVEL, etc.
+# Optional: DUCKDB_PATH, LOG_LEVEL, LOG_FILE, LOG_DIR
 ```
 
-3. Install the package:
+3. Choose your installation type:
 
 For basic installation (CPU only):
 
@@ -64,10 +66,11 @@ make install-cuda
 
 The installation process will:
 
-- Check for required system dependencies
-- Set up a virtual environment using `uv`
-- Install all required Python packages
-- Verify the presence of configuration files
+- Check for required system dependencies (DuckDB CLI)
+- Install `uv` if not present
+- Set up a virtual environment
+- Install required Python packages
+- Verify configuration files
 
 ## Quick Start Demo
 
@@ -145,30 +148,47 @@ clusters = analyzer.cluster_messages(chat_id)
 
 ## Development Commands
 
-- `make lint`: Run code formatting and type checking
-- `make test`: Run test suite
-- `make clean`: Clean up temporary files and caches
+- `make lint`: Run code formatting (black), import sorting (isort), and type checking (mypy)
+- `make test`: Run test suite with pytest
+- `make clean`: Clean up temporary files, caches, and virtual environments
 
 ## Database Schema
 
-The parser creates two main tables:
+The parser creates several tables for each user (where phone number is used as an identifier):
 
 ### Users Table
 
 - `phone`: VARCHAR (Primary Key)
 - `last_update`: TIMESTAMP
+- `first_seen`: TIMESTAMP
 
-### Messages Table
+### Messages Table (`messages_{phone}`)
 
-- `id`: BIGINT
+- `message_id`: BIGINT
 - `chat_id`: BIGINT
 - `date`: TIMESTAMP
 - `text`: TEXT
 - `from_id`: BIGINT
-- `reply_to_msg_id`: BIGINT
+- `reply_to_message_id`: BIGINT
 - `media_type`: TEXT
 - `file_name`: TEXT
 - `from`: TEXT
+- `chat_name`: TEXT
+- `forwarded_from`: TEXT
+
+### Message Clusters Table (`message_clusters_{phone}`)
+
+- `message_id`: BIGINT
+- `chat_id`: BIGINT
+- `group_id`: INTEGER
+Primary Key: (message_id, chat_id)
+
+### Chat Embeddings Table (`chat_embeddings_{phone}`)
+
+- `message_id`: BIGINT
+- `chat_id`: BIGINT
+- `embedding`: DOUBLE[]
+Primary Key: (message_id, chat_id)
 
 ## GPU Acceleration
 
