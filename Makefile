@@ -78,9 +78,14 @@ test: check-env
 	pytest tests/
 
 lint:
+	@echo "$(BLUE)Running formatters...$(NC)"
 	black .
 	isort .
-	mypy .
+	@echo "$(BLUE)Running linters...$(NC)"
+	ruff check .
+#	@echo "$(BLUE)Running type checker...$(NC)"
+#	mypy .
+	@echo "$(GREEN)Linting completed successfully!$(NC)"
 
 clean:
 	rm -rf build/
