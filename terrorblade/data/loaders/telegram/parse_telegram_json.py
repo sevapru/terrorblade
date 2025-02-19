@@ -1,7 +1,7 @@
 import json
 import polars as pl
-import pandas as pd
-from src.data.dtypes import telegram_schema
+
+from terrorblade.data.dtypes import telegram_schema
 
 def load_json(file_path: str) -> dict:
     with open(file_path) as file:
@@ -9,7 +9,7 @@ def load_json(file_path: str) -> dict:
         chat_dict = {}
         for chat in data["chats"]["list"]:
             if len(chat["messages"]) >= 3:
-                chat_df = pd.json_normalize(chat["messages"])
+                chat_df = pl.json_normalize(chat["messages"])
                 chat_df["chat_name"] = chat.get("name", None)
                 chat_df["chat_id"] = chat["id"]
                 chat_df["chat_type"] = chat["type"]
@@ -45,7 +45,7 @@ def parse_reactions(chat_df):
             reaction = reaction[0]['emoji']
     return chat_df
 
-def standartize_chat(chat: pd.DataFrame) -> pl.DataFrame:
+def standartize_chat(chat: pl.DataFrame) -> pl.DataFrame:
     chat = chat.reindex(columns=telegram_schema.keys())
     return pl.DataFrame(chat).with_columns([
         pl.col(col).cast(dtype) for col, dtype in telegram_schema.items()

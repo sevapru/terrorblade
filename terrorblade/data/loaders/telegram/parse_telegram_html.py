@@ -1,7 +1,6 @@
 import os
 from bs4 import BeautifulSoup
 import polars as pl
-import pandas as pd
 
 # Папка, где находятся HTML файлы
 input_folder = '/home/seva/data/Maria'  # Замените на путь к вашей папке
