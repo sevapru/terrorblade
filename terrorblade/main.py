@@ -1,21 +1,26 @@
 import pickle
+
 import polars as pl
-from terrorblade.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
+
 from terrorblade.data.database.telegram_database import TelegramDatabase
+from terrorblade.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
+
 
 def main():
     # file_path = '/home/seva/data/all_chats.parquet'
-                
+
     # df = pl.read_parquet(file_path)
     # df.shape
-    file_path = '/home/seva/data/messages_json/result.json'
-    time_window = '30m'
+    file_path = "/home/seva/data/messages_json/result.json"
+    time_window = "30m"
     cluster_size = 1
     big_cluster_size = 10
 
-    preprocessor = TelegramPreprocessor(time_window=time_window, 
-                                      cluster_size=cluster_size, 
-                                      big_cluster_size=big_cluster_size)
+    preprocessor = TelegramPreprocessor(
+        time_window=time_window,
+        cluster_size=cluster_size,
+        big_cluster_size=big_cluster_size,
+    )
 
     data = preprocessor.process_chats(file_path, time_window=time_window)
     print(data)
@@ -23,17 +28,19 @@ def main():
     combined_clusters = []
     embeddings_dict = {}
     for chat_id, chat_data in data.items():
-        combined_clusters.append(chat_data['clusters'])
-        embeddings_dict[chat_id] = chat_data['embeddings']
-        
+        combined_clusters.append(chat_data["clusters"])
+        embeddings_dict[chat_id] = chat_data["embeddings"]
+
     big_dataframe = pl.concat(combined_clusters, how="vertical")
-    big_dataframe.write_parquet('/home/seva/data/all_chats.parquet')
-    pickle.dump(embeddings_dict, open('/home/seva/data/all_embeddings.pkl', 'wb'))
-    
+    big_dataframe.write_parquet("/home/seva/data/all_chats.parquet")
+    pickle.dump(embeddings_dict, open("/home/seva/data/all_embeddings.pkl", "wb"))
+
+
 def alt_main():
-    preprocessor = TelegramPreprocessor(use_duckdb=True, db_path='telegram_data.db')
-    processed_data = preprocessor.process_chats(phone='+31627866359')
+    preprocessor = TelegramPreprocessor(use_duckdb=True, db_path="telegram_data.db")
+    preprocessor.process_chats(phone="+31627866359")
     preprocessor.close()
+
 
 def third_main():
     # Initialize the interface in read-only mode to avoid locking issues
@@ -54,10 +61,10 @@ def third_main():
             print(f"\nStats for user {phone}:")
             print(f"Total messages: {user_stats.total_messages}")
             print(f"Total chats: {user_stats.total_chats}")
-            
+
             if user_stats.largest_chat[0]:
                 print(f"Largest chat: {user_stats.largest_chat[1]} ({user_stats.largest_chat[2]} messages)")
-            
+
             if user_stats.largest_cluster[0]:
                 print(f"Largest cluster: {user_stats.largest_cluster[1]} ({user_stats.largest_cluster[2]} messages)")
 
@@ -65,12 +72,12 @@ def third_main():
             if cluster := db.get_random_large_cluster(phone, min_size=5):
                 print(f"\nRandom cluster size: {len(cluster)}")
                 print("Sample messages from cluster:")
-                print(cluster.select(['text', 'date']).head(3))
+                print(cluster.select(["text", "date"]).head(3))
 
             # Get largest cluster messages
             if largest_cluster := db.get_largest_cluster_messages(phone):
                 print(f"\nLargest cluster messages ({len(largest_cluster)} messages):")
-                print(largest_cluster.select(['text', 'date']).head(5))
+                print(largest_cluster.select(["text", "date"]).head(5))
 
             # Get stats for the largest chat
             if user_stats.largest_chat[0]:
@@ -87,6 +94,7 @@ def third_main():
     finally:
         # Don't forget to close the connection
         db.close()
+
 
 if __name__ == "__main__":
     third_main()
