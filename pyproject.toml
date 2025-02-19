@@ -1,10 +1,6 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "terrorblade"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Python-based Telegram message parser and analyzer"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -27,6 +23,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "tomli",
+    "packaging",
     "pytest",
     "black",
     "isort",
@@ -71,3 +69,6 @@ python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[tool.setuptools]
+packages = ["terrorblade"]
