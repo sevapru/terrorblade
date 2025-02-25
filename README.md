@@ -1,8 +1,39 @@
-# Chat Analysis Tool
+# **Chat Analysis Tool**
 
 A Python-based Telegram message parser that allows you to fetch and store messages from Telegram chats using the Telegram API. The parser stores messages in a DuckDB database for efficient querying and analysis.
 
-## Features
+
+## **Development Roadmap**  
+
+### **Phase 1: Core Analytics**  
+| Module | Mythological Figure | Function | Status |  
+|--------|---------------------|----------|--------|  
+| **Terrorblade** | Demon | Behavioral pattern extraction | ✅ Released |  
+| **Thoth** | Egyptian Scribe God | Topic analysis & visualization | 🚧 In Development |  
+
+### **Phase 2: Security & Observation**  
+| Module | Mythological Figure | Function | Status |  
+|--------|---------------------|----------|--------|  
+| **Argus** | All-Seeing Giant (Greek) | Cross-platform monitoring (Telegram, WhatsApp, etc.) | Planned (Q4 2024) |  
+| **Themis**/**Nemesis** | Goddess of Justice/Retribution (Greek) | Threat detection (terrorism, extremism patterns) | Planned (Q1 2025) |  
+
+### **Phase 3: Ethics & Infrastructure**  
+| Module | Mythological Figure | Function | Status |  
+|--------|---------------------|----------|--------|  
+| **Iris** | Rainbow Messenger (Greek) | Data visualization & interactive dashboards | Planned (Q2 2025) |  
+| **Janus** | Two-Faced God of Gates (Roman) | Ethical data anonymization & access control | Planned (Q3 2025) |  
+
+---
+
+## **Future Vision**  
+### **Phase 4: Specialized Expansion**  
+- **Hephaestus**: AI customization toolkit (train models on niche slang/contexts).  
+- **Hypnos**: Sleep/fatigue analysis via activity timelines.  
+- **Eris**: Community stress-testing through controlled chaos (A/B message testing).  
+
+---
+
+## Implemented Features
 
 - Asynchronous message fetching using Telethon
 - Incremental updates to avoid re-downloading existing messages
@@ -14,6 +45,7 @@ A Python-based Telegram message parser that allows you to fetch and store messag
 - Semantic search in messages
 - Message sentiment analysis
 - Topic modeling and clustering
+- Advanced data analysis through the Thoth package
 
 ## Prerequisites
 
@@ -62,6 +94,12 @@ For GPU-accelerated features:
 
 ```bash
 make install-cuda
+```
+
+For installation with Thoth analysis package:
+
+```bash
+make install-thoth
 ```
 
 The installation process will:
@@ -118,7 +156,21 @@ for msg in results:
     print(f"Score: {msg.score:.2f} | Message: {msg.text}")
 ```
 
-### 4. Topic Modeling
+### 4. Advanced Analysis with Thoth
+
+```python
+from thoth import find_most_common_token, find_most_common_topic
+
+# Find the most common token in embeddings
+token, count = find_most_common_token("telegram_data.db")
+print(f"Most common token: {token} (count: {count})")
+
+# Find the most common topic cluster
+topic, size = find_most_common_topic("telegram_data.db")
+print(f"Most common topic: {topic} (size: {size})")
+```
+
+### 5. Topic Modeling
 
 ```python
 from terrorblade.analysis import TopicModeler
@@ -134,7 +186,7 @@ for topic in topics:
     print(f"Keywords: {', '.join(topic.keywords)}")
 ```
 
-### 5. GPU-Accelerated Analysis (if CUDA is enabled)
+### 6. GPU-Accelerated Analysis (if CUDA is enabled)
 
 ```python
 from terrorblade.analysis import GPUMessageAnalyzer
