@@ -1,10 +1,6 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "terrorblade"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Python-based Telegram message parser and analyzer"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -14,24 +10,46 @@ authors = [
 ]
 dependencies = [
     "polars",
-    "pandas",
     "telethon",
     "duckdb",
     "vllm",
     "python-dotenv",
     "beautifulsoup4",
+    "numpy",
+    "sentence-transformers",
+    "pyarrow",
+    "seaborn",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "tomli",
+    "packaging",
     "pytest",
     "black",
     "isort",
     "mypy",
+    "ruff",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = ["terrorblade"]
+cuda = [
+    "cupy-cuda12x",
+    "cudf-cu12==24.10.*",
+    "dask-cudf-cu12==24.10.*",
+    "cuml-cu12==24.10.*",
+    "cugraph-cu12==24.10.*",
+    "nx-cugraph-cu12==24.10.*",
+    "cuspatial-cu12==24.10.*",
+    "cuproj-cu12==24.10.*",
+    "cuxfilter-cu12==24.10.*",
+    "cucim-cu12==24.10.*",
+    "pylibraft-cu12==24.10.*",
+    "raft-dask-cu12==24.10.*",
+    "cuvs-cu12==24.10.*",
+]
+
+[project.scripts]
+terrorblade = "terrorblade.main:main"
 
 [tool.pytest.ini_options]
 pythonpath = [
@@ -43,12 +61,65 @@ profile = "black"
 multi_line_output = 3
 
 [tool.black]
-line-length = 88
+line-length = 120
 target-version = ['py312']
 include = '\.pyi?$'
 
 [tool.mypy]
 python_version = "3.12"
-warn_return_any = true
-warn_unused_configs = true
+ignore_missing_imports = true
 disallow_untyped_defs = true
+exclude = [
+    "data/loaders/telegram/parse_telegram_html.py",
+    "build/",
+    "dist/",
+    "proto/",
+    ".venv/",
+    ".virtualenv/",
+    ".virtualenvs/",
+    ".mypy_cache/",
+    ".ruff_cache/",
+    ".pytest_cache/",
+    ".cache/"
+]
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "terrorblade.data.loaders.*"]
+disallow_untyped_defs = false
+
+[tool.setuptools]
+packages = ["terrorblade"]
+
+[tool.ruff]
+# Exclude files and directories from linting
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "proto",
+    "dist",
+    "data/loaders/telegram/parse_telegram_html.py",  # Excluding the telegram parser file (why
+]
+
+# Enable specific rules
+lint.select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+]
+
+# Ignore specific rules
+lint.ignore = [
+    "E501",    # Line too long
+    "B008",    # Do not perform function call in argument defaults
+    "C901",    # Function is too complex
+]
+
+# Line length configuration
+line-length = 120
+
+[tool.ruff.lint.per-file-ignores]
+#"__init__.py" = ["F401"]  # Ignore unused imports in __init__.py files

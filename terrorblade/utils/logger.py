@@ -1,15 +1,16 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+
 
 class ColorFormatter(logging.Formatter):
     grey = "\033[37m"
-    blue = "\033[36m"      # Голубой (cyan) вместо яркого синего
-    yellow = "\033[33m"    # Мягкий желтый
-    red = "\033[91m"       # Светло-красный
-    bold_red = "\033[31m"  # Красный для критических ошибок
-    green = "\033[32m"     # Зеленый для NICE
+    blue = "\033[36m"  # Cyan instead of bright blue
+    yellow = "\033[33m"  # Soft yellow
+    red = "\033[91m"  # Light red
+    bold_red = "\033[31m"  # Red for critical errors
+    green = "\033[32m"  # Green for NICE
     reset = "\033[0m"
 
     format_str = "[ %(asctime)s ] %(name)s - %(levelname)-8s %(message)s"
@@ -20,40 +21,41 @@ class ColorFormatter(logging.Formatter):
         logging.WARNING: yellow + format_str + reset,
         logging.ERROR: red + format_str + reset,
         logging.CRITICAL: bold_red + format_str + reset,
-        25: green + format_str + reset  # NICE level between INFO(20) and WARNING(30)
+        25: green + format_str + reset,  # NICE level between INFO(20) and WARNING(30)
     }
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
+
 # Register new log level
 NICE = 25
-logging.addLevelName(NICE, 'NICE')
+logging.addLevelName(NICE, "NICE")
 
-def nice(self, message, *args, **kwargs):
+
+def nice(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None:
     """Log 'msg % args' with severity 'NICE'."""
     if self.isEnabledFor(NICE):
         self._log(NICE, message, args, **kwargs)
 
-logging.Logger.nice = nice
 
 def Logger(
     name: str,
     level: int = logging.INFO,
     log_file: Optional[str] = None,
-    log_dir: Optional[str] = None
+    log_dir: Optional[str] = None,
 ) -> logging.Logger:
     """
     Setup and configure logger with color formatting
-    
+
     Args:
         name (str): Logger name that will be displayed in logs
         level (int): Logging level (default: logging.INFO)
         log_file (str, optional): Name of the log file
         log_dir (str, optional): Directory for log files
-        
+
     Returns:
         logging.Logger: Configured logger instance
     """
@@ -73,17 +75,12 @@ def Logger(
     if log_file and log_dir:
         log_path = Path(log_dir)
         log_path.mkdir(parents=True, exist_ok=True)
-        
-        file_handler = logging.FileHandler(
-            log_path / log_file,
-            encoding='utf-8'
-        )
+
+        file_handler = logging.FileHandler(log_path / log_file, encoding="utf-8")
         file_handler.setLevel(level)
         # Use simple formatter for file logs (without colors)
-        file_formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)-8s - %(message)s'
-        )
+        file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)-8s - %(message)s")
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
 
-    return logger 
+    return logger
