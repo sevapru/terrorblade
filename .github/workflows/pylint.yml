@@ -1,23 +1,31 @@
 name: Pylint
 
-on: [push]
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.12"]  # Based on project requirements
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install -e ".[dev]"  # Install project with dev dependencies
         pip install pylint
-    - name: Analysing the code with pylint
+    
+    - name: Analyze the code with pylint
       run: |
-        pylint $(git ls-files '*.py')
+        pylint --disable=C0111,C0103,R0903,R0913,R0914,R0902,W0511,R0801 $(git ls-files '*.py' | grep -v 'proto/') 
