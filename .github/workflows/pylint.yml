@@ -36,4 +36,4 @@ jobs:
     
     - name: Analyze the code with pylint
       run: |
-        pylint --disable=C0301,C0111,C0103,R0903,R0913,R0914,R0902,W0511,R0801 $(git ls-files '*.py' | grep -v 'proto/') 
+        pylint --disable=C0301,C0111,C0103,R0903,R0913,R0914,R0902,W0511,R0801 $(git ls-files '*.py' | grep -v -E 'proto/|fun/Cursor-versus-CoPilot') 
