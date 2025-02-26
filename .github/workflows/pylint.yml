@@ -16,6 +16,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: false  # Don't fetch submodules
+    
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
@@ -25,16 +26,18 @@ jobs:
       run: |
         pip install uv
     
-    - name: Create and activate virtual environment
-      run: |
-        uv venv .venv
-        echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
-        echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+    - name: Cache uv packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-
     
     - name: Install dependencies
       run: |
-        uv pip install -e ".[dev]"  # Install project with dev dependencies
-        uv pip install pylint
+        uv pip install --system -e ".[dev]"  # Install project with dev dependencies
+        uv pip install --system pylint
     
     - name: Analyze the code with pylint
       run: |
