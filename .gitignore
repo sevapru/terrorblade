@@ -21,8 +21,15 @@ stats/
 # Environment variables
 .env
 
-# DuckDB
+# DB
 *.db
+*.sqlite
+*.sqlite3
+*.sqlite3.zip
+*.sqlite3.zip.part
+*.sqlite3.zip.part.1
+*.sqlite3.zip.part.2
+*.sqlite3.zip.part.3
 
 # Telegram session
 session_name/
