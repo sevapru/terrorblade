@@ -18,13 +18,15 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip'
+    
+    - name: Install uv
+      run: |
+        pip install uv
     
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -e ".[dev]"  # Install project with dev dependencies
-        pip install pylint
+        uv pip install -e ".[dev]"  # Install project with dev dependencies
+        uv pip install pylint
     
     - name: Analyze the code with pylint
       run: |
