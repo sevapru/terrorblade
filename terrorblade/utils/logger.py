@@ -41,6 +41,10 @@ def nice(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None:
         self._log(NICE, message, args, **kwargs)
 
 
+# Attach the nice method to the Logger class
+logging.Logger.nice = nice
+
+
 def Logger(
     name: str,
     level: int = logging.INFO,
