@@ -22,7 +22,7 @@ class ChatStats:
     cluster_count: int
     avg_cluster_size: float
     largest_cluster_size: int
-    
+
     def __str__(self):
         return f"ChatStats(chat_id={self.chat_id}, \
             chat_name={self.chat_name}, \
@@ -501,10 +501,20 @@ class TelegramDatabase:
                 self.logger.info(f"Added missing 'from_name' column to DataFrame for user {phone}")
 
             # Explicitly specify column names to ensure correct order
-            columns = ["message_id", "date", "from_id", "text", "chat_id", 
-                       "reply_to_message_id", "media_type", "file_name", 
-                       "chat_name", "forwarded_from", "from_name"]
-            
+            columns = [
+                "message_id",
+                "date",
+                "from_id",
+                "text",
+                "chat_id",
+                "reply_to_message_id",
+                "media_type",
+                "file_name",
+                "chat_name",
+                "forwarded_from",
+                "from_name",
+            ]
+
             # Convert DataFrame to DuckDB table
             self.db.execute(
                 f"""
@@ -631,11 +641,11 @@ class TelegramDatabase:
     def get_max_message_id(self, phone: str, chat_id: int) -> int:
         """
         Get the maximum message_id for a specific user and chat.
-        
+
         Args:
             phone (str): User's phone number
             chat_id (int): Chat ID
-            
+
         Returns:
             int: Maximum message_id or -1 if no messages found or error occurred
         """
@@ -643,30 +653,30 @@ class TelegramDatabase:
             if self.read_only and not self._ensure_user_exists(phone):
                 self.logger.info(f"User {phone} does not exist in database")
                 return -1
-            
+
             messages_table = f"messages_{phone.replace('+', '')}"
-            
+
             # Check if the table exists
             table_list = self.db.execute("SHOW TABLES").fetchall()
             existing_tables = [table[0] for table in table_list]
-            
+
             if messages_table not in existing_tables:
                 self.logger.info(f"Table {messages_table} does not exist yet")
                 return -1
-            
+
             # Get the maximum message_id
             result = self.db.execute(
                 f"""
                 SELECT MAX(message_id) FROM {messages_table}
                 WHERE chat_id = ?
                 """,
-                [chat_id]
+                [chat_id],
             ).fetchone()
-            
+
             if result and result[0] is not None:
                 self.logger.info(f"Found max message_id {result[0]} for chat {chat_id}, user {phone}")
                 return result[0]
-            
+
             self.logger.info(f"No messages found for chat {chat_id}, user {phone}")
             return -1
         except Exception as e:
