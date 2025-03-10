@@ -100,3 +100,6 @@ telegram_schema = {
     "chat_name": pl.Utf8,
     "forwarded_from": pl.Utf8,
 }
+
+# Column names for telegram messages table
+telegram_columns = list(telegram_schema.keys())
