@@ -9,6 +9,7 @@ import polars as pl
 from dotenv import load_dotenv
 
 from terrorblade import Logger
+from terrorblade.data.dtypes import telegram_columns
 
 load_dotenv(".env")
 
@@ -21,6 +22,14 @@ class ChatStats:
     cluster_count: int
     avg_cluster_size: float
     largest_cluster_size: int
+    
+    def __str__(self):
+        return f"ChatStats(chat_id={self.chat_id}, \
+            chat_name={self.chat_name}, \
+            message_count={self.message_count}, \
+            cluster_count={self.cluster_count}, \
+            avg_cluster_size={self.avg_cluster_size}, \
+            largest_cluster_size={self.largest_cluster_size})"
 
 
 @dataclass
@@ -31,6 +40,14 @@ class UserStats:
     largest_chat: Optional[Tuple[int, str, int]]  # (chat_id, chat_name, message_count)
     largest_cluster: Optional[Tuple[int, str, int]]  # (chat_id, chat_name, cluster_size)
     chat_stats: Dict[int, ChatStats]  # chat_id -> ChatStats
+
+    def __str__(self):
+        return f"UserStats(phone={self.phone}, \
+            total_messages={self.total_messages}, \
+            total_chats={self.total_chats}, \
+            largest_chat={self.largest_chat}, \
+            largest_cluster={self.largest_cluster}, \
+            chat_stats={self.chat_stats})"
 
 
 class TelegramDatabase:
@@ -431,16 +448,16 @@ class TelegramDatabase:
                 f"""
                 CREATE TABLE IF NOT EXISTS {messages_table} (
                     message_id BIGINT,
-                    chat_id BIGINT,
                     date TIMESTAMP,
-                    text TEXT,
                     from_id BIGINT,
+                    text TEXT,
+                    chat_id BIGINT,
                     reply_to_message_id BIGINT,
                     media_type TEXT,
                     file_name TEXT,
-                    from TEXT,
                     chat_name TEXT,
                     forwarded_from TEXT,
+                    from_name TEXT,
                     PRIMARY KEY (message_id, chat_id)
                 )
             """
@@ -477,12 +494,24 @@ class TelegramDatabase:
             # Ensure user tables exist
             self.init_user_tables(phone)
 
+            # Check if from_name is missing in the DataFrame
+            if "from_name" not in messages_df.columns:
+                # Add from_name column with NULL values
+                messages_df = messages_df.with_columns(pl.lit(None).alias("from_name"))
+                self.logger.info(f"Added missing 'from_name' column to DataFrame for user {phone}")
+
+            # Explicitly specify column names to ensure correct order
+            columns = ["message_id", "date", "from_id", "text", "chat_id", 
+                       "reply_to_message_id", "media_type", "file_name", 
+                       "chat_name", "forwarded_from", "from_name"]
+            
             # Convert DataFrame to DuckDB table
             self.db.execute(
                 f"""
-                INSERT OR REPLACE INTO {messages_table}
-                SELECT * FROM messages_df
-            """
+                INSERT OR REPLACE INTO {messages_table} 
+                ({', '.join(columns)})
+                SELECT {', '.join(columns)} FROM messages_df
+                """
             )
 
             # Update user's last_update and first_seen
@@ -578,32 +607,12 @@ class TelegramDatabase:
         """
         try:
             if user_stats := self.get_user_stats(phone):
-                print(f"\nStats for user {phone}:")
-                print(f"Total messages: {user_stats.total_messages}")
-                print(f"Total chats: {user_stats.total_chats}")
+                print(user_stats)
 
-                if user_stats.largest_chat[0]:
+                if user_stats.largest_chat:
                     print(f"Largest chat: {user_stats.largest_chat[1]} ({user_stats.largest_chat[2]} messages)")
-
-                if user_stats.largest_cluster[0]:
-                    print(
-                        f"Largest cluster: {user_stats.largest_cluster[1]} ({user_stats.largest_cluster[2]} messages)"
-                    )
-
-                # Get a random large cluster
-                if cluster := self.get_random_large_cluster(phone, min_size=5):
-                    print(f"\nRandom cluster size: {len(cluster)}")
-                    print("Sample messages from cluster:")
-                    print(cluster.select(["text", "date"]).head(3))
-
-                # Get stats for the largest chat
-                if user_stats.largest_chat[0]:
                     if chat_stats := self.get_chat_stats(phone, user_stats.largest_chat[0]):
-                        print(f"\nStats for largest chat {chat_stats.chat_name}:")
-                        print(f"Total messages: {chat_stats.message_count}")
-                        print(f"Number of clusters: {chat_stats.cluster_count}")
-                        print(f"Average cluster size: {chat_stats.avg_cluster_size:.2f}")
-                        print(f"Largest cluster size: {chat_stats.largest_cluster_size}")
+                        print(chat_stats)
             else:
                 print(f"No data found for user {phone}")
         except Exception as e:
@@ -618,3 +627,48 @@ class TelegramDatabase:
         except Exception as e:
             self.logger.error(f"Error closing database connection: {str(e)}")
             raise
+
+    def get_max_message_id(self, phone: str, chat_id: int) -> int:
+        """
+        Get the maximum message_id for a specific user and chat.
+        
+        Args:
+            phone (str): User's phone number
+            chat_id (int): Chat ID
+            
+        Returns:
+            int: Maximum message_id or -1 if no messages found or error occurred
+        """
+        try:
+            if self.read_only and not self._ensure_user_exists(phone):
+                self.logger.info(f"User {phone} does not exist in database")
+                return -1
+            
+            messages_table = f"messages_{phone.replace('+', '')}"
+            
+            # Check if the table exists
+            table_list = self.db.execute("SHOW TABLES").fetchall()
+            existing_tables = [table[0] for table in table_list]
+            
+            if messages_table not in existing_tables:
+                self.logger.info(f"Table {messages_table} does not exist yet")
+                return -1
+            
+            # Get the maximum message_id
+            result = self.db.execute(
+                f"""
+                SELECT MAX(message_id) FROM {messages_table}
+                WHERE chat_id = ?
+                """,
+                [chat_id]
+            ).fetchone()
+            
+            if result and result[0] is not None:
+                self.logger.info(f"Found max message_id {result[0]} for chat {chat_id}, user {phone}")
+                return result[0]
+            
+            self.logger.info(f"No messages found for chat {chat_id}, user {phone}")
+            return -1
+        except Exception as e:
+            self.logger.error(f"Error getting max message_id for chat {chat_id}, user {phone}: {str(e)}")
+            return -1
