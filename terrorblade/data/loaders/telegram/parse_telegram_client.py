@@ -126,7 +126,6 @@ class TelegramParser:
                     "reply_to_message_id": message.reply_to_msg_id,
                     "media_type": (message.media.__class__.__name__ if message.media else None),
                     "file_name": message.file.name if message.file else None,
-                    "from": message.from_id.user_id if message.from_id else None,
                     "chat_name": dialog_name,
                     "forwarded_from": (message.fwd_from.from_name if message.fwd_from else None),
                 }
@@ -134,7 +133,9 @@ class TelegramParser:
                 # Get information about sender
                 if message.from_id and self.client is not None:
                     sender = await self.client.get_entity(message.from_id)
-                    msg_dict["from"] = f"{sender.first_name} {sender.last_name if sender.last_name else ''}".strip()
+                    msg_dict["from_name"] = (
+                        f"{sender.first_name} {sender.last_name if sender.last_name else ''}".strip()
+                    )
 
                 messages.append(msg_dict)
 
@@ -185,7 +186,12 @@ class TelegramParser:
 
             for dialog in dialogs:
                 chat_id = dialog.id
-                df = await self.get_chat_messages(chat_id, limit=limit_messages, dialog_name=dialog.name)
+
+                # Получаем максимальный message_id из базы данных для этого чата
+                min_id = self.db.get_max_message_id(self.phone, chat_id) if self.db else -1
+
+                # Передаем min_id в get_chat_messages
+                df = await self.get_chat_messages(chat_id, limit=limit_messages, min_id=min_id, dialog_name=dialog.name)
 
                 if df is not None and not df.is_empty():
                     self.logger.info(f"Added {len(df)} messages from chat {chat_id}")
@@ -194,6 +200,8 @@ class TelegramParser:
                     # If database is provided, store messages
                     if self.db is not None:
                         self.db.add_messages(self.phone, df)
+                elif min_id > -1:
+                    self.logger.info(f"No new messages found for chat {chat_id} since message_id {min_id}")
 
             self.logger.info(f"Successfully fetched messages from {len(chats_dict)} chats")
             return chats_dict
@@ -244,4 +252,4 @@ if __name__ == "__main__":
     phone_env = os.getenv("PHONE")
     if phone_env is None:
         raise ValueError("PHONE must be set in environment variables")
-    asyncio.run(main(phone_env))
+    asyncio.run(main("+31627866359"))

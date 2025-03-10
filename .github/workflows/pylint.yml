@@ -1,0 +1,44 @@
+name: Pylint
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]  # Based on project requirements
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: false  # Don't fetch submodules
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install uv
+      run: |
+        pip install uv
+    
+    - name: Cache uv packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-
+    
+    - name: Install dependencies
+      run: |
+        uv pip install --system -e ".[dev]"  # Install project with dev dependencies
+        uv pip install --system pylint
+    
+    - name: Analyze the code with pylint
+      run: |
+        pylint --disable=C0301,C0111,C0103,R0903,R0913,R0914,R0902,W0511,R0801 $(git ls-files '*.py' | grep -v -E 'proto/|fun/Cursor-versus-CoPilot') 
