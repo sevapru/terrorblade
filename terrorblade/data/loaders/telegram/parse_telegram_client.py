@@ -7,10 +7,13 @@ import polars as pl
 from dotenv import load_dotenv
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
+from telethon.sessions import StringSession
 from telethon.tl.types import MessageService
 
 from terrorblade import Logger
 from terrorblade.data.database.telegram_database import TelegramDatabase
+from terrorblade.data.database.session_manager import SessionManager
+from terrorblade.data.dtypes import TELEGRAM_SCHEMA, get_polars_schema, map_telethon_message_to_schema
 
 load_dotenv(".env")
 
@@ -26,6 +29,7 @@ class TelegramParser:
         api_hash: str,
         phone: str,
         db: Optional[TelegramDatabase] = None,
+        session_db_path: str = "telegram_sessions.db",
     ):
         """
         Initialize Telegram parser.
@@ -35,12 +39,16 @@ class TelegramParser:
             api_hash (str): API Hash from Telegram
             phone (str): Phone number for authentication
             db (Optional[TelegramDatabase]): Database instance for storing messages
+            session_db_path (str): Path to the session database
         """
         self.api_id = api_id
         self.api_hash = api_hash
         self.phone = phone
         self.client = None
         self.db = db
+        
+        # Initialize session manager
+        self.session_manager = SessionManager(db_path=session_db_path)
 
         self.logger = Logger(
             name="TelegramParser",
@@ -50,20 +58,49 @@ class TelegramParser:
         )
 
     async def connect(self):
-        """Connecting to Telegram API"""
+        """Connecting to Telegram API using stored session if available"""
         self.logger.info("Attempting to connect to Telegram API")
-        self.client = TelegramClient("session_name", self.api_id, self.api_hash)
+        
+        # Try to get existing session
+        session_string = self.session_manager.get_session(self.phone)
+        
+        if session_string:
+            self.logger.info(f"Using existing session for phone {self.phone}")
+            # Create client with existing session
+            self.client = TelegramClient(StringSession(session_string), self.api_id, self.api_hash)
+        else:
+            self.logger.info(f"No existing session found for phone {self.phone}, creating new session")
+            # Create new client with StringSession
+            self.client = TelegramClient(StringSession(), self.api_id, self.api_hash)
+        
         try:
+            # Start the client
             await self.client.start(phone=self.phone)
             self.logger.info("Successfully connected to Telegram API")
+            
+            # Save the session string after successful connection
+            if self.client.session:
+                session_string = self.client.session.save()
+                self.session_manager.save_session(self.phone, session_string)
+                self.logger.info(f"Saved session for phone {self.phone}")
+                
         except FloodWaitError as e:
             wait_time = e.seconds
             self.logger.warning(f"FloodWaitError: Need to wait {wait_time} seconds due to Telegram rate limiting")
             await asyncio.sleep(wait_time)
             await self.client.start(phone=self.phone)
+            
+            # Save session after reconnection
+            if self.client.session:
+                session_string = self.client.session.save()
+                self.session_manager.save_session(self.phone, session_string)
+                
         except Exception as e:
             self.logger.error(f"Failed to connect to Telegram API: {str(e)}")
             raise
+        finally:
+            if self.db:
+                self.db.init_user_tables(self.phone)
 
     async def get_dialogs(self, limit: Optional[int] = None) -> List:
         """
@@ -117,18 +154,7 @@ class TelegramParser:
                 if isinstance(message, MessageService):
                     continue
 
-                msg_dict = {
-                    "message_id": message.id,
-                    "date": message.date,
-                    "from_id": message.from_id.user_id if message.from_id else None,
-                    "text": message.text,
-                    "chat_id": chat_id,
-                    "reply_to_message_id": message.reply_to_msg_id,
-                    "media_type": (message.media.__class__.__name__ if message.media else None),
-                    "file_name": message.file.name if message.file else None,
-                    "chat_name": dialog_name,
-                    "forwarded_from": (message.fwd_from.from_name if message.fwd_from else None),
-                }
+                msg_dict = map_telethon_message_to_schema(message, chat_id, dialog_name)
 
                 # Get information about sender
                 if message.from_id and self.client is not None:
@@ -146,20 +172,13 @@ class TelegramParser:
             df = pl.DataFrame(messages)
             self.logger.info(f"Successfully fetched {len(messages)} messages from chat {chat_id}")
 
-            # Cast types to needed format
-            df = df.with_columns(
-                [
-                    pl.col("date").cast(pl.Datetime),
-                    pl.col("from_id").cast(pl.Int64),
-                    pl.col("chat_id").cast(pl.Int64),
-                    pl.col("reply_to_message_id").cast(pl.Int64),
-                    pl.col("text").cast(pl.Utf8),
-                    pl.col("media_type").cast(pl.Utf8),
-                    pl.col("file_name").cast(pl.Utf8),
-                    pl.col("forwarded_from").cast(pl.Utf8),
-                    pl.col("message_id").alias("message_id").cast(pl.Int64),
-                ]
-            )
+            # Use the centralized schema to cast types
+            schema = get_polars_schema()
+            cast_expressions = [
+                pl.col(col_name).cast(dtype) for col_name, dtype in schema.items() if col_name in df.columns
+            ]
+            
+            df = df.with_columns(cast_expressions)
 
             return df
         except Exception as e:
@@ -214,12 +233,18 @@ class TelegramParser:
         """Close connections"""
         self.logger.info("Closing Telegram and database connections")
         try:
-            await self.client.disconnect()
-            self.logger.info("Successfully closed Telegram connection")
+            if self.client:
+                await self.client.disconnect()
+                self.logger.info("Successfully closed Telegram connection")
 
             if self.db is not None:
                 self.db.close()
                 self.logger.info("Successfully closed database connection")
+                
+            # Close session manager
+            self.session_manager.close()
+            self.logger.info("Successfully closed session manager")
+            
         except Exception as e:
             self.logger.error(f"Error closing connections: {str(e)}")
             raise
@@ -228,28 +253,31 @@ class TelegramParser:
 async def main(phone: str) -> None:
     api_id = os.getenv("API_ID")
     api_hash = os.getenv("API_HASH")
+    phone_m = phone or os.getenv("PHONE")
+    session_db_path = os.path.join(os.getenv("LOG_DIR", "data"), "telegram_sessions.db")
+  
+    if phone_m is None:
+        raise ValueError("PHONE must be set in environment variables or as an argument")
 
     if api_id is None or api_hash is None:
         raise ValueError("API_ID and API_HASH must be set in environment variables")
 
-    # Initialize database
     db = TelegramDatabase()
-    parser = TelegramParser(api_id, api_hash, phone, db)
+    parser = TelegramParser(api_id, api_hash, phone_m, db, session_db_path=session_db_path)
 
     try:
         await parser.connect()
         await parser.get_all_chats(limit_dialogs=None, limit_messages=None)
 
         # Print summary for the user
-        db.print_user_summary(phone)
+        db.print_user_summary(phone_m)
 
     finally:
         await parser.close()
         db.close()
 
 
+
 if __name__ == "__main__":
-    phone_env = os.getenv("PHONE")
-    if phone_env is None:
-        raise ValueError("PHONE must be set in environment variables")
-    asyncio.run(main("+31627866359"))
+
+    asyncio.run(main("+48511111339"))
