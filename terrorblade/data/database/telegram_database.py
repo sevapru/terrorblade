@@ -7,9 +7,10 @@ from typing import Dict, List, Optional, Tuple
 import duckdb
 import polars as pl
 from dotenv import load_dotenv
+from datetime import datetime
 
 from terrorblade import Logger
-from terrorblade.data.dtypes import telegram_columns
+from terrorblade.data.dtypes import TELEGRAM_SCHEMA
 
 load_dotenv(".env")
 
@@ -348,23 +349,18 @@ class TelegramDatabase:
             selected_cluster = random.choice(large_clusters)
             group_id, chat_id, size = selected_cluster
 
-            # Get messages from the selected cluster
+            # Get messages from the selected cluster using centralized SQL generation
+            where_clause = "WHERE c.group_id = ? AND c.chat_id = ?"
+            sql = self.__get_join_messages_clusters_sql(messages_table, clusters_table, where_clause)
+            
             cluster_messages = self.db.execute(
-                f"""
-                SELECT 
-                    m.*,
-                    c.group_id
-                FROM {messages_table} m
-                JOIN {clusters_table} c ON m.message_id = c.message_id
-                WHERE c.group_id = ? AND c.chat_id = ?
-                ORDER BY m.date
-            """,
+                sql,
                 [group_id, chat_id],
             ).arrow()
 
             return pl.from_arrow(cluster_messages)
         except Exception as e:
-            self.logger.error(f"Error getting random large cluster for {phone}: {str(e)}")
+            self.logger.error(f"Error getting random large cluster: {str(e)}")
             raise
 
     def get_chat_stats(self, phone: str, chat_id: int) -> Optional[ChatStats]:
@@ -443,36 +439,26 @@ class TelegramDatabase:
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
 
-            # Create messages table
-            self.db.execute(
-                f"""
+            # Create messages table using the centralized schema
+            # Quote column names to avoid reserved keyword issues
+            columns = [f'"{field}" {info["db_type"]}' for field, info in TELEGRAM_SCHEMA.items()]
+            self.db.execute(f"""
                 CREATE TABLE IF NOT EXISTS {messages_table} (
-                    message_id BIGINT,
-                    date TIMESTAMP,
-                    from_id BIGINT,
-                    text TEXT,
-                    chat_id BIGINT,
-                    reply_to_message_id BIGINT,
-                    media_type TEXT,
-                    file_name TEXT,
-                    chat_name TEXT,
-                    forwarded_from TEXT,
-                    from_name TEXT,
-                    PRIMARY KEY (message_id, chat_id)
-                )
-            """
+                {", ".join(columns)},
+                PRIMARY KEY (message_id, chat_id)
             )
+            """)
 
             # Create clusters table
+            self.db.execute(self.__get_create_clusters_table_sql(clusters_table))
+
+            # Add user to users table if not exists
             self.db.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS {clusters_table} (
-                    message_id BIGINT,
-                    chat_id BIGINT,
-                    group_id INTEGER,
-                    PRIMARY KEY (message_id, chat_id)
-                )
-            """
+                """
+                INSERT OR IGNORE INTO users (phone, last_update, first_seen)
+                VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                [phone],
             )
 
             self.logger.info(f"Initialized tables for user {phone}")
@@ -489,10 +475,12 @@ class TelegramDatabase:
             messages_df (pl.DataFrame): DataFrame containing messages
         """
         try:
+            if not self._ensure_user_exists(phone):
+                return
+
             messages_table = f"messages_{phone.replace('+', '')}"
 
-            # Ensure user tables exist
-            self.init_user_tables(phone)
+            self.logger.info(f"Adding {messages_df.height} messages for user {phone}")
 
             # Check if from_name is missing in the DataFrame
             if "from_name" not in messages_df.columns:
@@ -500,28 +488,10 @@ class TelegramDatabase:
                 messages_df = messages_df.with_columns(pl.lit(None).alias("from_name"))
                 self.logger.info(f"Added missing 'from_name' column to DataFrame for user {phone}")
 
-            # Explicitly specify column names to ensure correct order
-            columns = [
-                "message_id",
-                "date",
-                "from_id",
-                "text",
-                "chat_id",
-                "reply_to_message_id",
-                "media_type",
-                "file_name",
-                "chat_name",
-                "forwarded_from",
-                "from_name",
-            ]
 
             # Convert DataFrame to DuckDB table
             self.db.execute(
-                f"""
-                INSERT OR REPLACE INTO {messages_table} 
-                ({', '.join(columns)})
-                SELECT {', '.join(columns)} FROM messages_df
-                """
+                f"""INSERT OR IGNORE INTO {messages_table} ({', '.join(list(TELEGRAM_SCHEMA.keys()))}) SELECT {', '.join(list(TELEGRAM_SCHEMA.keys()))} FROM messages_df"""
             )
 
             # Update user's last_update and first_seen
@@ -534,12 +504,12 @@ class TelegramDatabase:
             self.db.execute(
                 """
                 INSERT OR REPLACE INTO users (phone, last_update, first_seen)
-                VALUES (?, CURRENT_TIMESTAMP, ?)
-            """,
-                [phone, first_seen],
+                VALUES (?, ?, ?)
+                """,
+                [phone, datetime.now(), first_seen or datetime.now()],
             )
 
-            self.logger.info(f"Added {len(messages_df)} messages for user {phone}")
+            self.logger.info(f"Successfully added messages for user {phone}")
         except Exception as e:
             self.logger.error(f"Error adding messages: {str(e)}")
             raise
@@ -552,7 +522,7 @@ class TelegramDatabase:
             phone (str): User's phone number
 
         Returns:
-            Optional[pl.DataFrame]: DataFrame containing messages from largest cluster
+            Optional[pl.DataFrame]: DataFrame containing messages from the largest cluster
         """
         try:
             if not self._ensure_user_exists(phone):
@@ -588,17 +558,12 @@ class TelegramDatabase:
 
             group_id, chat_id, size = largest_cluster
 
-            # Get messages from the largest cluster
+            # Get messages from the largest cluster using centralized SQL generation
+            where_clause = "WHERE c.group_id = ? AND c.chat_id = ?"
+            sql = self.__get_join_messages_clusters_sql(messages_table, clusters_table, where_clause)
+            
             cluster_messages = self.db.execute(
-                f"""
-                SELECT 
-                    m.*,
-                    c.group_id
-                FROM {messages_table} m
-                JOIN {clusters_table} c ON m.message_id = c.message_id
-                WHERE c.group_id = ? AND c.chat_id = ?
-                ORDER BY m.date
-            """,
+                sql,
                 [group_id, chat_id],
             ).arrow()
 
@@ -640,20 +605,20 @@ class TelegramDatabase:
 
     def get_max_message_id(self, phone: str, chat_id: int) -> int:
         """
-        Get the maximum message_id for a specific user and chat.
+        Get the maximum message_id for a specific chat for a specific user.
 
         Args:
             phone (str): User's phone number
             chat_id (int): Chat ID
 
         Returns:
-            int: Maximum message_id or -1 if no messages found or error occurred
+            int: Maximum message_id or -1 if no messages found
         """
         try:
             if self.read_only and not self._ensure_user_exists(phone):
                 self.logger.info(f"User {phone} does not exist in database")
                 return -1
-
+                
             messages_table = f"messages_{phone.replace('+', '')}"
 
             # Check if the table exists
@@ -664,7 +629,7 @@ class TelegramDatabase:
                 self.logger.info(f"Table {messages_table} does not exist yet")
                 return -1
 
-            # Get the maximum message_id
+            # Get the maximum message_id - no need to change this as we're only querying one field
             result = self.db.execute(
                 f"""
                 SELECT MAX(message_id) FROM {messages_table}
@@ -682,3 +647,44 @@ class TelegramDatabase:
         except Exception as e:
             self.logger.error(f"Error getting max message_id for chat {chat_id}, user {phone}: {str(e)}")
             return -1
+
+        
+    def __get_create_clusters_table_sql(self, table_name: str) -> str:
+        """Generate SQL for creating a clusters table."""
+        return f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            message_id BIGINT,
+            chat_id BIGINT,
+            group_id INTEGER,
+            PRIMARY KEY (message_id, chat_id)
+        )
+        """
+
+    def __get_join_messages_clusters_sql(self, messages_table: str, clusters_table: str, where_clause: str = "", order_by: str = "m.date") -> str:
+        """Generate SQL for joining messages and clusters tables."""
+        column_list = ", ".join([f"m.{field}" for field in TELEGRAM_SCHEMA.keys()])
+        sql = f"""
+        SELECT 
+            {column_list},
+            c.group_id
+        FROM {messages_table} m
+        JOIN {clusters_table} c ON m.message_id = c.message_id AND m.chat_id = c.chat_id
+        {where_clause}
+        """
+        if order_by:
+            sql += f" ORDER BY {order_by}"
+        return sql
+
+
+    def __get_messages_select_sql(self, messages_table: str, where_clause: str = "", order_by: str = "date") -> str:
+        """Generate SQL for selecting messages from the messages table."""
+        column_list = ", ".join(TELEGRAM_SCHEMA.keys())
+        sql = f"""
+        SELECT 
+            {column_list}
+        FROM {messages_table}
+        {where_clause}
+        """
+        if order_by:
+            sql += f" ORDER BY {order_by}"
+        return sql
