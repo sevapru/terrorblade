@@ -1,9 +1,10 @@
 import json
+import os
 from typing import Dict
 
 import polars as pl
 
-from terrorblade.data.dtypes import telegram_schema
+from terrorblade.data.dtypes import get_polars_schema
 
 
 def load_json(file_path: str) -> Dict[int, pl.DataFrame]:
@@ -97,10 +98,23 @@ def parse_reactions(chat_df: pl.DataFrame) -> pl.DataFrame:
 
 
 def standartize_chat(chat: pl.DataFrame) -> pl.DataFrame:
-    # Create a new DataFrame with only the columns from telegram_schema
-    chat = chat.select([col for col in telegram_schema.keys() if col in chat.columns])
+    """
+    Standardize the chat DataFrame to match the expected schema.
+    
+    Args:
+        chat (pl.DataFrame): The chat DataFrame to standardize.
+        
+    Returns:
+        pl.DataFrame: The standardized chat DataFrame.
+    """
+    # Get the polars schema from the centralized schema definition
+    polars_schema = get_polars_schema()
+    
+    # Create a new DataFrame with only the columns from our schema
+    chat = chat.select([col for col in polars_schema.keys() if col in chat.columns])
+    
     # Cast columns to their respective types
-    return chat.with_columns([pl.col(col).cast(dtype) for col, dtype in telegram_schema.items() if col in chat.columns])
+    return chat.with_columns([pl.col(col).cast(dtype) for col, dtype in polars_schema.items() if col in chat.columns])
 
 
 chats_dict = load_json("/home/seva/data/messages_json/result.json")
