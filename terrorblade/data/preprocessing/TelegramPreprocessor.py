@@ -8,7 +8,7 @@ import polars as pl
 from dotenv import load_dotenv
 
 from terrorblade import Logger
-from terrorblade.data.dtypes import telegram_import_schema, telegram_process_schema
+from terrorblade.data.dtypes import telegram_import_schema, get_process_schema, TELEGRAM_SCHEMA
 from terrorblade.data.preprocessing.TextPreprocessor import TextPreprocessor
 
 load_dotenv(".env")
@@ -299,20 +299,20 @@ class TelegramPreprocessor(TextPreprocessor):
 
     def standardize_chat(self, chat_df: pl.DataFrame) -> pl.DataFrame:
         """
-        Standardizes the chat DataFrame to match the telegram schema.
+        Standardize the chat DataFrame to match the expected schema.
+        Casts columns to the expected types.
 
         Args:
-            chat_df (pl.DataFrame): DataFrame containing chat messages.
+            chat_df (pl.DataFrame): The chat DataFrame to standardize.
 
         Returns:
-            pl.DataFrame: Standardized DataFrame.
+            pl.DataFrame: The standardized chat DataFrame.
         """
-        # Create empty columns for missing schema fields
         for col in telegram_import_schema.keys():
             if col not in chat_df.columns:
                 chat_df = chat_df.with_columns(pl.lit(None).alias(col))
 
-        # Select and cast columns according to schema
+        # Cast columns to expected types
         return chat_df.select([pl.col(col).cast(dtype) for col, dtype in telegram_import_schema.items()])
 
     def parse_timestamp(self, df, date_col: str = "date") -> pl.DataFrame:
@@ -592,7 +592,8 @@ class TelegramPreprocessor(TextPreprocessor):
             chat_df = self.delete_service_messages(chat_df)
             chat_df = self.delete_empty_messages(chat_df)
             # Huge cut in columns
-            chat_df = chat_df.select([pl.col(k).cast(v) for k, v in telegram_process_schema.items()])
+            process_schema = get_process_schema()
+            chat_df = chat_df.select([pl.col(k).cast(v) for k, v in process_schema.items()])
 
             chats_dict[key] = chat_df
 
@@ -606,74 +607,48 @@ class TelegramPreprocessor(TextPreprocessor):
         big_cluster_size: int = 10,
     ) -> Union[Dict, pl.DataFrame]:
         """
-        Processes chat data either from a file or DuckDB
+        Process all chats in the file path or in the database.
 
         Args:
-            file_path (str, optional): Path to the chat file
-            time_window (str): Time window for clustering (e.g. "1h", "30m")
-            cluster_size (int): Minimum cluster size
-            big_cluster_size (int): Minimum size for big clusters
+            file_path (str, optional): Path to file to process. Defaults to None.
+            time_window (str, optional): Time window for clustering. Defaults to "5m".
+            cluster_size (int, optional): Minimum cluster size. Defaults to 3.
+            big_cluster_size (int, optional): Minimum big cluster size. Defaults to 10.
 
         Returns:
-            Union[Dict, pl.DataFrame]: Processed chat data with clusters
+            Union[Dict, pl.DataFrame]: Dictionary of chat dataframes or combined dataframe.
         """
-        self.logger.info(
-            "Starting chat processing" + (f" from file {file_path}" if file_path else f" for phone {self.phone}")
-        )
+        self.logger.info(f"Processing chats with {time_window} time window")
 
-        if self.use_duckdb:
-            try:
-                # Process data from DuckDB
-                messages_df = self._get_messages_from_db(self.phone)
-
-                # First, separate messages by chat_id
-                unique_chats = messages_df.select("chat_id").unique()
-                all_processed_messages = []
-
-                # Process each chat separately
-                for chat_row in unique_chats.iter_rows():
-                    chat_id = chat_row[0]
-                    self.logger.info(f"Processing chat {chat_id}")
-
-                    chat_messages = messages_df.filter(pl.col("chat_id") == chat_id)
-
-                    # Get existing embeddings for this chat
-                    # existing_embeddings = self._get_embeddings_from_db(chat_id)
-
-                    # Process messages for this specific chat
-                    processed_chat_messages = self.process_message_groups(
-                        chat_messages, time_window, cluster_size, big_cluster_size
-                    )
-
-                    # Update cluster information in DB for this chat
-                    self._update_clusters_in_db(processed_chat_messages)
-
-                    # Store embeddings for each message in this chat
-                    if hasattr(self, "embeddings") and self.embeddings is not None:
-                        embeddings_list = self.embeddings.cpu().detach().numpy()
-                        for idx, message in enumerate(processed_chat_messages.iter_rows()):
-                            message_id = message[processed_chat_messages.get_column_index("message_id")]
-                            if isinstance(message_id, list):
-                                message_id = message_id[0]
-                            embedding = embeddings_list[idx].tolist()
-                            self._update_embeddings_in_db(message_id, chat_id, embedding)
-
-                    all_processed_messages.append(processed_chat_messages)
-                    self.logger.info(f"Finished processing chat {chat_id}")
-
-                # Combine all processed messages
-                if all_processed_messages:
-                    result = pl.concat(all_processed_messages)
-                    self.logger.nice(f"Processed all chats, total messages: {len(result)} ✓")
-                    return result
-                self.logger.warning("No messages were processed")
-                return pl.DataFrame(schema=messages_df.schema)
-            except Exception as e:
-                self.logger.error(f"Error during chat processing: {str(e)}")
-                raise
+        # Process from file or database
+        if file_path:
+            # Process from file
+            chats_dict = self.prepare_data(file_path)
+            for chat_id, chat_df in chats_dict.items():
+                # Ensure chat_df has the correct schema for processing
+                process_schema = get_process_schema()
+                chat_df = chat_df.select([pl.col(k).cast(v) for k, v in process_schema.items() if k in chat_df.columns])
+                
+                # Process the chat
+                self.logger.info(f"Processing chat {chat_id}")
+                self._process_chat(chat_df, chat_id, time_window, cluster_size)
+    
+            return chats_dict
         else:
-            # Use existing file processing logic
-            return super().process_chats(file_path, time_window, cluster_size, big_cluster_size)
+            # Process from database
+            messages_df = self._get_messages_from_db()
+            if messages_df.height == 0:
+                self.logger.info("No messages found in the database")
+                return pl.DataFrame()
+
+            # Group by chat_id and process each chat
+            chat_ids = messages_df["chat_id"].unique().to_list()
+            
+            for chat_id in chat_ids:
+                chat_df = messages_df.filter(pl.col("chat_id") == chat_id)
+                self._process_chat(chat_df, chat_id, time_window, cluster_size)
+
+            return messages_df
 
     def close(self):
         """Close the DuckDB connection if it exists"""
