@@ -16,18 +16,12 @@ from terrorblade.data.database.session_manager import SessionManager
 from terrorblade.data.dtypes import TELEGRAM_SCHEMA, get_polars_schema, map_telethon_message_to_schema
 
 load_dotenv(".env")
-
-api_id = os.getenv("API_ID")
-api_hash = os.getenv("API_HASH")
-phone = os.getenv("PHONE")
-
-
 class TelegramParser:
     def __init__(
         self,
-        api_id: str,
-        api_hash: str,
         phone: str,
+        api_id: Optional[str] = None,
+        api_hash: Optional[str] = None,
         db: Optional[TelegramDatabase] = None,
         session_db_path: str = "telegram_sessions.db",
     ):
@@ -41,14 +35,15 @@ class TelegramParser:
             db (Optional[TelegramDatabase]): Database instance for storing messages
             session_db_path (str): Path to the session database
         """
-        self.api_id = api_id
-        self.api_hash = api_hash
-        self.phone = phone
+        self.api_id = api_id or os.getenv("API_ID") 
+        self.api_hash = api_hash or os.getenv("API_HASH")
+        self.phone = phone or os.getenv("PHONE")
         self.client = None
-        self.db = db
-        
+        self.session_db_path = session_db_path or os.path.join(os.getenv("LOG_DIR", "data"), "telegram_sessions.db")
+        self.db = db or TelegramDatabase()
+         
         # Initialize session manager
-        self.session_manager = SessionManager(db_path=session_db_path)
+        self.session_manager = SessionManager(db_path=self.session_db_path)
 
         self.logger = Logger(
             name="TelegramParser",
@@ -56,6 +51,10 @@ class TelegramParser:
             log_file=os.getenv("LOG_FILE", "telegram.log"),
             log_dir=os.getenv("LOG_DIR", "logs"),
         )
+        
+        
+        
+        
 
     async def connect(self):
         """Connecting to Telegram API using stored session if available"""
@@ -142,7 +141,10 @@ class TelegramParser:
         """
         self.logger.info(f"Fetching messages from chat {chat_id} (limit: {limit}, min_id: {min_id})")
         messages = []
-
+        if chat_id < 0:
+            self.logger.info(f"Chat {chat_id} is a service chat, skipping")
+            return None
+        
         if min_id is None:
             min_id = -1
         try:
@@ -249,35 +251,47 @@ class TelegramParser:
             self.logger.error(f"Error closing connections: {str(e)}")
             raise
 
-
-async def main(phone: str) -> None:
-    api_id = os.getenv("API_ID")
-    api_hash = os.getenv("API_HASH")
-    phone_m = phone or os.getenv("PHONE")
+async def update_telegram_data(phone: str, db: TelegramDatabase, limit_dialogs: Optional[int] = None, limit_messages: Optional[int] = None) -> None:
+    """
+    Update function that can be called during service initialization to fetch 
+    and update all chats for a given phone number.
+    
+    Args:
+        phone (str): Phone number to use for Telegram authentication
+        limit_dialogs (int, optional): Limit number of dialogs to fetch
+        limit_messages (int, optional): Limit number of messages per dialog
+    
+    Returns:
+        None
+    """
+    # Setup path for session database
     session_db_path = os.path.join(os.getenv("LOG_DIR", "data"), "telegram_sessions.db")
-  
-    if phone_m is None:
-        raise ValueError("PHONE must be set in environment variables or as an argument")
-
-    if api_id is None or api_hash is None:
-        raise ValueError("API_ID and API_HASH must be set in environment variables")
-
-    db = TelegramDatabase()
-    parser = TelegramParser(api_id, api_hash, phone_m, db, session_db_path=session_db_path)
-
+    
+    # Verify required parameters
+    if not phone:
+        raise ValueError("Phone number must be provided")
+    
+    parser = TelegramParser(phone=phone, db=db, session_db_path=session_db_path)
+    
     try:
+        # Connect to Telegram API
         await parser.connect()
-        await parser.get_all_chats(limit_dialogs=None, limit_messages=None)
-
+        
+        # Fetch all chats with optional limits
+        await parser.get_all_chats(limit_dialogs=limit_dialogs, limit_messages=limit_messages)
+        
         # Print summary for the user
-        db.print_user_summary(phone_m)
-
+        db.print_user_summary(phone)
+        
+    except Exception as e:
+        logging.error(f"Error updating Telegram data: {str(e)}")
+        raise
     finally:
+        # Ensure all connections are properly closed
         await parser.close()
-        db.close()
 
 
 
 if __name__ == "__main__":
 
-    asyncio.run(main("+48511111339"))
+    asyncio.run(update_telegram_data("+48511111339"))

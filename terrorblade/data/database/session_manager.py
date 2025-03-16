@@ -1,10 +1,8 @@
-import base64
 import logging
 import os
-from typing import Optional, Tuple
+from typing import Optional
 
 import duckdb
-from telethon.sessions import StringSession
 
 from terrorblade import Logger
 
