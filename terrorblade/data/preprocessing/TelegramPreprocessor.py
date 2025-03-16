@@ -23,7 +23,6 @@ class TelegramPreprocessor(TextPreprocessor):
 
     def __init__(
         self,
-        input_folder=None,
         use_duckdb=False,
         db_path="telegram_data.db",
         phone=None,
@@ -40,7 +39,6 @@ class TelegramPreprocessor(TextPreprocessor):
             phone (str): Phone number for user-specific tables
         """
         super().__init__(*args, **kwargs)
-        self.input_folder = input_folder
         self.use_duckdb = use_duckdb
         self.phone = phone
 
@@ -88,21 +86,27 @@ class TelegramPreprocessor(TextPreprocessor):
         """
         )
 
-    def _get_messages_from_db(self, chat_id: Optional[int] = None) -> pl.DataFrame:
+    def _get_messages_from_db(self, phone: str | None = None, chat_id: int | None = None) -> pl.DataFrame:
         """
         Retrieve messages from DuckDB for a specific phone number and optionally chat_id
 
         Args:
+            phone (str, optional): Phone number to retrieve messages for. Defaults to self.phone.
             chat_id (int, optional): Specific chat ID to filter messages
 
         Returns:
             pl.DataFrame: DataFrame containing messages
         """
-        messages_table = f"messages_{self.phone.replace('+', '')}"
+        phone = phone or self.phone
+        messages_table = f"messages_{phone.replace('+', '')}"
         query = f"SELECT * FROM {messages_table}"
+        
+        if chat_id is not None:
+            query += f" WHERE chat_id = {chat_id}"
+            
         query += " ORDER BY date"
 
-        self.logger.info(f"Retrieving messages for phone {self.phone}" + (f" and chat {chat_id}" if chat_id else ""))
+        self.logger.info(f"Retrieving messages for phone {phone}" + (f" and chat {chat_id}" if chat_id else ""))
         try:
             df = pl.from_arrow(self.db.execute(query).arrow())
             self.logger.info(f"Retrieved {len(df)} messages")
@@ -111,7 +115,7 @@ class TelegramPreprocessor(TextPreprocessor):
             self.logger.error(f"Error retrieving messages from database: {str(e)}")
             raise
 
-    def _update_clusters_in_db(self, clusters_df: pl.DataFrame):
+    def _update_clusters_in_db(self, clusters_df: pl.DataFrame, phone: str):
         """
         Update cluster information in DuckDB
 
@@ -142,29 +146,48 @@ class TelegramPreprocessor(TextPreprocessor):
             self.logger.error(f"Error updating clusters in database: {str(e)}")
             raise
 
-    def _update_embeddings_in_db(self, message_id: int, chat_id: int, embedding: list):
+    def _update_embeddings_in_db(self, message_ids, chat_ids, embeddings):
         """
-        Update embedding information in DuckDB for a specific message
+        Update embedding information in DuckDB for multiple messages at once
 
         Args:
-            message_id (int): ID of the message
-            chat_id (int): ID of the chat
-            embedding (list): Embedding vector
+            message_ids (list|int): ID(s) of the message(s)
+            chat_ids (list|int): ID(s) of the chat(s)
+            embeddings (list): List of embedding vectors or single embedding vector
         """
         embeddings_table = f"chat_embeddings_{self.phone.replace('+', '')}"
-        self.logger.debug(f"Updating embedding for message {message_id} in chat {chat_id}")
-
+        
+        # Convert single values to lists for batch processing
+        if not isinstance(message_ids, list):
+            message_ids = [message_ids]
+            chat_ids = [chat_ids]
+            embeddings = [embeddings]
+            
+        self.logger.info(f"Batch updating {len(message_ids)} embeddings in database")
+        
         try:
-            self.db.execute(
+            # Prepare batch data
+            batch_data = []
+            for i, (msg_id, cht_id, emb) in enumerate(zip(message_ids, chat_ids, embeddings)):
+                # Handle case where message_id or chat_id might be a list
+                msg_id = msg_id[0] if isinstance(msg_id, list) else msg_id
+                cht_id = cht_id[0] if isinstance(cht_id, list) else cht_id
+                
+                batch_data.append((int(msg_id), int(cht_id), emb))
+            
+            # Execute batch insert
+            self.db.executemany(
                 f"""
                 INSERT OR REPLACE INTO {embeddings_table} 
                 (message_id, chat_id, embedding)
                 VALUES (?, ?, ?)
-            """,
-                [message_id, chat_id, embedding],
+                """,
+                batch_data
             )
+            self.logger.nice(f"Successfully updated {len(batch_data)} embeddings ✓")
+            
         except Exception as e:
-            self.logger.error(f"Error updating embedding in database: {str(e)}")
+            self.logger.error(f"Error batch updating embeddings in database: {str(e)}")
             raise
 
     def _get_embeddings_from_db(self, chat_id: int) -> dict:
@@ -194,6 +217,32 @@ class TelegramPreprocessor(TextPreprocessor):
         except Exception as e:
             self.logger.error(f"Error retrieving embeddings from database: {str(e)}")
             raise
+
+    def _get_messages_with_embeddings(self, chat_id: int = None) -> set:
+        """
+        Retrieve message IDs that already have embeddings in the database.
+        
+        Args:
+            chat_id (int, optional): Specific chat ID to filter. If None, gets all messages with embeddings.
+            
+        Returns:
+            set: Set of message IDs that already have embeddings
+        """
+        embeddings_table = f"chat_embeddings_{self.phone.replace('+', '')}"
+        self.logger.info(f"Retrieving message IDs with embeddings" + (f" for chat {chat_id}" if chat_id else ""))
+        
+        try:
+            query = f"SELECT message_id FROM {embeddings_table}"
+            if chat_id is not None:
+                query += f" WHERE chat_id = {chat_id}"
+            
+            result = self.db.execute(query).fetchall()
+            message_ids = {row[0] for row in result}
+            self.logger.info(f"Found {len(message_ids)} messages with existing embeddings")
+            return message_ids
+        except Exception as e:
+            self.logger.error(f"Error retrieving message IDs with embeddings: {str(e)}")
+            return set()
 
     def load_json(self, file_path: str, min_messages=3) -> Dict[int, pl.DataFrame]:
         """
@@ -599,56 +648,120 @@ class TelegramPreprocessor(TextPreprocessor):
 
         return chats_dict
 
-    def process_chats(
+    def process_file(
         self,
-        file_path: Optional[str] = None,
+        file_path: str,
         time_window: str = "5m",
         cluster_size: int = 3,
         big_cluster_size: int = 10,
-    ) -> Union[Dict, pl.DataFrame]:
+    ) -> Dict[int, pl.DataFrame]:
         """
-        Process all chats in the file path or in the database.
+        Process chats from a file.
+        
+        Args:
+            file_path (str): Path to file to process.
+            time_window (str, optional): Time window for clustering. Defaults to "5m".
+            cluster_size (int, optional): Minimum cluster size. Defaults to 3.
+            big_cluster_size (int, optional): Minimum big cluster size. Defaults to 10.
+            
+        Returns:
+            Dict[int, pl.DataFrame]: Dictionary of chat dataframes.
+        """
+        self.logger.info(f"Processing file {file_path} with {time_window} time window")
+        
+        # Process from file
+        chats_dict = self.prepare_data(file_path)
+        for chat_id, chat_df in chats_dict.items():
+            processed_df = self.process_message_groups(chat_df, time_window, cluster_size, big_cluster_size)
+            
+            # Store embeddings and clusters in DB if using DuckDB
+            if self.use_duckdb and hasattr(self, "embeddings"):
+                for i, row in enumerate(chat_df.to_dicts()):
+                    if i < len(self.embeddings):
+                        self._update_embeddings_in_db(
+                            row["message_id"], 
+                            chat_id, 
+                            self.embeddings[i].tolist()
+                        )
+                
+                # Update clusters in the database
+                if "group_id" in processed_df.columns:
+                    clusters_df = processed_df.select(
+                        ["message_id", "chat_id", "group_id"]
+                    )
+                    self._update_clusters_in_db(clusters_df, self.phone)
+                
+            chats_dict[chat_id] = processed_df
+            
+        return chats_dict
+
+    def process_messages(
+        self,
+        phone: str,
+        chat_id: int | None = None,
+        time_window: str = "5m",
+        cluster_size: int = 3,
+        big_cluster_size: int = 10,
+    ) -> pl.DataFrame:
+        """
+        Process messages from the database, reusing existing embeddings and clusters when available.
 
         Args:
-            file_path (str, optional): Path to file to process. Defaults to None.
+            phone (str): Phone number to retrieve messages for.
+            chat_id (int, optional): Specific chat ID to filter when retrieving from DB. Defaults to None.
             time_window (str, optional): Time window for clustering. Defaults to "5m".
             cluster_size (int, optional): Minimum cluster size. Defaults to 3.
             big_cluster_size (int, optional): Minimum big cluster size. Defaults to 10.
 
         Returns:
-            Union[Dict, pl.DataFrame]: Dictionary of chat dataframes or combined dataframe.
+            pl.DataFrame: Combined dataframe of processed messages.
         """
-        self.logger.info(f"Processing chats with {time_window} time window")
+        self.logger.info(f"Processing messages with {time_window} time window")
+        
+        if not self.use_duckdb:
+            self.logger.warning("DuckDB is not enabled - embeddings and clusters will not be saved")
+        
+        # Process from database - chat_id only affects this initial retrieval
+        messages_df = self._get_messages_from_db(phone=phone, chat_id=chat_id)
+        if messages_df.height == 0:
+            self.logger.info("No messages found in the database")
+            return pl.DataFrame()
 
-        # Process from file or database
-        if file_path:
-            # Process from file
-            chats_dict = self.prepare_data(file_path)
-            for chat_id, chat_df in chats_dict.items():
-                # Ensure chat_df has the correct schema for processing
-                process_schema = get_process_schema()
-                chat_df = chat_df.select([pl.col(k).cast(v) for k, v in process_schema.items() if k in chat_df.columns])
-                
-                # Process the chat
-                self.logger.info(f"Processing chat {chat_id}")
-                self._process_chat(chat_df, chat_id, time_window, cluster_size)
-    
-            return chats_dict
-        else:
-            # Process from database
-            messages_df = self._get_messages_from_db()
-            if messages_df.height == 0:
-                self.logger.info("No messages found in the database")
-                return pl.DataFrame()
-
-            # Group by chat_id and process each chat
+        # Process all messages together instead of chat by chat
+        if self.use_duckdb:
+            # Get all unique chat IDs from retrieved messages
             chat_ids = messages_df["chat_id"].unique().to_list()
+            self.logger.info(f"Processing messages from {len(chat_ids)} chats")
             
-            for chat_id in chat_ids:
-                chat_df = messages_df.filter(pl.col("chat_id") == chat_id)
-                self._process_chat(chat_df, chat_id, time_window, cluster_size)
-
-            return messages_df
+            # Get message IDs that already have embeddings
+            existing_message_ids = self._get_messages_with_embeddings()
+            
+            # Identify which messages don't have embeddings
+            all_message_ids = set(messages_df["message_id"].to_list())
+            missing_message_ids = all_message_ids - existing_message_ids
+            
+            if missing_message_ids:
+                self.logger.info(f"Found {len(missing_message_ids)} messages without embeddings to process")
+                # Filter messages that need embeddings
+                messages_to_process = messages_df.filter(pl.col("message_id").is_in(list(missing_message_ids)))
+                
+                # Calculate embeddings for these messages
+                self.embeddings = self.calculate_embeddings(messages_to_process)
+                
+                # Batch update all embeddings at once
+                if len(messages_to_process) > 0:
+                    message_ids = messages_to_process["message_id"].to_list()
+                    chat_ids = messages_to_process["chat_id"].to_list()
+                    embeddings_list = [emb.tolist() for emb in self.embeddings]
+                    
+                    # Use the batch update method
+                    self._update_embeddings_in_db(message_ids, chat_ids, embeddings_list)
+            else:
+                self.logger.info("All messages already have embeddings")
+                return messages_df
+        else:
+            # If not using database, just process everything at once
+            return self.process_message_groups(messages_df, time_window, cluster_size, big_cluster_size)
 
     def close(self):
         """Close the DuckDB connection if it exists"""
