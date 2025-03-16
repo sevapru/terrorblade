@@ -79,7 +79,7 @@ class TextPreprocessor:
             [
                 pl.col("chat_name").first(),
                 pl.col("date").min().alias("date"),
-                pl.col("from").first().alias("from"),
+                pl.col("from_name").first().alias("from_name"),
                 pl.col("text").str.join(". ").alias("text"),
                 pl.col("reply_to_message_id").first().alias("reply_to_message_id"),
                 pl.col("forwarded_from").first().alias("forwarded_from"),
