@@ -580,19 +580,52 @@ class TelegramDatabase:
         Args:
             phone (str): User's phone number
         """
-        try:
-            if user_stats := self.get_user_stats(phone):
-                print(user_stats)
+        # Get number of users
+        user_count = self.get_user_count()
+        self.logger.info(f"\nTotal users in database: {user_count}")
 
-                if user_stats.largest_chat:
-                    print(f"Largest chat: {user_stats.largest_chat[1]} ({user_stats.largest_chat[2]} messages)")
-                    if chat_stats := self.get_chat_stats(phone, user_stats.largest_chat[0]):
-                        print(chat_stats)
-            else:
-                print(f"No data found for user {phone}")
-        except Exception as e:
-            self.logger.error(f"Error printing user summary: {str(e)}")
-            raise
+        # Get all users
+        users = self.get_all_users()
+        self.logger.info(f"Users: {users}")
+
+        # Get stats for a specific user
+        if user_stats := self.get_user_stats(phone):
+            self.logger.info(f"\nStats for user {phone}:")
+            self.logger.info(f"Total messages: {user_stats.total_messages}")
+            self.logger.info(f"Total chats: {user_stats.total_chats}")
+
+            if user_stats and user_stats.largest_chat and user_stats.largest_chat[0] is not None:
+                self.logger.info(f"Largest chat: {user_stats.largest_chat[1]} ({user_stats.largest_chat[2]} messages)")
+
+            if user_stats.largest_cluster and user_stats.largest_cluster[0] is not None:
+                self.logger.info(f"Largest cluster: {user_stats.largest_cluster[1]} ({user_stats.largest_cluster[2]} messages)")
+
+            # Get a random large cluster
+            cluster = self.get_random_large_cluster(phone, min_size=5)
+            if cluster is not None and not cluster.is_empty():
+                self.logger.info(f"\nRandom cluster size: {len(cluster)}")
+                self.logger.info("Sample messages from cluster:")
+                self.logger.info(cluster.select(["text", "date"]).head(3))
+
+            # Get largest cluster messages
+            largest_cluster = self.get_largest_cluster_messages(phone)
+            if largest_cluster is not None and not largest_cluster.is_empty():
+                self.logger.info(f"\nLargest cluster messages ({len(largest_cluster)} messages):")
+                self.logger.info(largest_cluster.select(["text", "date"]).head(5))
+
+            # Get stats for the largest chat
+            if user_stats and user_stats.largest_chat and user_stats.largest_chat[0] is not None:
+                if chat_stats := self.get_chat_stats(phone, user_stats.largest_chat[0]):
+                    self.logger.info(f"\nStats for largest chat {chat_stats.chat_name}:")
+                    self.logger.info(f"Total messages: {chat_stats.message_count}")
+                    self.logger.info(f"Number of clusters: {chat_stats.cluster_count}")
+                    if chat_stats.avg_cluster_size is not None:
+                        self.logger.info(f"Average cluster size: {chat_stats.avg_cluster_size:.2f}")
+                    if chat_stats.largest_cluster_size is not None:
+                        self.logger.info(f"Largest cluster size: {chat_stats.largest_cluster_size}")
+            return self
+        else:
+            self.logger.info(f"No data found for user {phone}")
 
     def close(self) -> None:
         """Close the database connection"""
