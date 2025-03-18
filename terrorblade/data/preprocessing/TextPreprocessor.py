@@ -224,7 +224,7 @@ class TextPreprocessor:
         Returns:
             torch.Tensor: Tensor containing the embeddings for each text.
         """
-        texts = df["text"].to_list()
+        texts = df["text"].fill_null("").to_list()
         # Batch processing to save memory
         batch_size = min(1024, len(texts))
         return self.embeddings_model.encode(

@@ -51,10 +51,6 @@ class TelegramParser:
             log_file=os.getenv("LOG_FILE", "telegram.log"),
             log_dir=os.getenv("LOG_DIR", "logs"),
         )
-        
-        
-        
-        
 
     async def connect(self):
         """Connecting to Telegram API using stored session if available"""
@@ -73,9 +69,25 @@ class TelegramParser:
             self.client = TelegramClient(StringSession(), self.api_id, self.api_hash)
         
         try:
-            # Start the client
-            await self.client.start(phone=self.phone)
-            self.logger.info("Successfully connected to Telegram API")
+            # Connect to Telegram servers (doesn't log in yet)
+            await self.client.connect()
+            
+            # Check if already authorized
+            if not await self.client.is_user_authorized():
+                self.logger.info("User not authorized. Starting authentication process...")
+                
+                # Request verification code
+                await self.client.send_code_request(self.phone)
+                self.logger.info(f"Verification code sent to {self.phone}")
+                
+                # Ask for the code
+                verification_code = input(f"Enter the verification code sent to {self.phone}: ")
+                
+                # Sign in with the code
+                await self.client.sign_in(self.phone, verification_code)
+                self.logger.info("Successfully authenticated with Telegram API")
+            else:
+                self.logger.info("User already authorized")
             
             # Save the session string after successful connection
             if self.client.session:
@@ -87,13 +99,9 @@ class TelegramParser:
             wait_time = e.seconds
             self.logger.warning(f"FloodWaitError: Need to wait {wait_time} seconds due to Telegram rate limiting")
             await asyncio.sleep(wait_time)
-            await self.client.start(phone=self.phone)
+            # Try to reconnect after waiting
+            await self.connect()  # Recursive call to retry the connection
             
-            # Save session after reconnection
-            if self.client.session:
-                session_string = self.client.session.save()
-                self.session_manager.save_session(self.phone, session_string)
-                
         except Exception as e:
             self.logger.error(f"Failed to connect to Telegram API: {str(e)}")
             raise
@@ -153,34 +161,48 @@ class TelegramParser:
                 return None
 
             async for message in self.client.iter_messages(chat_id, limit=limit, min_id=min_id):
-                if isinstance(message, MessageService):
-                    continue
 
                 msg_dict = map_telethon_message_to_schema(message, chat_id, dialog_name)
-
-                # Get information about sender
-                if message.from_id and self.client is not None:
-                    sender = await self.client.get_entity(message.from_id)
-                    msg_dict["from_name"] = (
-                        f"{sender.first_name} {sender.last_name if sender.last_name else ''}".strip()
-                    )
-
                 messages.append(msg_dict)
 
             if not messages:
                 self.logger.info(f"No messages found in chat {chat_id}")
                 return None
 
-            df = pl.DataFrame(messages)
-            self.logger.info(f"Successfully fetched {len(messages)} messages from chat {chat_id}")
-
-            # Use the centralized schema to cast types
+            # Get the centralized schema
             schema = get_polars_schema()
-            cast_expressions = [
-                pl.col(col_name).cast(dtype) for col_name, dtype in schema.items() if col_name in df.columns
-            ]
             
-            df = df.with_columns(cast_expressions)
+            # Create DataFrame with schema applied directly
+            df = pl.DataFrame(
+                messages,
+                schema={col_name: dtype for col_name, dtype in schema.items() if col_name in messages[0]}, 
+                strict=False
+            )
+            
+            # Get unique sender IDs and fetch their information once
+            unique_sender_ids = df.filter(pl.col("from_id").is_not_null())["from_id"].unique().to_list()
+            sender_info = {}
+            
+            for sender_id in unique_sender_ids:
+                try:
+                    if self.client is not None:
+                        sender = await self.client.get_entity(sender_id)
+                        sender_info[sender_id] = (
+                            f"{sender.first_name} {sender.last_name if sender.last_name else ''}".strip()
+                        )
+                except Exception as e:
+                    self.logger.warning(f"Could not fetch info for sender {sender_id}: {str(e)}")
+                    sender_info[sender_id] = ""
+            
+            # Apply the mapping to the DataFrame with explicit return type and skip_nulls=False
+            df = df.with_columns(
+                pl.when(pl.col("from_id").is_not_null())
+                .then(pl.col("from_id").map_elements(lambda x: sender_info.get(x, ""), return_dtype=pl.Utf8, skip_nulls=False))
+                .otherwise(pl.col("chat_name"))
+                .alias("from_name")
+            )
+            
+            self.logger.info(f"Successfully fetched {len(messages)} messages from chat {chat_id}")
 
             return df
         except Exception as e:
