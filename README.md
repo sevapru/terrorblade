@@ -3,35 +3,6 @@
 A Python-based Telegram message parser that allows you to fetch and store messages from Telegram chats using the Telegram API. The parser stores messages in a DuckDB database for efficient querying and analysis.
 
 
-## **Development Roadmap**  
-
-### **Phase 1: Core Analytics**  
-| Module | Mythological Figure | Function | Status |  
-|--------|---------------------|----------|--------|  
-| **Terrorblade** | Demon | Behavioral pattern extraction | ✅ Released |  
-| **Thoth** | Egyptian Scribe God | Topic analysis & visualization | 🚧 In Development |  
-
-### **Phase 2: Security & Observation**  
-| Module | Mythological Figure | Function | Status |  
-|--------|---------------------|----------|--------|  
-| **Argus** | All-Seeing Giant (Greek) | Cross-platform monitoring (Telegram, WhatsApp, etc.) | Planned (Q4 2024) |  
-| **Themis**/**Nemesis** | Goddess of Justice/Retribution (Greek) | Threat detection (terrorism, extremism patterns) | Planned (Q1 2025) |  
-
-### **Phase 3: Ethics & Infrastructure**  
-| Module | Mythological Figure | Function | Status |  
-|--------|---------------------|----------|--------|  
-| **Iris** | Rainbow Messenger (Greek) | Data visualization & interactive dashboards | Planned (Q2 2025) |  
-| **Janus** | Two-Faced God of Gates (Roman) | Ethical data anonymization & access control | Planned (Q3 2025) |  
-
----
-
-## **Future Vision**  
-### **Phase 4: Specialized Expansion**  
-- **Hephaestus**: AI customization toolkit (train models on niche slang/contexts).  
-- **Hypnos**: Sleep/fatigue analysis via activity timelines.  
-- **Eris**: Community stress-testing through controlled chaos (A/B message testing).  
-
----
 
 ## Implemented Features
 
@@ -47,14 +18,77 @@ A Python-based Telegram message parser that allows you to fetch and store messag
 - Topic modeling and clustering
 - Advanced data analysis through the Thoth package
 
+
+## **Development Roadmap**  
+
+### **Phase 1: Core Analytics**  
+| Module | Mythological Figure | Function | Status |  
+|--------|---------------------|----------|--------|  
+| **Terrorblade** | Demon | Behavioral pattern extraction | ✅ Released |  
+| **Thoth** | Egyptian Scribe God | Topic analysis & visualization | 🚧 In Development |  
+
+<details>
+<summary>Future Development Phases</summary>
+
+### **Phase 2: Security & Observation**  
+| Module | Mythological Figure | Function | Status |  
+|--------|---------------------|----------|--------|  
+| **Argus** | All-Seeing Giant (Greek) | Cross-platform monitoring (Telegram, WhatsApp, etc.) | Planned (Q4 2024) |  
+| **Themis**/**Nemesis** | Goddess of Justice/Retribution (Greek) | Threat detection (terrorism, extremism patterns) | Planned (Q1 2025) |  
+
+### **Phase 3: Ethics & Infrastructure**  
+| Module | Mythological Figure | Function | Status |  
+|--------|---------------------|----------|--------|  
+| **Iris** | Rainbow Messenger (Greek) | Data visualization & interactive dashboards | Planned (Q2 2025) |  
+| **Janus** | Two-Faced God of Gates (Roman) | Ethical data anonymization & access control | Planned (Q3 2025) |  
+
+### **Phase 4: Specialized Expansion**  
+- **Hephaestus**: AI customization toolkit (train models on niche slang/contexts).  
+- **Hypnos**: Sleep/fatigue analysis via activity timelines.  
+- **Eris**: Community stress-testing through controlled chaos (A/B message testing).  
+</details>
+
+---
+
+
 ## Prerequisites
 
-- Python 3.12+
-- DuckDB CLI (for database operations)
-- CUDA-compatible GPU (optional, for GPU-accelerated features)
-- Telegram API credentials (API ID and API Hash)
+* Python 3.12+
+* DuckDB CLI (for database operations)
+
+Optional 
+* Telegram API credentials (API ID and API Hash)  
+* CUDA-compatible GPU (for GPU-accelerated features)
+  
+
+<details>
+<summary>Obtaining Telegram API Credentials</summary>
+
+To use direct Telegram message synchronization, you'll need to obtain API credentials:
+
+1. Visit [https://my.telegram.org/apps](https://my.telegram.org/apps)
+2. Log in with your Telegram account
+3. Click "Create application"
+4. Fill in the required fields:
+   - App title: Choose any name
+   - Short name: Choose a short identifier
+   - Platform: Desktop
+   - Description: Brief description of your use case
+5. After creation, you'll receive:
+   - `api_id`: A numeric value
+   - `api_hash`: A 32-character hexadecimal string
+6. Add these values to your `.env` file:
+   ```
+   API_ID=your_api_id
+   API_HASH=your_api_hash
+   ```
+
+Note: Keep these credentials secure and never share them publicly.
+</details>
 
 ## Installation
+
+> **Note**: See the [Docker Usage](#docker-usage) section below for docker installation instructions.
 
 The project uses `uv` for fast Python package management and virtual environment handling.
 
@@ -66,7 +100,6 @@ cd terrorblade
 ```
 
 2. Set up the environment:
-
 ```bash
 # Copy environment configuration
 cp .env.example .env
@@ -78,28 +111,14 @@ cp .env.example .env
 
 3. Choose your installation type:
 
-For basic installation (CPU only):
-
 ```bash
-make install
-```
-
-For development (includes testing and linting tools):
-
-```bash
+# Full functionality (+ testing & linting)
 make dev
 ```
 
-For GPU-accelerated features:
-
 ```bash
-make install-cuda
-```
-
-For installation with Thoth analysis package:
-
-```bash
-make install-thoth
+# CPU only
+make install
 ```
 
 The installation process will:
@@ -140,6 +159,7 @@ print(f"Active users: {stats.unique_users}")
 print(f"Media messages: {stats.media_count}")
 ```
 
+## Additional Examples
 ### 3. Semantic Search
 
 ```python
@@ -258,9 +278,137 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 Creative Commons Attribution-NonCommercial 4.0 International License
 
-Copyright (c) 2024 Vsevolod Prudius
+Copyright (c) 2025 Vsevolod Prudius
 
 This work is licensed under the Creative Commons Attribution-NonCommercial 4.0
 International License. To view a copy of this license, visit
 <http://creativecommons.org/licenses/by-nc/4.0/> or send a letter to Creative Commons,
 PO Box 1866, Mountain View, CA 94042, USA.
+
+
+# Docker Usage
+
+The project includes a `Dockerfile` to build and run `Terrorblade` and `Thoth` services in containers. This uses a multi-stage build approach with `uv` for dependency management.
+
+### Prerequisites
+
+- Docker installed and running.
+
+### Building the Images
+
+To build the Docker images, navigate to the project root directory (where the `Dockerfile` is located) and run:
+
+```bash
+# Build the development image (includes debugging tools)
+docker build --target dev -t terrorblade-dev .
+
+# Build the production image for Terrorblade
+docker build --target terrorblade_prod -t terrorblade-prod .
+
+# Build the production image for Thoth
+docker build --target thoth_prod -t thoth-prod .
+```
+
+### Running the Containers
+
+#### Terrorblade Service
+
+To run the `Terrorblade` service (production):
+
+```bash
+docker run -d --name terrorblade \\
+  -v ./data:/app/data \\ # Mount a volume for DuckDB data (adjust path if needed)
+  -v ./path/to/your/.env:/app/.env \\ # Mount your .env file
+  terrorblade-prod
+```
+
+To run the `Terrorblade` service in development mode with debugging enabled on port 5678:
+
+```bash
+docker run -d --name terrorblade-dev \\
+  -p 5678:5678 \\
+  -v $(pwd):/app \\ # Mount current directory for live code changes
+  -v ./path/to/your/.env:/app/.env \\ # Mount your .env file
+  terrorblade-dev
+```
+
+Attach your debugger to port `5678`.
+
+#### Thoth Service
+
+**Note:** The `Thoth` service entrypoint in the `Dockerfile` is currently a placeholder. You will need to update the `CMD` in the `thoth_prod` stage of the `Dockerfile` to correctly start your Thoth application (e.g., if it's a web server like Flask/Gunicorn).
+
+Assuming you have updated the `Thoth` entrypoint, you can run it (production):
+
+```bash
+docker run -d --name thoth \\
+  # Add necessary port mappings if Thoth is a web service, e.g., -p 8000:8000
+  # Add volume mounts if Thoth needs to access data or config files
+  # -v ./data:/app/data # Example: If Thoth reads the same DuckDB
+  # -v ./path/to/thoth/config:/app/config # Example: Thoth specific config
+  thoth-prod
+```
+
+### Networking and Data Sharing
+
+- **DuckDB Access**: If `Thoth` needs to access the DuckDB database managed by the `Terrorblade` container, you will need to ensure the database file is accessible. This can be achieved by:
+    - Mounting the same host directory (containing the DuckDB file) as a volume into both containers.
+    - If DuckDB is run in server mode within the `Terrorblade` container, configure networking (e.g., a Docker network) so `Thoth` can connect to it.
+- **Loki Logging**: The `Dockerfile` includes comments regarding Loki integration. To fully implement this, you would typically:
+    - Configure your application's logger (`terrorblade/utils/logger.py`) to output logs in a structured format (e.g., JSON).
+    - Run a log shipper like Promtail, either as a sidecar container or on the host, configured to send logs from your containers to Loki.
+
+### Using Docker Compose (Recommended)
+
+For managing multi-container applications like this, Docker Compose is highly recommended. You can create a `docker-compose.yml` file to define and run both `Terrorblade` and `Thoth` services, manage networks, volumes, and environment variables more easily.
+
+**Example `docker-compose.yml` structure:**
+
+```yaml
+version: '3.8'
+services:
+  terrorblade:
+    build:
+      context: .
+      target: terrorblade_prod # or dev for development
+    container_name: terrorblade
+    volumes:
+      - ./data:/app/data
+      - ./your.env:/app/.env # Ensure your .env file is correctly named and present
+    # ports:
+      # - "5678:5678" # If running dev target and need debugger access
+    environment:
+      # Define environment variables here or use env_file
+      - DUCKDB_PATH=/app/data/telegram_data.db # Example
+
+  thoth:
+    build:
+      context: .
+      target: thoth_prod
+    container_name: thoth
+    ports:
+      - "8000:8000" # Example if Thoth runs a web server on port 8000
+    volumes:
+      - ./data:/app/data # If Thoth needs access to the same DuckDB data
+    depends_on:
+      - terrorblade # Optional: if Thoth depends on Terrorblade starting first
+    environment:
+      # Thoth specific environment variables
+      - DUCKDB_PATH=/app/data/telegram_data.db # Example
+
+volumes:
+  data:
+    # You can define a named volume for persistent data
+```
+
+To run with Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+To stop:
+
+```bash
+docker-compose down
+```
