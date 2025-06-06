@@ -40,8 +40,7 @@ telegram.log
 telegram.log.1
 
 proto/
-
+qdrant_db/
 # Logs
 logs/
 *.wal
-

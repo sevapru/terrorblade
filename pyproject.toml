@@ -12,7 +12,6 @@ dependencies = [
     "polars",
     "telethon",
     "duckdb",
-    "vllm",
     "python-dotenv",
     "beautifulsoup4",
     "numpy",
