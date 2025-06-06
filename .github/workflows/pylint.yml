@@ -1,0 +1,33 @@
+name: Pylint
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]  # Based on project requirements
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install uv
+      run: |
+        pip install uv
+    
+    - name: Install dependencies
+      run: |
+        uv pip install -e ".[dev]"  # Install project with dev dependencies
+        uv pip install pylint
+    
+    - name: Analyze the code with pylint
+      run: |
+        pylint --disable=C0111,C0103,R0903,R0913,R0914,R0902,W0511,R0801 $(git ls-files '*.py' | grep -v 'proto/') 
