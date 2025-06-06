@@ -109,15 +109,9 @@ cp .env.example .env
 # Optional: DUCKDB_PATH, LOG_LEVEL, LOG_FILE, LOG_DIR
 ```
 
-3. Choose your installation type:
+3. Run the installation:
 
 ```bash
-# Full functionality (+ testing & linting)
-make dev
-```
-
-```bash
-# CPU only
 make install
 ```
 
