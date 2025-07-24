@@ -125,18 +125,46 @@ The installation process will:
 
 ## Quick Start Demo
 
-### 1. Message Loading
+### Processing messages directly from Telegram API
+
+⚠️ **WARNING**: 
+
+**This example is designed for small accounts with limited message history. Using it on accounts with large message histories may:**
+- **Trigger Telegram's rate limits**
+- **Cause your account to be temporarily disconnected**
+- **Require re-authentication on all devices**
+- **Result in temporary loss of access to your account**
+
+If you have a large message history, consider using a test account first.
+
+This example is: 
+1. Initialize a DuckDB database to store your Telegram messages
+2. Connect to Telegram using your phone number (you'll need to input auth code)
+3. Download your message history
+4. Process messages to:
+   - Calculate embeddings for semantic search
+   - Group messages into conversation clusters
+   - Store everything in the database
+
+The process may take some time depending on your message history size. Progress will be shown in the console.
+
+
 
 ```python
-from terrorblade.data.loaders import TelegramLoader
+from terrorblade.examples.create_db_from_tg_account import run_processor
 
-# Initialize the loader
-loader = TelegramLoader()
-
-# Load messages from a specific chat
-chat_id = "your_chat_id"
-messages = await loader.load_messages(chat_id)
+phone = "+1234567890"  # Replace with your actual phone number (include country code)
+run_processor(phone)
 ```
+
+**Note from Maintainers**: We are actively working on implementing rate limiting and batch processing to make the tool safer for accounts with larger message histories. In the meantime, please exercise caution when using this tool with accounts containing extensive message histories.
+
+**Fun bug**: in case of failure your messages for the last few minutes will be deleted (and your firends will be sad about it)
+
+### Processing messages from extracted archive
+This method is much safer from the perspective of account access and implementation since you upload your messages directly with machine-readable JSON. 
+
+
 
 ### 2. Basic Analysis
 
@@ -267,17 +295,6 @@ This project includes support for GPU acceleration through NVIDIA RAPIDS librari
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-Creative Commons Attribution-NonCommercial 4.0 International License
-
-Copyright (c) 2025 Vsevolod Prudius
-
-This work is licensed under the Creative Commons Attribution-NonCommercial 4.0
-International License. To view a copy of this license, visit
-<http://creativecommons.org/licenses/by-nc/4.0/> or send a letter to Creative Commons,
-PO Box 1866, Mountain View, CA 94042, USA.
 
 
 # Docker Usage
