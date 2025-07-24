@@ -44,3 +44,4 @@ qdrant_db/
 # Logs
 logs/
 *.wal
+.vscode/settings.json
