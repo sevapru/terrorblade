@@ -1,6 +1,5 @@
 import polars as pl
-from collections import OrderedDict
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 
 # Centralized schema for Telegram messages
@@ -100,15 +99,9 @@ def get_process_schema() -> Dict[str, Any]:
     """Return a schema suitable for processing that maps to the central schema."""
     process_schema = {}
     # Add fields that are common between process schema and central schema
-    for field in ["chat_name", "date", "from", "text", "reply_to_message_id", "forwarded_from", "chat_id"]:
+    for field in ["chat_name", "date", "from_name", "text", "reply_to_message_id", "forwarded_from", "chat_id", "message_id", "from_id"]:
         if field in TELEGRAM_SCHEMA:
             process_schema[field] = TELEGRAM_SCHEMA[field]["polars_type"]
-    
-    # Add 'id' which maps to 'message_id'
-    process_schema["id"] = TELEGRAM_SCHEMA["message_id"]["polars_type"]
-    
-    # Add 'from_id' with its specific type for process schema
-    process_schema["from_id"] = pl.Utf8  # In process schema, from_id is Utf8
     
     return process_schema
 
@@ -121,7 +114,7 @@ def create_message_template() -> Dict[str, None]:
     """
     return {field: None for field in TELEGRAM_SCHEMA.keys()}
 
-def map_telethon_message_to_schema(message, chat_id: int, dialog_name: str = None) -> Dict[str, Any]:
+def map_telethon_message_to_schema(message, chat_id: int, dialog_name: Optional[str] = None) -> Dict[str, Any]:
     """
     Maps a Telethon message object to our centralized schema format.
     
@@ -200,4 +193,21 @@ telegram_import_schema = {
     # "place_name": pl.Utf8, # We already have a location
     # "address": pl.Utf8, # We already have a location
     # "date_unixtime": pl.Utf8, Absolutely the same as date, but in unixtime and without timezone. Could be faster to parse, but later then
+}
+
+
+# Telegram import schema for archive (shortened and aligned with TELEGRAM_SCHEMA)
+telegram_import_schema_short = {
+    "id": pl.Int64,
+    "message_id": pl.Int64,  # Maps to message_id in TELEGRAM_SCHEMA
+    "date": pl.Utf8,
+    "from_id": pl.Utf8,  # Keep as Utf8 for JSON import, will be cast later
+    "text": pl.Utf8,
+    "chat_id": pl.Int64,
+    "reply_to_message_id": pl.Int64,
+    "media_type": pl.Utf8,
+    "file_name": pl.Utf8,
+    "from_name": pl.Utf8,  # Use from_name instead of "from" to align with TELEGRAM_SCHEMA
+    "chat_name": pl.Utf8,
+    "forwarded_from": pl.Utf8,
 }
