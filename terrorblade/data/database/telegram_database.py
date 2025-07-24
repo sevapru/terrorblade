@@ -2,7 +2,7 @@ import logging
 import os
 import random
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import duckdb
 import polars as pl
@@ -105,11 +105,12 @@ class TelegramDatabase:
             for table in message_tables:
                 phone = "+" + table.replace("messages_", "")
                 # Get first message date as first_seen
-                first_seen = self.db.execute(
+                result = self.db.execute(
                     f"""
                     SELECT MIN(date) FROM {table}
                 """
-                ).fetchone()[0]
+                ).fetchone()
+                first_seen = result[0] if result else None
 
                 # Add user if not exists
                 self.db.execute(
@@ -302,7 +303,7 @@ class TelegramDatabase:
             self.logger.error(f"Error getting user stats for {phone}: {str(e)}")
             raise
 
-    def get_random_large_cluster(self, phone: str, min_size: int = 10) -> Optional[pl.DataFrame]:
+    def get_random_large_cluster(self, phone: str, min_size: int = 10) -> Union[pl.DataFrame, pl.Series, None]:
         """
         Get a random large message cluster from any dialog for the specified user.
 
@@ -488,18 +489,17 @@ class TelegramDatabase:
                 messages_df = messages_df.with_columns(pl.lit(None).alias("from_name"))
                 self.logger.info(f"Added missing 'from_name' column to DataFrame for user {phone}")
 
-
-            # Convert DataFrame to DuckDB table
+            self.db.register("messages_df", messages_df)
             self.db.execute(
                 f"""INSERT OR IGNORE INTO {messages_table} ({', '.join(list(TELEGRAM_SCHEMA.keys()))}) SELECT {', '.join(list(TELEGRAM_SCHEMA.keys()))} FROM messages_df"""
             )
 
-            # Update user's last_update and first_seen
             first_seen = self.db.execute(
                 f"""
                 SELECT MIN(date) FROM {messages_table}
-            """
-            ).fetchone()[0]
+                """
+            ).fetchone()
+            first_seen = first_seen[0] if first_seen else None
 
             self.db.execute(
                 """
@@ -514,7 +514,7 @@ class TelegramDatabase:
             self.logger.error(f"Error adding messages: {str(e)}")
             raise
 
-    def get_largest_cluster_messages(self, phone: str) -> Optional[pl.DataFrame]:
+    def get_largest_cluster_messages(self, phone: str) -> Union[pl.DataFrame, pl.Series, None]:
         """
         Get messages from the largest cluster for a specific user.
 
@@ -572,7 +572,7 @@ class TelegramDatabase:
             self.logger.error(f"Error getting largest cluster messages: {str(e)}")
             raise
 
-    def print_user_summary(self, phone: str) -> None:
+    def print_user_summary(self, phone: str) -> Union[None, UserStats]:
         """
         Print comprehensive summary for a specific user.
         Similar to the third_main function but as a class method.
@@ -594,8 +594,14 @@ class TelegramDatabase:
             self.logger.info(f"Total messages: {user_stats.total_messages}")
             self.logger.info(f"Total chats: {user_stats.total_chats}")
 
-            if user_stats and user_stats.largest_chat and user_stats.largest_chat[0] is not None:
-                self.logger.info(f"Largest chat: {user_stats.largest_chat[1]} ({user_stats.largest_chat[2]} messages)")
+            # Show top-3 largest chats
+            if user_stats and user_stats.chat_stats:
+                sorted_chats = sorted(user_stats.chat_stats.values(), key=lambda x: x.message_count, reverse=True)
+                top_3_chats = sorted_chats[:3]
+                
+                self.logger.info(f"Top {len(top_3_chats)} largest chats:")
+                for i, chat in enumerate(top_3_chats, 1):
+                    self.logger.info(f"  {i}. {chat.chat_name} ({chat.message_count} messages)")
 
             if user_stats.largest_cluster and user_stats.largest_cluster[0] is not None:
                 self.logger.info(f"Largest cluster: {user_stats.largest_cluster[1]} ({user_stats.largest_cluster[2]} messages)")
@@ -605,13 +611,13 @@ class TelegramDatabase:
             if cluster is not None and not cluster.is_empty():
                 self.logger.info(f"\nRandom cluster size: {len(cluster)}")
                 self.logger.info("Sample messages from cluster:")
-                self.logger.info(cluster.select(["text", "date"]).head(3))
+                self.logger.info(cluster.select(["text", "date"]).head(3)) # type: ignore
 
             # Get largest cluster messages
             largest_cluster = self.get_largest_cluster_messages(phone)
             if largest_cluster is not None and not largest_cluster.is_empty():
                 self.logger.info(f"\nLargest cluster messages ({len(largest_cluster)} messages):")
-                self.logger.info(largest_cluster.select(["text", "date"]).head(5))
+                self.logger.info(largest_cluster.select(["text", "date"]).head(5)) # type: ignore
 
             # Get stats for the largest chat
             if user_stats and user_stats.largest_chat and user_stats.largest_chat[0] is not None:
@@ -623,9 +629,10 @@ class TelegramDatabase:
                         self.logger.info(f"Average cluster size: {chat_stats.avg_cluster_size:.2f}")
                     if chat_stats.largest_cluster_size is not None:
                         self.logger.info(f"Largest cluster size: {chat_stats.largest_cluster_size}")
-            return self
+            return user_stats
         else:
             self.logger.info(f"No data found for user {phone}")
+            return None
 
     def close(self) -> None:
         """Close the database connection"""
