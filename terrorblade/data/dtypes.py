@@ -1,10 +1,19 @@
-from typing import Any
+from typing import Any, TypedDict
 
 import polars as pl
 
+
+class SchemaInfo(TypedDict):
+    """Type definition for schema information."""
+
+    polars_type: Any
+    db_type: str
+    description: str
+
+
 # Centralized schema for Telegram messages
 # This is the single source of truth for all Telegram data operations
-TELEGRAM_SCHEMA = {
+TELEGRAM_SCHEMA: dict[str, SchemaInfo] = {
     "message_id": {
         "polars_type": pl.Int64,
         "db_type": "BIGINT",
@@ -132,7 +141,7 @@ def create_message_template() -> dict[str, None]:
 
 
 def map_telethon_message_to_schema(
-    message, chat_id: int, dialog_name: str | None = None
+    message: Any, chat_id: int, dialog_name: str | None = None
 ) -> dict[str, Any]:
     """
     Maps a Telethon message object to our centralized schema format.

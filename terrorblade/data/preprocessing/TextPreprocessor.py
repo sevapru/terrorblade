@@ -1,5 +1,6 @@
 import os
 from datetime import timedelta
+from typing import Any
 
 import polars as pl
 import torch
@@ -23,13 +24,13 @@ class TextPreprocessor:
         self.time_window = time_window
         self.cluster_size = cluster_size
         self.big_cluster_size = big_cluster_size
-        self._embeddings_model = None
+        self._embeddings_model: Any | None = None
         self.batch_size = batch_size
         self.squared_batch_size = 1024
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     @property
-    def embeddings_model(self):
+    def embeddings_model(self) -> Any:
         if self._embeddings_model is None:
             from sentence_transformers import SentenceTransformer
 
@@ -347,7 +348,7 @@ class TextPreprocessor:
         cluster_df = df.filter(pl.col("cluster") == cluster_id)
         print(cluster_df)
 
-    def show_biggest_cluster(self, df: pl.DataFrame):
+    def show_biggest_cluster(self, df: pl.DataFrame) -> None:
         """
         Displays the messages in the biggest cluster.
 

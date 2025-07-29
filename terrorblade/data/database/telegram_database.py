@@ -23,7 +23,7 @@ class ChatStats:
     avg_cluster_size: float
     largest_cluster_size: int
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"ChatStats(chat_id={self.chat_id}, \
             chat_name={self.chat_name}, \
             message_count={self.message_count}, \
@@ -41,7 +41,7 @@ class UserStats:
     largest_cluster: tuple[int, str, int] | None  # (chat_id, chat_name, cluster_size)
     chat_stats: dict[int, ChatStats]  # chat_id -> ChatStats
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"UserStats(phone={self.phone}, \
             total_messages={self.total_messages}, \
             total_chats={self.total_chats}, \

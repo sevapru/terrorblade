@@ -1,3 +1,5 @@
+"""Example script to create a database from Telegram JSON export file."""
+
 from terrorblade.data.database.telegram_database import TelegramDatabase
 from terrorblade.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
 

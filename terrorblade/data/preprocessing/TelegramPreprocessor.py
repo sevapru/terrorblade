@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from datetime import datetime
+from typing import Any
 
 import duckdb
 import polars as pl
@@ -22,9 +23,9 @@ class TelegramPreprocessor(TextPreprocessor):
         use_duckdb: bool = False,
         db_path: str = "telegram_data.db",
         phone: str | None = None,
-        *args,
-        **kwargs,
-    ):
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """
         Initializes the TelegramPreprocessor with the specified input folder.
 
@@ -54,7 +55,7 @@ class TelegramPreprocessor(TextPreprocessor):
             self.db = duckdb.connect(db_path)
             self._init_cluster_tables()
 
-    def _init_cluster_tables(self):
+    def _init_cluster_tables(self) -> None:
         """Initialize tables for storing cluster information"""
         self.logger.info("Initializing database tables")
 
@@ -123,7 +124,7 @@ class TelegramPreprocessor(TextPreprocessor):
             self.logger.error(f"Error retrieving messages from database: {str(e)}")
             raise
 
-    def _update_clusters_in_db(self, clusters_df: pl.DataFrame):
+    def _update_clusters_in_db(self, clusters_df: pl.DataFrame) -> None:
         """
         Update cluster information in DuckDB using polars DataFrame
 
@@ -151,7 +152,7 @@ class TelegramPreprocessor(TextPreprocessor):
             self.logger.error(f"Error updating clusters in database: {str(e)}")
             raise
 
-    def _update_embeddings_in_db(self, embeddings_df: pl.DataFrame):
+    def _update_embeddings_in_db(self, embeddings_df: pl.DataFrame) -> None:
         """
         Update embeddings information in DuckDB using a polars DataFrame
 
@@ -316,7 +317,7 @@ class TelegramPreprocessor(TextPreprocessor):
             pl.DataFrame: DataFrame with parsed links.
         """
 
-        def extract_text(val):
+        def extract_text(val: Any) -> Any:
             if isinstance(val, list):
                 if (
                     len(val) == 1
@@ -702,7 +703,7 @@ class TelegramPreprocessor(TextPreprocessor):
 
         return chats_dict
 
-    def _add_messages_to_db(self, messages_df: pl.DataFrame, phone=None) -> None:
+    def _add_messages_to_db(self, messages_df: pl.DataFrame, phone: str | None = None) -> None:
         """
         Add messages to the database for a specific user.
 
@@ -909,7 +910,7 @@ class TelegramPreprocessor(TextPreprocessor):
                 messages_df, time_window, cluster_size, big_cluster_size
             )
 
-    def close(self):
+    def close(self) -> None:
         """Close the DuckDB connection if it exists"""
         if self.use_duckdb:
             self.logger.info("Closing DuckDB connection")

@@ -1,3 +1,5 @@
+"""Logger utilities for Terrorblade project with color formatting support."""
+
 import logging
 import sys
 from pathlib import Path
@@ -5,6 +7,8 @@ from typing import Any
 
 
 class ColorFormatter(logging.Formatter):
+    """Custom formatter to add colors to log messages based on log level."""
+
     grey = "\033[37m"
     blue = "\033[36m"  # Cyan instead of bright blue
     yellow = "\033[33m"  # Soft yellow
@@ -38,14 +42,15 @@ logging.addLevelName(NICE, "NICE")
 def nice(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None:
     """Log 'msg % args' with severity 'NICE'."""
     if self.isEnabledFor(NICE):
+        # pylint: disable=protected-access
         self._log(NICE, message, args, **kwargs)
 
 
 # Attach the nice method to the Logger class
-logging.Logger.nice = nice
+logging.Logger.nice = nice  # type: ignore
 
 
-def Logger(
+def Logger(  # pylint: disable=invalid-name
     name: str,
     level: int = logging.INFO,
     log_file: str | None = None,

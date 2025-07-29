@@ -2,22 +2,23 @@ import asyncio
 import random
 import time
 import unittest
+from typing import Any
 from unittest.mock import patch
 
 from terrorblade.data.database.telegram_database import TelegramDatabase
-from terrorblade.data.loaders.telegram.parse_telegram_client import update_telegram_data
+from terrorblade.data.loaders.telegram.parse_telegram_client import update_telegram_data  # type: ignore
 
 
 class TestTelegramFloodErrors(unittest.TestCase):
     """Test cases for Telegram flood errors and rate limiting."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test environment before each test."""
         self.phone = "+******"
         self.db = TelegramDatabase()
 
     @patch("terrorblade.data.loaders.telegram.parse_telegram_client.update_telegram_data")
-    def test_flood_error_multiple_requests(self, mock_update_telegram_data):
+    def test_flood_error_multiple_requests(self, mock_update_telegram_data: Any) -> None:
         """Test that multiple rapid requests trigger flood control."""
         # Configure the mock to raise a flood error after a few calls
         mock_update_telegram_data.side_effect = [
@@ -47,7 +48,7 @@ class TestTelegramFloodErrors(unittest.TestCase):
         # If we didn't get an exception, the test failed
         self.fail("Expected flood error was not raised")
 
-    def test_flood_error_real_requests(self):
+    def test_flood_error_real_requests(self) -> None:
         """Test with real requests to Telegram API to observe actual flood control behavior.
 
         Note: This test makes actual API calls and may affect your Telegram account's rate limits.
@@ -74,7 +75,7 @@ class TestTelegramFloodErrors(unittest.TestCase):
 
         print("Completed all requests without triggering flood control")
 
-    def test_large_request(self):
+    def test_large_request(self) -> None:
         """Test that a very large request triggers flood control or other limits."""
         limit = 5000
 
