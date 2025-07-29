@@ -15,7 +15,7 @@ maintainers = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -55,8 +55,8 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project.urls]
-"Homepage" = "https://github.com/yourusername/thoth"
-"Bug Tracker" = "https://github.com/yourusername/thoth/issues"
+"Homepage" = "https://github.com/sevapru/thoth"
+"Bug Tracker" = "https://github.com/sevaptu/thoth/issues"
 
 [tool.pytest]
 testpaths = ["tests"]

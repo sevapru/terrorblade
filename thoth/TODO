@@ -1,0 +1,4 @@
+- Most general word (embedding) around all chats/each chat
+- Proportion of messages and words for each member of dialogue 
+- Emotional context for each message group (3 main emotions with proportions out of 8 general ones)
+- Message filter for cards, ids, phone numbers and emails (GDPR personal information)

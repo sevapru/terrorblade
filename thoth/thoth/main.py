@@ -1,8 +1,5 @@
 import argparse
-import os
 import sys
-from pathlib import Path
-from typing import Optional
 
 from thoth.analyzer import ThothAnalyzer
 
@@ -18,9 +15,14 @@ def main() -> None:
     # Basic parameters
     parser.add_argument("--db-path", type=str, help="Path to DuckDB database file")
     parser.add_argument("--phone", type=str, help="Phone number for user tables")
-    parser.add_argument("--qdrant-path", type=str, default="./qdrant_db", help="Path to Qdrant database directory")
     parser.add_argument(
-        "--embedding-model", type=str, default="all-MiniLM-L6-v2", help="Name of the Sentence Transformers model to use"
+        "--qdrant-path", type=str, default="./qdrant_db", help="Path to Qdrant database directory"
+    )
+    parser.add_argument(
+        "--embedding-model",
+        type=str,
+        default="all-MiniLM-L6-v2",
+        help="Name of the Sentence Transformers model to use",
     )
 
     # Command subparsers
@@ -33,13 +35,28 @@ def main() -> None:
     topics_parser = subparsers.add_parser("topics", help="Analyze topics in chat data")
     topics_parser.add_argument(
         "--action",
-        choices=["common", "evolution", "related", "keywords", "sentiment", "activity", "influence", "lifecycle"],
+        choices=[
+            "common",
+            "evolution",
+            "related",
+            "keywords",
+            "sentiment",
+            "activity",
+            "influence",
+            "lifecycle",
+        ],
         help="Specific topic analysis to perform",
     )
-    topics_parser.add_argument("--n-clusters", type=int, default=10, help="Number of clusters for topic modeling")
-    topics_parser.add_argument("--time-window", type=str, default="1 month", help="Time window for analysis")
+    topics_parser.add_argument(
+        "--n-clusters", type=int, default=10, help="Number of clusters for topic modeling"
+    )
+    topics_parser.add_argument(
+        "--time-window", type=str, default="1 month", help="Time window for analysis"
+    )
     topics_parser.add_argument("--threshold", type=float, default=0.7, help="Similarity threshold")
-    topics_parser.add_argument("--top-n", type=int, default=10, help="Number of top items to return")
+    topics_parser.add_argument(
+        "--top-n", type=int, default=10, help="Number of top items to return"
+    )
     topics_parser.add_argument("--topic-id", type=int, help="Specific topic ID to analyze")
 
     # User analysis commands
@@ -49,16 +66,26 @@ def main() -> None:
         choices=["topics", "interactions", "engagement", "behavior"],
         help="Specific user analysis to perform",
     )
-    users_parser.add_argument("--min-messages", type=int, default=10, help="Minimum messages for user inclusion")
-    users_parser.add_argument("--min-interactions", type=int, default=5, help="Minimum interactions for user inclusion")
+    users_parser.add_argument(
+        "--min-messages", type=int, default=10, help="Minimum messages for user inclusion"
+    )
+    users_parser.add_argument(
+        "--min-interactions", type=int, default=5, help="Minimum interactions for user inclusion"
+    )
 
     # Cross-chat analysis
     cross_parser = subparsers.add_parser("cross", help="Cross-chat analysis")
     cross_parser.add_argument(
-        "--action", choices=["topics", "correlations", "compare"], help="Specific cross-chat analysis to perform"
+        "--action",
+        choices=["topics", "correlations", "compare"],
+        help="Specific cross-chat analysis to perform",
     )
-    cross_parser.add_argument("--min-similarity", type=float, default=0.7, help="Minimum similarity threshold")
-    cross_parser.add_argument("--min-correlation", type=float, default=0.5, help="Minimum correlation threshold")
+    cross_parser.add_argument(
+        "--min-similarity", type=float, default=0.7, help="Minimum similarity threshold"
+    )
+    cross_parser.add_argument(
+        "--min-correlation", type=float, default=0.5, help="Minimum correlation threshold"
+    )
 
     # Search functionality
     search_parser = subparsers.add_parser("search", help="Search chat data")
@@ -71,7 +98,10 @@ def main() -> None:
 
     # Initialize analyzer
     analyzer = ThothAnalyzer(
-        db_path=args.db_path, phone=args.phone, embedding_model=args.embedding_model, qdrant_path=args.qdrant_path
+        db_path=args.db_path,
+        phone=args.phone,
+        embedding_model=args.embedding_model,
+        qdrant_path=args.qdrant_path,
     )
 
     # Process commands
@@ -112,7 +142,9 @@ def main() -> None:
             elif args.action == "sentiment":
                 if args.topic_id is not None:
                     results = analyzer.analyze_topic_sentiment(topic_id=args.topic_id)
-                    print(f"Sentiment for Topic {args.topic_id}: {results.get(args.topic_id, 0):.3f}")
+                    print(
+                        f"Sentiment for Topic {args.topic_id}: {results.get(args.topic_id, 0):.3f}"
+                    )
                 else:
                     results = analyzer.analyze_topic_sentiment()
                     print("Topic sentiment scores:")
@@ -159,7 +191,9 @@ def main() -> None:
                         topic_counts[topic] = topic_counts.get(topic, 0) + 1
 
                     print(f"\nUser {user_id}:")
-                    for topic, count in sorted(topic_counts.items(), key=lambda x: x[1], reverse=True):
+                    for topic, count in sorted(
+                        topic_counts.items(), key=lambda x: x[1], reverse=True
+                    ):
                         print(f"  Topic {topic}: {count} messages")
 
             elif args.action == "interactions":
@@ -195,11 +229,15 @@ def main() -> None:
                     print(f"  Avg message length: {pattern['avg_message_length']:.1f} chars")
 
                     if pattern.get("avg_reply_time_seconds") is not None:
-                        print(f"  Avg reply time: {pattern['avg_reply_time_seconds'] / 60:.1f} minutes")
+                        print(
+                            f"  Avg reply time: {pattern['avg_reply_time_seconds'] / 60:.1f} minutes"
+                        )
 
                     print("  Most active hours:", end=" ")
                     hour_counts = pattern["hourly_pattern"]
-                    top_hours = sorted(hour_counts.items(), key=lambda x: int(x[1]), reverse=True)[:3]
+                    top_hours = sorted(hour_counts.items(), key=lambda x: int(x[1]), reverse=True)[
+                        :3
+                    ]
                     print(", ".join(f"{h}:00" for h, _ in top_hours))
 
             else:
@@ -211,7 +249,9 @@ def main() -> None:
                 results = analyzer.analyze_cross_chat_topics(min_similarity=args.min_similarity)
                 print(f"Cross-chat topics (min_similarity={args.min_similarity}):")
                 for i, topic in enumerate(results):
-                    print(f"\n{i+1}. Topic {topic['topic_id']} (keywords: {', '.join(topic['keywords'])}):")
+                    print(
+                        f"\n{i+1}. Topic {topic['topic_id']} (keywords: {', '.join(topic['keywords'])}):"
+                    )
                     print(
                         f"  Present in {len(topic['chat_distribution'])} chats with {topic['total_messages']} total messages"
                     )
@@ -222,9 +262,15 @@ def main() -> None:
                 results = analyzer.analyze_topic_correlations(min_correlation=args.min_correlation)
                 print(f"Topic correlations (min_correlation={args.min_correlation}):")
                 for i, corr in enumerate(results):
-                    print(f"\n{i+1}. Topic {corr['topic_1']} <-> Topic {corr['topic_2']}: {corr['correlation']:.3f}")
-                    print(f"  Topic {corr['topic_1']} keywords: {', '.join(corr['topic_1_keywords'])}")
-                    print(f"  Topic {corr['topic_2']} keywords: {', '.join(corr['topic_2_keywords'])}")
+                    print(
+                        f"\n{i+1}. Topic {corr['topic_1']} <-> Topic {corr['topic_2']}: {corr['correlation']:.3f}"
+                    )
+                    print(
+                        f"  Topic {corr['topic_1']} keywords: {', '.join(corr['topic_1_keywords'])}"
+                    )
+                    print(
+                        f"  Topic {corr['topic_2']} keywords: {', '.join(corr['topic_2_keywords'])}"
+                    )
 
             elif args.action == "compare":
                 results = analyzer.compare_chats()
@@ -234,7 +280,9 @@ def main() -> None:
                         f"\n{i+1}. Chat {comp['chat_id_1']} <-> Chat {comp['chat_id_2']}: {comp['similarity']:.3f} similarity"
                     )
                     print(f"  Topic similarity: {comp['topic_similarity']:.3f}")
-                    print(f"  Activity pattern similarity: {comp['activity_pattern_similarity']:.3f}")
+                    print(
+                        f"  Activity pattern similarity: {comp['activity_pattern_similarity']:.3f}"
+                    )
                     print(f"  Common active users: {comp['common_active_users']}")
 
             else:
@@ -254,7 +302,9 @@ def main() -> None:
                 print(f"  Chat: {result.get('chat_id', 'unknown')}")
                 print(f"  Date: {result.get('date', 'unknown')}")
                 print(f"  From: {result.get('from_id', 'unknown')}")
-                print(f"  Text: {result.get('text', '')[:100]}{'...' if len(result.get('text', '')) > 100 else ''}")
+                print(
+                    f"  Text: {result.get('text', '')[:100]}{'...' if len(result.get('text', '')) > 100 else ''}"
+                )
 
         else:
             print("Please specify a command. Use --help for available commands.")

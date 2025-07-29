@@ -1,31 +1,23 @@
-import os
 import time
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import duckdb
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import polars as pl
 import qdrant_client
 import scipy.stats as stats
-import seaborn as sns
-import torch
-from qdrant_client.conversions import common_types as ct
 from qdrant_client.http import models
-from qdrant_client.http.models import Distance, PointStruct, VectorParams
-from sentence_transformers import SentenceTransformer, util
-from sklearn.cluster import DBSCAN, KMeans
+from qdrant_client.http.models import PointStruct
+from sentence_transformers import SentenceTransformer
+from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import StandardScaler
-from textblob import TextBlob
 
-from thoth.utils import NICE, Config
+from thoth.utils import Config
 
 
 class ThothAnalyzer:
@@ -126,7 +118,7 @@ class ThothAnalyzer:
             try:
                 self.qdrant.get_collection(self.messages_collection)
                 self.logger.debug(f"Collection {self.messages_collection} already exists")
-            except Exception as e:
+            except Exception:
                 self.logger.info(f"Creating collection: {self.messages_collection}")
                 self.qdrant.create_collection(
                     collection_name=self.messages_collection,
@@ -266,7 +258,9 @@ class ThothAnalyzer:
                                 payload={
                                     "chat_id": chat_id,
                                     "chat_name": chat_name,
-                                    "date": date.isoformat() if hasattr(date, "isoformat") else date,
+                                    "date": (
+                                        date.isoformat() if hasattr(date, "isoformat") else date
+                                    ),
                                     "from_id": from_id,
                                     "text": text,
                                 },
@@ -298,7 +292,11 @@ class ThothAnalyzer:
             # Log completion metrics
             total_time = time.time() - start_time
             total_messages = sum(
-                len(con.execute(f"SELECT id FROM {msg_table} WHERE chat_id = {chat_id} AND text != ''").fetchall())
+                len(
+                    con.execute(
+                        f"SELECT id FROM {msg_table} WHERE chat_id = {chat_id} AND text != ''"
+                    ).fetchall()
+                )
                 for chat_id, _ in chats
             )
 
@@ -320,7 +318,9 @@ class ThothAnalyzer:
         """Get embedding for a text string using the model."""
         return self.embedding_model.encode(text)
 
-    def add_message(self, message_id: int, chat_id: int, text: str, date: datetime, from_id: int) -> None:
+    def add_message(
+        self, message_id: int, chat_id: int, text: str, date: datetime, from_id: int
+    ) -> None:
         """Add a new message with embedding to the vector store."""
         vector = self.get_embedding(text)
 
@@ -500,7 +500,9 @@ class ThothAnalyzer:
                     "end_date": bin_end.isoformat(),
                     "message_count": len(bin_points),
                     "topics": topics,
-                    "dominant_topic": max(topics.items(), key=lambda x: len(cluster_texts[x[0]]))[1],
+                    "dominant_topic": max(topics.items(), key=lambda x: len(cluster_texts[x[0]]))[
+                        1
+                    ],
                 }
             )
 
@@ -569,7 +571,11 @@ class ThothAnalyzer:
             user_topics[user_id].append(cluster_id)
 
         # Filter users with minimum messages
-        return {user: topic_list for user, topic_list in user_topics.items() if len(topic_list) >= min_messages}
+        return {
+            user: topic_list
+            for user, topic_list in user_topics.items()
+            if len(topic_list) >= min_messages
+        }
 
     def analyze_topic_sentiment(self, topic_id: Optional[int] = None) -> Dict[int, float]:
         """Analyze sentiment for topics or a specific topic."""
@@ -645,7 +651,9 @@ class ThothAnalyzer:
         clusters = kmeans.fit_predict(vectors)
 
         # Create hour bins for a day cycle (0-23)
-        activity = {cluster_id: {f"{h:02d}:00": 0 for h in range(24)} for cluster_id in range(n_clusters)}
+        activity = {
+            cluster_id: {f"{h:02d}:00": 0 for h in range(24)} for cluster_id in range(n_clusters)
+        }
 
         # Count messages per hour for each topic
         for i, point in enumerate(points):
@@ -705,7 +713,9 @@ class ThothAnalyzer:
 
         # Filter to only include edges with at least min_interactions
         significant_edges = [
-            (u, v, d) for u, v, d in user_graph.edges(data=True) if d.get("weight", 0) >= min_interactions
+            (u, v, d)
+            for u, v, d in user_graph.edges(data=True)
+            if d.get("weight", 0) >= min_interactions
         ]
 
         # Format results
@@ -765,7 +775,9 @@ class ThothAnalyzer:
 
                 # Sort words by score and get top_n
                 top_indices = tfidf_scores.argsort()[-top_n:][::-1]
-                keywords[cluster_id] = [(feature_names[i], float(tfidf_scores[i])) for i in top_indices]
+                keywords[cluster_id] = [
+                    (feature_names[i], float(tfidf_scores[i])) for i in top_indices
+                ]
             except:
                 keywords[cluster_id] = [("insufficient data", 0.0)]
 
@@ -876,7 +888,11 @@ class ThothAnalyzer:
                 continue
 
             # Calculate overall engagement ratio (replies/total)
-            reply_ratio = metrics["reply_count"] / metrics["message_count"] if metrics["message_count"] > 0 else 0
+            reply_ratio = (
+                metrics["reply_count"] / metrics["message_count"]
+                if metrics["message_count"] > 0
+                else 0
+            )
 
             # Calculate per-topic engagement
             topic_engagement = {}
@@ -904,7 +920,9 @@ class ThothAnalyzer:
 
         return engagement_metrics
 
-    def build_topic_similarity_network(self, min_similarity: float = 0.5, max_connections: int = 100) -> nx.Graph:
+    def build_topic_similarity_network(
+        self, min_similarity: float = 0.5, max_connections: int = 100
+    ) -> nx.Graph:
         """Build a network of topics connected by their semantic similarity."""
         # Get all message vectors
         result = self.qdrant.scroll(
@@ -1042,11 +1060,16 @@ class ThothAnalyzer:
                 future_date = last_date + timedelta(days=i)
                 future_dates.append(future_date)
 
-            future_X = np.array([(d - min_date).total_seconds() for d in future_dates]).reshape(-1, 1)
+            future_X = np.array([(d - min_date).total_seconds() for d in future_dates]).reshape(
+                -1, 1
+            )
             future_y = model.predict(future_X)
 
             # Store predictions
-            predictions[topic_id] = [(date, max(0.0, float(count))) for date, count in zip(future_dates, future_y)]
+            predictions[topic_id] = [
+                (date, max(0.0, float(count)))
+                for date, count in zip(future_dates, future_y, strict=False)
+            ]
 
         return predictions
 
@@ -1190,7 +1213,7 @@ class ThothAnalyzer:
         # Count daily occurrence of each topic
         daily_counts = {i: np.zeros(len(bins)) for i in range(n_clusters)}
 
-        for i, (date, cluster_id) in enumerate(zip(dates, clusters)):
+        for i, (date, cluster_id) in enumerate(zip(dates, clusters, strict=False)):
             for j, (bin_start, bin_end) in enumerate(bins):
                 if bin_start <= date < bin_end:
                     daily_counts[cluster_id][j] += 1
@@ -1211,8 +1234,16 @@ class ThothAnalyzer:
             for j in range(i + 1, n_clusters):
                 if abs(topic_corr[i, j]) >= min_correlation:
                     # Get topic keywords
-                    topic_i_texts = [points[k].payload.get("text", "") for k in range(len(points)) if clusters[k] == i]
-                    topic_j_texts = [points[k].payload.get("text", "") for k in range(len(points)) if clusters[k] == j]
+                    topic_i_texts = [
+                        points[k].payload.get("text", "")
+                        for k in range(len(points))
+                        if clusters[k] == i
+                    ]
+                    topic_j_texts = [
+                        points[k].payload.get("text", "")
+                        for k in range(len(points))
+                        if clusters[k] == j
+                    ]
 
                     # Calculate keywords for both topics
                     keywords_i = self._get_topic_keywords(topic_i_texts, 3)
@@ -1318,7 +1349,9 @@ class ThothAnalyzer:
                 "weekday_pattern": {str(w): count for w, count in weekday_counts.items()},
                 "reply_ratio": float(reply_ratio),
                 "avg_message_length": float(avg_length),
-                "avg_reply_time_seconds": float(avg_reply_time) if avg_reply_time is not None else None,
+                "avg_reply_time_seconds": (
+                    float(avg_reply_time) if avg_reply_time is not None else None
+                ),
                 "active_period_start": messages[0]["date"].isoformat(),
                 "active_period_end": messages[-1]["date"].isoformat(),
             }
@@ -1394,7 +1427,11 @@ class ThothAnalyzer:
 
             if day_total > 0:  # Only include days with messages
                 daily_data.append(
-                    {"date": day_start.isoformat(), "total_messages": day_total, "topic_counts": day_counts}
+                    {
+                        "date": day_start.isoformat(),
+                        "total_messages": day_total,
+                        "topic_counts": day_counts,
+                    }
                 )
 
         # Analyze lifecycle for each topic
@@ -1414,7 +1451,9 @@ class ThothAnalyzer:
                     "date": day["date"],
                     "count": day["topic_counts"][topic_id],
                     "percentage": (
-                        day["topic_counts"][topic_id] / day["total_messages"] if day["total_messages"] > 0 else 0
+                        day["topic_counts"][topic_id] / day["total_messages"]
+                        if day["total_messages"] > 0
+                        else 0
                     ),
                 }
                 for day in daily_data
@@ -1439,7 +1478,12 @@ class ThothAnalyzer:
     def analyze_single_topic_lifecycle(self, daily_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Analyze the lifecycle of a single topic based on its daily activity."""
         if not daily_data:
-            return {"peak_date": None, "emergence_date": None, "decline_date": None, "lifecycle_stage": "unknown"}
+            return {
+                "peak_date": None,
+                "emergence_date": None,
+                "decline_date": None,
+                "lifecycle_stage": "unknown",
+            }
 
         # Find peak date
         peak_idx = max(range(len(daily_data)), key=lambda i: daily_data[i]["count"])
@@ -1456,7 +1500,9 @@ class ThothAnalyzer:
         if emergence_idx is None:
             emergence_idx = 0
 
-        emergence_date = daily_data[emergence_idx]["date"] if 0 <= emergence_idx < len(daily_data) else None
+        emergence_date = (
+            daily_data[emergence_idx]["date"] if 0 <= emergence_idx < len(daily_data) else None
+        )
 
         # Find decline (last date with significant activity)
         decline_idx = None
@@ -1468,7 +1514,9 @@ class ThothAnalyzer:
         if decline_idx is None:
             decline_idx = len(daily_data) - 1
 
-        decline_date = daily_data[decline_idx]["date"] if 0 <= decline_idx < len(daily_data) else None
+        decline_date = (
+            daily_data[decline_idx]["date"] if 0 <= decline_idx < len(daily_data) else None
+        )
 
         # Determine lifecycle stage
         latest_date = daily_data[-1]["date"]
@@ -1512,7 +1560,11 @@ class ThothAnalyzer:
 
         # Extract chat IDs
         chat_ids = list(
-            set(point.payload.get("chat_id") for point in points if point.payload.get("chat_id") is not None)
+            set(
+                point.payload.get("chat_id")
+                for point in points
+                if point.payload.get("chat_id") is not None
+            )
         )
 
         if len(chat_ids) <= 1:
@@ -1527,7 +1579,9 @@ class ThothAnalyzer:
         chat_analyses = {}
         for chat_id in chat_ids:
             # Filter messages for this chat
-            chat_indices = [i for i, point in enumerate(points) if point.payload.get("chat_id") == chat_id]
+            chat_indices = [
+                i for i, point in enumerate(points) if point.payload.get("chat_id") == chat_id
+            ]
 
             if not chat_indices:
                 continue
@@ -1538,7 +1592,11 @@ class ThothAnalyzer:
 
             # Get active users
             user_counts = Counter(
-                [points[i].payload.get("from_id") for i in chat_indices if points[i].payload.get("from_id") is not None]
+                [
+                    points[i].payload.get("from_id")
+                    for i in chat_indices
+                    if points[i].payload.get("from_id") is not None
+                ]
             )
 
             # Calculate hourly activity pattern
@@ -1612,7 +1670,9 @@ class ThothAnalyzer:
 
         return sorted(chat_comparisons, key=lambda x: x["similarity"], reverse=True)
 
-    def calculate_chat_similarity(self, metrics1: Dict[str, float], metrics2: Dict[str, float]) -> float:
+    def calculate_chat_similarity(
+        self, metrics1: Dict[str, float], metrics2: Dict[str, float]
+    ) -> float:
         """Calculate similarity between chat topic distributions."""
         # Get all keys
         all_keys = set(metrics1.keys()).union(set(metrics2.keys()))
@@ -1634,7 +1694,9 @@ class ThothAnalyzer:
         dot_product = np.dot(vec1, vec2)
         return float(dot_product)
 
-    def calculate_pattern_similarity(self, pattern1: Dict[int, int], pattern2: Dict[int, int]) -> float:
+    def calculate_pattern_similarity(
+        self, pattern1: Dict[int, int], pattern2: Dict[int, int]
+    ) -> float:
         """Calculate similarity between activity patterns."""
         # Ensure all hours are represented
         all_hours = {str(h) for h in range(24)}
@@ -1758,7 +1820,9 @@ class ThothAnalyzer:
         start_time = time.time()
 
         # Determine which collection to use
-        collection_name = f"{self.chat_collection_prefix}{chat_id}" if chat_id else self.messages_collection
+        collection_name = (
+            f"{self.chat_collection_prefix}{chat_id}" if chat_id else self.messages_collection
+        )
 
         try:
             # Check if collection exists
@@ -1776,7 +1840,9 @@ class ThothAnalyzer:
             if date_to:
                 date_filter["lte"] = date_to.isoformat()
 
-            filter_obj = models.Filter(must=[models.FieldCondition(key="date", range=models.Range(**date_filter))])
+            filter_obj = models.Filter(
+                must=[models.FieldCondition(key="date", range=models.Range(**date_filter))]
+            )
 
         # Get all points from collection
         self.logger.info("Retrieving message embeddings from vector store")
@@ -1793,7 +1859,9 @@ class ThothAnalyzer:
         ]  # scroll returns (points, next_page_offset)
 
         retrieval_time = time.time() - retrieval_start
-        self.logger.debug(f"Retrieved {len(points)} message embeddings in {retrieval_time:.2f} seconds")
+        self.logger.debug(
+            f"Retrieved {len(points)} message embeddings in {retrieval_time:.2f} seconds"
+        )
 
         if not points:
             self.logger.warning("No messages found for topic analysis")
@@ -1849,7 +1917,9 @@ class ThothAnalyzer:
             top_terms = [feature_names[i] for i in top_term_indices]
 
             # Find representative messages (closest to center)
-            distances = np.linalg.norm(vectors[cluster_message_indices] - cluster_centers[cluster_idx], axis=1)
+            distances = np.linalg.norm(
+                vectors[cluster_message_indices] - cluster_centers[cluster_idx], axis=1
+            )
             closest_idx = np.argsort(distances)[:3]  # Get 3 closest messages
             representative_messages = [cluster_messages[i] for i in closest_idx]
 
@@ -1874,8 +1944,12 @@ class ThothAnalyzer:
                 min_date = min(dates)
                 max_date = max(dates)
                 date_range = {
-                    "start": min_date.isoformat() if hasattr(min_date, "isoformat") else str(min_date),
-                    "end": max_date.isoformat() if hasattr(max_date, "isoformat") else str(max_date),
+                    "start": (
+                        min_date.isoformat() if hasattr(min_date, "isoformat") else str(min_date)
+                    ),
+                    "end": (
+                        max_date.isoformat() if hasattr(max_date, "isoformat") else str(max_date)
+                    ),
                 }
 
             # Store topic information

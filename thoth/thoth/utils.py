@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -64,7 +63,7 @@ class Config:
         try:
             # Try to use the project's logger first
             self.logger = Logger(name="thoth", level=self.log_level, file=self.log_file)
-        except Exception as e:
+        except Exception:
             # Fall back to standard logging
             self.logger = logging.getLogger("thoth")
             self.logger.setLevel(getattr(logging, self.log_level))
@@ -78,7 +77,9 @@ class Config:
             console_handler.setLevel(getattr(logging, self.log_level))
 
             # Create formatter
-            formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+            formatter = logging.Formatter(
+                "[%(asctime)s] %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+            )
             console_handler.setFormatter(formatter)
 
             # Add handler to logger
