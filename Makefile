@@ -4,8 +4,10 @@ include make/deploy.mk
 include make/development.mk
 include make/modules.mk
 include make/test.mk
+include make/security.mk
+include make/requirements.mk
 
-.PHONY: help install install-all install-subprojects install-terrorblade-only install-thoth-only test lint clean check-env check-duckdb check-uv setup-uv show-info install-duckdb
+.PHONY: help install install-all install-subprojects install-terrorblade-only install-thoth-only test lint clean check-env check-duckdb check-uv setup-uv show-info install-duckdb requirements security ci-local
 
 # Default target
 .DEFAULT_GOAL := help
@@ -36,6 +38,19 @@ help:
 	@echo "  test-unit         Run unit tests"
 	@echo "  test-integration  Run integration tests" 
 	@echo "  test-coverage     Run tests with coverage"
+	@echo ""
+	@echo -e "$(YELLOW)Requirements:$(NC)"
+	@echo "  requirements      Compile all requirements files"
+	@echo "  requirements-sync Sync environment with requirements"
+	@echo "  requirements-update Update to latest versions"
+	@echo ""
+	@echo -e "$(YELLOW)Security:$(NC)"
+	@echo "  security          Run all security scans"
+	@echo "  security-ci-local Run GitHub Actions security locally"
+	@echo "  security-report   Generate comprehensive security report"
+	@echo ""
+	@echo -e "$(YELLOW)Local CI:$(NC)"
+	@echo "  ci-local          Run complete CI pipeline locally"
 	@echo ""
 	@echo -e "$(YELLOW)Build & Deploy:$(NC)"
 	@echo "  build             Build the project"
@@ -175,6 +190,19 @@ install-thoth-only: setup-uv check-env
 
 install-all: install install-subprojects
 	@echo -e "$(GREEN)Complete installation finished!$(NC)"
+
+# Run complete CI pipeline locally
+ci-local: setup-uv
+	@echo -e "$(BLUE)Running complete CI pipeline locally...$(NC)"
+	@echo -e "$(BLUE)Step 1: Install dependencies$(NC)"
+	@make install
+	@echo -e "$(BLUE)Step 2: Run linting and formatting checks$(NC)"
+	@make lint
+	@echo -e "$(BLUE)Step 3: Run tests$(NC)"
+	@make test
+	@echo -e "$(BLUE)Step 4: Run security scans$(NC)"
+	@make security-ci-local
+	@echo -e "$(GREEN)Local CI pipeline completed successfully!$(NC)"
 
 # Override specific targets from included files with project-specific implementations
 
