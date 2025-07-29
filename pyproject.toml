@@ -25,10 +25,16 @@ dev = [
     "tomli",
     "packaging",
     "pytest",
-    "black",
-    "isort",
-    "mypy",
-    "ruff",
+    "pytest-cov",
+    "pytest-watch",
+    "black>=24.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
+    "ruff>=0.1.0",
+    "watchdog",
+    "build",
+    "wheel",
+    "twine",
 ]
 
 cuda = [
@@ -58,14 +64,22 @@ pythonpath = [
 [tool.isort]
 profile = "black"
 multi_line_output = 3
+line_length = 120
+known_first_party = ["terrorblade"]
+known_third_party = ["polars", "telethon", "duckdb", "numpy", "pandas"]
+skip_glob = ["thoth/*", ".venv/*", "build/*", "dist/*"]
+combine_as_imports = true
+force_grid_wrap = 0
+include_trailing_comma = true
+use_parentheses = true
 
 [tool.black]
-line-length = 120
+line-length = 100
 target-version = ['py312']
 include = '\.pyi?$'
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 ignore_missing_imports = true
 disallow_untyped_defs = true
 exclude = [
@@ -98,27 +112,50 @@ exclude = [
     "build",
     "proto",
     "dist",
-    "data/loaders/telegram/parse_telegram_html.py",  # Excluding the telegram parser file (why
+    "thoth",  # Exclude thoth module
+    "data/loaders/telegram/parse_telegram_html.py",  # Excluding the telegram parser file
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
 ]
 
-# Enable specific rules
-lint.select = [
-    "E",   # pycodestyle errors
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-]
-
-# Ignore specific rules
-lint.ignore = [
-    "E501",    # Line too long
-    "B008",    # Do not perform function call in argument defaults
-    "C901",    # Function is too complex
-]
+# Target Python version
+target-version = "py312"
 
 # Line length configuration
 line-length = 120
 
+# Enable specific rules
+lint.select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "PTH",  # flake8-use-pathlib
+]
+
+# Ignore specific rules
+lint.ignore = [
+    "E501",    # Line too long (handled by black)
+    "B008",    # Do not perform function call in argument defaults
+    "C901",    # Function is too complex
+    "E203",    # Whitespace before ':' (conflicts with black)
+    "PTH123",  # Use pathlib instead of os.path.dirname
+]
+
+# Autofix settings
+lint.fixable = ["ALL"]
+lint.unfixable = []
+
 [tool.ruff.lint.per-file-ignores]
-#"__init__.py" = ["F401"]  # Ignore unused imports in __init__.py files
+"__init__.py" = ["F401"]  # Ignore unused imports in __init__.py files
+"tests/*" = ["S101"]      # Allow assert statements in tests
+
+[tool.ruff.lint.isort]
+known-first-party = ["terrorblade"]
+force-single-line = false
+combine-as-imports = true
