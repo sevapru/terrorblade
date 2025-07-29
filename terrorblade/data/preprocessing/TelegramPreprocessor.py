@@ -11,7 +11,6 @@ from terrorblade import Logger  # type: ignore
 from terrorblade.data.dtypes import get_process_schema, telegram_import_schema_short
 from terrorblade.data.preprocessing.TextPreprocessor import TextPreprocessor
 
-load_dotenv(".env")
 
 
 class TelegramPreprocessor(TextPreprocessor):
@@ -37,6 +36,8 @@ class TelegramPreprocessor(TextPreprocessor):
             phone (str): Phone number for user-specific tables
         """
         super().__init__(*args, **kwargs)
+        load_dotenv(".env")
+        
         self.use_duckdb = use_duckdb
         self.phone = phone.replace("+", "") if phone else None
 
