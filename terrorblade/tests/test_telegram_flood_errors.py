@@ -15,8 +15,8 @@ class TestTelegramFloodErrors(unittest.TestCase):
         """Set up test environment before each test."""
         self.phone = "+******"
         self.db = TelegramDatabase()
-    
-    @patch('terrorblade.data.loaders.telegram.parse_telegram_client.update_telegram_data')
+
+    @patch("terrorblade.data.loaders.telegram.parse_telegram_client.update_telegram_data")
     def test_flood_error_multiple_requests(self, mock_update_telegram_data):
         """Test that multiple rapid requests trigger flood control."""
         # Configure the mock to raise a flood error after a few calls
@@ -26,35 +26,43 @@ class TestTelegramFloodErrors(unittest.TestCase):
             None,
             Exception("FLOOD_WAIT_X: A wait of X seconds is required"),  # Then we get a flood error
         ]
-        
+
         num_requests = 5
         delay = 0.1
-        
+
         # Make multiple requests in quick succession
-        for i in range(num_requests):
+        for _i in range(num_requests):
             try:
-                asyncio.run(update_telegram_data(phone=self.phone, db=self.db, limit_messages=random.randint(100, 500)))
+                asyncio.run(
+                    update_telegram_data(
+                        phone=self.phone, db=self.db, limit_messages=random.randint(100, 500)
+                    )
+                )
                 time.sleep(delay)
             except Exception as e:
                 # We expect to get an exception
                 self.assertIn("FLOOD_WAIT", str(e))
                 return
-        
+
         # If we didn't get an exception, the test failed
         self.fail("Expected flood error was not raised")
-    
+
     def test_flood_error_real_requests(self):
         """Test with real requests to Telegram API to observe actual flood control behavior.
-        
+
         Note: This test makes actual API calls and may affect your Telegram account's rate limits.
         """
         num_requests = 10
         delay = 0.05
-        
+
         # Make multiple requests in quick succession to trigger flood control
         for i in range(num_requests):
             try:
-                asyncio.run(update_telegram_data(phone=self.phone, db=self.db, limit_messages=random.randint(100, 500)))
+                asyncio.run(
+                    update_telegram_data(
+                        phone=self.phone, db=self.db, limit_messages=random.randint(100, 500)
+                    )
+                )
                 time.sleep(delay)
             except Exception as e:
                 # If we get a flood error, the test passes
@@ -63,13 +71,13 @@ class TestTelegramFloodErrors(unittest.TestCase):
                     return
                 else:
                     print(f"Non-flood error occurred: {e}")
-        
+
         print("Completed all requests without triggering flood control")
-    
+
     def test_large_request(self):
         """Test that a very large request triggers flood control or other limits."""
         limit = 5000
-        
+
         try:
             # Run the async function with a large limit
             asyncio.run(update_telegram_data(phone=self.phone, db=self.db, limit_messages=limit))
@@ -84,4 +92,4 @@ class TestTelegramFloodErrors(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()

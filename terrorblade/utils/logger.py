@@ -1,7 +1,7 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 class ColorFormatter(logging.Formatter):
@@ -48,8 +48,8 @@ logging.Logger.nice = nice
 def Logger(
     name: str,
     level: int = logging.INFO,
-    log_file: Optional[str] = None,
-    log_dir: Optional[str] = None,
+    log_file: str | None = None,
+    log_dir: str | None = None,
 ) -> logging.Logger:
     """
     Setup and configure logger with color formatting
