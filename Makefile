@@ -1,4 +1,55 @@
-.PHONY: install install-cuda test lint clean check-env check-duckdb check-uv setup-uv show-info install-duckdb
+# Include modular makefiles
+include make/build.mk
+include make/deploy.mk
+include make/development.mk
+include make/modules.mk
+include make/test.mk
+
+.PHONY: help install install-all install-subprojects install-terrorblade-only install-thoth-only test lint clean check-env check-duckdb check-uv setup-uv show-info install-duckdb
+
+# Default target
+.DEFAULT_GOAL := help
+
+# Help target
+help:
+	@echo -e "$(GREEN)Terrorblade Makefile Help$(NC)"
+	@echo -e "$(BLUE)========================$(NC)"
+	@echo ""
+	@echo -e "$(YELLOW)Main targets:$(NC)"
+	@echo "  help              Show this help message"
+	@echo "  install           Install development environment (main project)"
+	@echo "  install-all       Install all subprojects (terrorblade + thoth)"
+	@echo "  install-subprojects Install only subprojects"  
+	@echo "  install-terrorblade-only Install only terrorblade"
+	@echo "  install-thoth-only Install only thoth"
+	@echo "  show-info         Display project information"
+	@echo ""
+	@echo -e "$(YELLOW)Development:$(NC)"
+	@echo "  dev               Start development environment"
+	@echo "  dev-watch         Start development with file watching"
+	@echo "  format            Format code"
+	@echo "  lint              Run linters and formatters"
+	@echo "  check             Run all checks (lint + test)"
+	@echo ""
+	@echo -e "$(YELLOW)Testing:$(NC)"
+	@echo "  test              Run all tests"
+	@echo "  test-unit         Run unit tests"
+	@echo "  test-integration  Run integration tests" 
+	@echo "  test-coverage     Run tests with coverage"
+	@echo ""
+	@echo -e "$(YELLOW)Build & Deploy:$(NC)"
+	@echo "  build             Build the project"
+	@echo "  clean             Clean build artifacts"
+	@echo "  package           Create deployment package"
+	@echo "  deploy            Deploy to staging"
+	@echo "  deploy-staging    Deploy to staging environment"
+	@echo "  deploy-prod       Deploy to production environment"
+	@echo ""
+	@echo -e "$(YELLOW)Modules:$(NC)"
+	@echo "  list-modules      List available modules"
+	@echo "  install-modules   Install all modules"
+	@echo "  install-terrorblade Install Terrorblade module"
+	@echo "  install-thoth     Install Thoth module"
 
 # Colors
 YELLOW := \033[1;33m
@@ -58,8 +109,11 @@ setup-uv: check-uv
 	@echo -e "$(GREEN)Setting up uv...$(NC)"
 	@if [ -z "$$VIRTUAL_ENV" ]; then \
 		if [ ! -d ".venv" ]; then \
-			uv venv; \
+			echo -e "$(BLUE)Creating virtual environment...$(NC)"; \
+			uv venv --python 3.12; \
 			echo -e "$(YELLOW)Virtual environment created at .venv$(NC)"; \
+		else \
+			echo -e "$(GREEN)Virtual environment already exists at .venv$(NC)"; \
 		fi; \
 		echo -e "$(BLUE)To activate the virtual environment, run:$(NC)"; \
 		echo -e "$(GREEN)source .venv/bin/activate$(NC)"; \
@@ -69,30 +123,60 @@ setup-uv: check-uv
 	@echo "";
 
 install: setup-uv check-env check-duckdb
+	@echo -e "$(BLUE)Installing Terrorblade with development dependencies...$(NC)"
 	@uv pip install -e ".[dev]"
+	@echo -e "$(BLUE)Verifying installation...$(NC)"
+	@python3 -c "import black, isort, ruff; print('✓ Code quality tools installed')" 2>/dev/null || echo "⚠ Some tools may not be available"
 	@make show-info
-	@echo -e "Development environment is ready!$(NC)"
+	@echo -e "$(GREEN)Development environment is ready!$(NC)"
 	@echo "";
-	@if [ -z "$$VIRTUAL_ENV" ]; then \
-		echo -e "Remember to activate your virtual environment:$(NC)"; \
-		echo -e "$(GREEN)source .venv/bin/activate$(NC)"; \
-	else \
-		echo -e "$(GREEN)Using virtual environment at $$VIRTUAL_ENV$(NC)"; \
-	fi
-
-install-cuda: setup-uv check-env check-duckdb
-	@uv pip install -e ".[dev,cuda]" --extra-index-url=https://pypi.nvidia.com
-	@make show-info
-	@echo -e "CUDA development environment is ready!$(NC)"
 	@if [ -z "$$VIRTUAL_ENV" ]; then \
 		echo -e "$(YELLOW)Remember to activate your virtual environment:$(NC)"; \
 		echo -e "$(GREEN)source .venv/bin/activate$(NC)"; \
+		echo -e "$(BLUE)Then test with: make lint$(NC)"; \
 	else \
 		echo -e "$(GREEN)Using virtual environment at $$VIRTUAL_ENV$(NC)"; \
+		echo -e "$(BLUE)Test your setup with: make lint$(NC)"; \
 	fi
 
-test: check-env
-	pytest tests/
+# Subproject installation system
+install-subprojects: setup-uv
+	@echo -e "$(BLUE)Installing all subprojects...$(NC)"
+	@for subproject in terrorblade thoth; do \
+		if [ -d "$$subproject" ]; then \
+			echo -e "$(YELLOW)Installing $$subproject...$(NC)"; \
+			if [ -f "$$subproject/pyproject.toml" ]; then \
+				uv pip install -e "$$subproject[dev]"; \
+			else \
+				echo -e "$(RED)No pyproject.toml found in $$subproject$(NC)"; \
+			fi; \
+		else \
+			echo -e "$(YELLOW)Subproject $$subproject not found, skipping...$(NC)"; \
+		fi; \
+	done
+	@echo -e "$(GREEN)All available subprojects installed!$(NC)"
+
+# Enhanced installation options
+install-terrorblade-only: setup-uv check-env
+	@echo -e "$(BLUE)Installing Terrorblade only...$(NC)"
+	@uv pip install -e ".[dev]"
+	@echo -e "$(GREEN)Terrorblade installed!$(NC)"
+
+install-thoth-only: setup-uv check-env
+	@echo -e "$(BLUE)Installing Thoth only...$(NC)"
+	@if [ -d "thoth" ]; then \
+		uv pip install -e "thoth[dev]"; \
+		echo -e "$(GREEN)Thoth installed!$(NC)"; \
+	else \
+		echo -e "$(RED)Thoth directory not found$(NC)"; \
+		exit 1; \
+	fi
+
+install-all: install install-subprojects
+	@echo -e "$(GREEN)Complete installation finished!$(NC)"
+
+
+# Override specific targets from included files with project-specific implementations
 
 lint:
 	@echo -e "$(BLUE)Running formatters...$(NC)"
