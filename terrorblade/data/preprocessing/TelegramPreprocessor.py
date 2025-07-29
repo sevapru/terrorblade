@@ -7,10 +7,9 @@ import duckdb
 import polars as pl
 from dotenv import load_dotenv
 
-from terrorblade import Logger  # type: ignore
+from terrorblade import Logger
 from terrorblade.data.dtypes import get_process_schema, telegram_import_schema_short
 from terrorblade.data.preprocessing.TextPreprocessor import TextPreprocessor
-
 
 
 class TelegramPreprocessor(TextPreprocessor):
@@ -20,9 +19,9 @@ class TelegramPreprocessor(TextPreprocessor):
 
     def __init__(
         self,
-        use_duckdb=False,
-        db_path="telegram_data.db",
-        phone=None,
+        use_duckdb: bool = False,
+        db_path: str = "telegram_data.db",
+        phone: str | None = None,
         *args,
         **kwargs,
     ):
@@ -37,7 +36,7 @@ class TelegramPreprocessor(TextPreprocessor):
         """
         super().__init__(*args, **kwargs)
         load_dotenv(".env")
-        
+
         self.use_duckdb = use_duckdb
         self.phone = phone.replace("+", "") if phone else None
 
@@ -239,7 +238,7 @@ class TelegramPreprocessor(TextPreprocessor):
             self.logger.error(f"Error retrieving message IDs with embeddings: {str(e)}")
             return set()
 
-    def load_json(self, file_path: str, min_messages=3) -> dict[int, pl.DataFrame]:
+    def load_json(self, file_path: str, min_messages: int = 3) -> dict[int, pl.DataFrame]:
         """
         Loads chat data from a JSON file and filters chats with a minimum number of messages.
 
@@ -403,7 +402,7 @@ class TelegramPreprocessor(TextPreprocessor):
             [pl.col(col).cast(dtype) for col, dtype in telegram_import_schema_short.items()]
         )
 
-    def parse_timestamp(self, df, date_col: str = "date") -> pl.DataFrame:
+    def parse_timestamp(self, df: pl.DataFrame, date_col: str = "date") -> pl.DataFrame:
         """
         Parses and formats the date and date_unixtime columns in the provided DataFrame.
 
@@ -421,7 +420,7 @@ class TelegramPreprocessor(TextPreprocessor):
         """
         return df.with_columns(pl.col(date_col).str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S"))
 
-    def create_recipient_column(self, df, author_col):
+    def create_recipient_column(self, df: pl.DataFrame, author_col: str) -> pl.DataFrame:
         """
         Creates a recipient string containing all other participants except the author.
 

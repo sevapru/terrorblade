@@ -119,15 +119,3 @@ def standartize_chat(chat: pl.DataFrame) -> pl.DataFrame:
     return chat.with_columns(
         [pl.col(col).cast(dtype) for col, dtype in polars_schema.items() if col in chat.columns]
     )
-
-
-chats_dict = load_json("/home/seva/data/messages_json/result.json")
-for key, chat_df in chats_dict.items():
-    chat_df = parse_links(chat_df)
-    chat_df = parse_members(chat_df)
-    chat_df = standartize_chat(chat_df)
-    chats_dict[key] = chat_df
-
-
-all_chats = pl.concat(list(chats_dict.values()))
-all_chats.write_parquet("/home/seva/data/all_chats.parquet")

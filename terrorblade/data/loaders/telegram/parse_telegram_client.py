@@ -1,4 +1,4 @@
-# type: ignore 
+# type: ignore
 # ignored because this is not the main workflow and someone else can contribute here if you need
 import asyncio
 import logging
@@ -287,7 +287,7 @@ class TelegramParser:
         self.logger.info("Closing Telegram and database connections")
         try:
             if self.client:
-                await self.client.disconnect() # type: ignore
+                await self.client.disconnect()  # type: ignore
                 self.logger.info("Successfully closed Telegram connection")
 
             if self.db is not None:

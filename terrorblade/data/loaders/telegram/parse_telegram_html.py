@@ -12,7 +12,7 @@ data = []
 for file_path in input_folder.iterdir():
     if file_path.name.startswith("messages") and file_path.name.endswith(".html"):
         with open(file_path, encoding="utf-8") as file:
-            soup = BeautifulSoup(file, "html.parser") 
+            soup = BeautifulSoup(file, "html.parser")
             messages = soup.find_all("div", class_="body")
             print(len(messages))
             for message in messages:

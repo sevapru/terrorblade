@@ -51,7 +51,7 @@ class UserStats:
 
 
 class TelegramDatabase:
-    def __init__(self, db_path: str = "telegram_data.db", read_only: bool = False):
+    def __init__(self, db_path: str = "telegram_data.db", read_only: bool = False) -> None:
         """
         Initialize the chat database interface.
 

@@ -13,14 +13,18 @@ class TextPreprocessor:
     Preprocesses text data by removing special characters and converting to lowercase.
     """
 
-    def __init__(self, time_window="5m", cluster_size=3, big_cluster_size=10):
+    def __init__(
+        self,
+        time_window: str = "5m",
+        cluster_size: int = 3,
+        big_cluster_size: int = 10,
+        batch_size: int = 2000,
+    ):
         self.time_window = time_window
         self.cluster_size = cluster_size
         self.big_cluster_size = big_cluster_size
         self._embeddings_model = None
-        self._hdbscan = None
-        self._cupy = None
-        self.batch_size = 2000
+        self.batch_size = batch_size
         self.squared_batch_size = 1024
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -32,28 +36,9 @@ class TextPreprocessor:
             self._embeddings_model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2")
         return self._embeddings_model
 
-    @property
-    def hdbscan(self):
-        if self._hdbscan is None:
-            from cuml.cluster import HDBSCAN
-
-            self._hdbscan = HDBSCAN(
-                min_cluster_size=5,
-                metric="euclidean",
-                cluster_selection_epsilon=0.5,
-                min_samples=1,
-            )
-        return self._hdbscan
-
-    @property
-    def cupy(self):
-        if self._cupy is None:
-            import cupy as cp
-
-            self._cupy = cp
-        return self._cupy
-
-    def concat_author_messages(self, df, time_window_minutes=5):
+    def concat_author_messages(
+        self, df: pl.DataFrame, time_window_minutes: int = 5
+    ) -> pl.DataFrame:
         """
         Concatenates multiple messages from the same author if they are consecutive and within a specified time window.
 
@@ -98,7 +83,13 @@ class TextPreprocessor:
 
         return df
 
-    def create_clusters(self, df, time_window=None, cluster_size=1, big_cluster_size=10):
+    def create_clusters(
+        self,
+        df: pl.DataFrame,
+        time_window: str | None = None,
+        cluster_size: int = 1,
+        big_cluster_size: int = 10,
+    ) -> pl.DataFrame:
         """
         Creates cluster assignments for messages that are considered part of the same conversation if they are
         sent within a specified time window proximity.
@@ -257,7 +248,13 @@ class TextPreprocessor:
 
         return pl.concat(processed_dfs)
 
-    def _process_message_batch(self, df, time_window, cluster_size, big_cluster_size):
+    def _process_message_batch(
+        self,
+        df: pl.DataFrame,
+        time_window: str | None = None,
+        cluster_size: int = 1,
+        big_cluster_size: int = 10,
+    ) -> pl.DataFrame:
         """
         Process a batch of messages.
         """
@@ -312,9 +309,9 @@ class TextPreprocessor:
 
     def calculate_segments(
         self,
-        df,
-        semantic_threshold=None,
-    ):
+        df: pl.DataFrame,
+        semantic_threshold: float | None = None,
+    ) -> pl.DataFrame:
         """
         Calculates the segments based on the provided distances.
 
@@ -339,7 +336,7 @@ class TextPreprocessor:
     ####
     # Visualisation #
     ####
-    def show_cluster(self, df, cluster_id):
+    def show_cluster(self, df: pl.DataFrame, cluster_id: int | None) -> None:
         """
         Displays the messages in the provided cluster.
 
@@ -350,7 +347,7 @@ class TextPreprocessor:
         cluster_df = df.filter(pl.col("cluster") == cluster_id)
         print(cluster_df)
 
-    def show_biggest_cluster(self, df):
+    def show_biggest_cluster(self, df: pl.DataFrame):
         """
         Displays the messages in the biggest cluster.
 
@@ -363,9 +360,9 @@ class TextPreprocessor:
             .sort("size")["big_cluster"]
             .first()
         )
-        self.show_cluster(df, biggest_cluster_id)
+        self.show_cluster(df, biggest_cluster_id)  # type: ignore
 
-    def show_all_clusters(self, df):
+    def show_all_clusters(self, df: pl.DataFrame) -> None:
         """
         Displays all clusters in the provided DataFrame.
 

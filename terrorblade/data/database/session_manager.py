@@ -14,7 +14,7 @@ class SessionManager:
     allowing sessions to be reused across runs without storing them as files.
     """
 
-    def __init__(self, db_path: str = "telegram_sessions.db"):
+    def __init__(self, db_path: str = "telegram_sessions.db") -> None:
         """
         Initialize the session manager.
 
@@ -39,7 +39,7 @@ class SessionManager:
             self.logger.error(f"Error connecting to session database: {str(e)}")
             raise
 
-    def _init_database(self):
+    def _init_database(self) -> None:
         """Initialize the sessions table if it doesn't exist"""
         try:
             self.db.execute(
@@ -150,7 +150,7 @@ class SessionManager:
             self.logger.error(f"Error listing sessions: {str(e)}")
             return []
 
-    def close(self):
+    def close(self) -> None:
         """Close the database connection"""
         try:
             self.db.close()
