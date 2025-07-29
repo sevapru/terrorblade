@@ -1,13 +1,11 @@
 import json
-import os
-from typing import Dict
 
 import polars as pl
 
 from terrorblade.data.dtypes import get_polars_schema
 
 
-def load_json(file_path: str) -> Dict[int, pl.DataFrame]:
+def load_json(file_path: str) -> dict[int, pl.DataFrame]:
     with open(file_path) as file:
         data = json.load(file)
         chat_dict = {}
@@ -92,7 +90,11 @@ def parse_members(chat_df: pl.DataFrame) -> pl.DataFrame:
 def parse_reactions(chat_df: pl.DataFrame) -> pl.DataFrame:
     if "reactions" in chat_df.columns:
         chat_df = chat_df.with_columns(
-            [pl.col("reactions").map_elements(lambda x: x[0]["emoji"] if isinstance(x, list) else x).alias("reactions")]
+            [
+                pl.col("reactions")
+                .map_elements(lambda x: x[0]["emoji"] if isinstance(x, list) else x)
+                .alias("reactions")
+            ]
         )
     return chat_df
 
@@ -100,21 +102,23 @@ def parse_reactions(chat_df: pl.DataFrame) -> pl.DataFrame:
 def standartize_chat(chat: pl.DataFrame) -> pl.DataFrame:
     """
     Standardize the chat DataFrame to match the expected schema.
-    
+
     Args:
         chat (pl.DataFrame): The chat DataFrame to standardize.
-        
+
     Returns:
         pl.DataFrame: The standardized chat DataFrame.
     """
     # Get the polars schema from the centralized schema definition
     polars_schema = get_polars_schema()
-    
+
     # Create a new DataFrame with only the columns from our schema
-    chat = chat.select([col for col in polars_schema.keys() if col in chat.columns])
-    
+    chat = chat.select([col for col in polars_schema if col in chat.columns])
+
     # Cast columns to their respective types
-    return chat.with_columns([pl.col(col).cast(dtype) for col, dtype in polars_schema.items() if col in chat.columns])
+    return chat.with_columns(
+        [pl.col(col).cast(dtype) for col, dtype in polars_schema.items() if col in chat.columns]
+    )
 
 
 chats_dict = load_json("/home/seva/data/messages_json/result.json")

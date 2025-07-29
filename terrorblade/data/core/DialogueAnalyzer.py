@@ -1,5 +1,4 @@
 import json
-from typing import Dict, List, Tuple
 
 import polars as pl
 from vllm import LLM, SamplingParams
@@ -26,7 +25,7 @@ class DialogueAnalyzer(TextPreprocessor):
 
         self.sampling_params = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=512)
 
-    def classify_topic_hierarchy(self, text: str) -> Dict[str, str]:
+    def classify_topic_hierarchy(self, text: str) -> dict[str, str]:
         """
         Определяет основную категорию и подкатегорию текста из предопределенного списка.
 
@@ -54,7 +53,7 @@ Return JSON in format: {{"category": "main_category", "subcategory": "subcategor
             print(f"Warning: topic classification error: {e}")
             return {"category": "personal", "subcategory": "other"}
 
-    def analyze_emotions(self, text: str) -> Dict[str, float]:
+    def analyze_emotions(self, text: str) -> dict[str, float]:
         """
         Анализирует текст по 7 базовым эмоциям.
 
@@ -79,9 +78,9 @@ Return JSON in format: {{"category": "main_category", "subcategory": "subcategor
             return json.loads(outputs[0].outputs[0].text.strip())
         except Exception as e:
             print(f"Warning: emotion analysis error: {e}")
-            return {emotion: 0.0 for emotion in base_emotions.keys()}
+            return dict.fromkeys(base_emotions.keys(), 0.0)
 
-    def get_topic_distribution(self, df: pl.DataFrame) -> Dict[str, Dict[str, int]]:
+    def get_topic_distribution(self, df: pl.DataFrame) -> dict[str, dict[str, int]]:
         """
         Анализирует распределение тем по категориям во всем диалоге.
 
@@ -91,7 +90,9 @@ Return JSON in format: {{"category": "main_category", "subcategory": "subcategor
         Returns:
             Dict[str, Dict[str, int]]: Словарь с количеством сообщений по категориям и подкатегориям
         """
-        topic_dist = {cat: {subcat: 0 for subcat in subcats} for cat, subcats in dialogue_categories.items()}
+        topic_dist = {
+            cat: dict.fromkeys(subcats, 0) for cat, subcats in dialogue_categories.items()
+        }
 
         for group in df.group_by("group"):
             text = " ".join(group.get_column("text"))
@@ -100,7 +101,7 @@ Return JSON in format: {{"category": "main_category", "subcategory": "subcategor
 
         return topic_dist
 
-    def get_dominant_topics(self, df: pl.DataFrame, top_n: int = 5) -> List[Tuple[str, str, int]]:
+    def get_dominant_topics(self, df: pl.DataFrame, top_n: int = 5) -> list[tuple[str, str, int]]:
         """
         Определяет наиболее часто встречающиеся темы в диалоге.
 
@@ -155,7 +156,7 @@ Return JSON in format: {{"category": "main_category", "subcategory": "subcategor
 
         return df
 
-    def generate_dialogue_summary(self, df: pl.DataFrame) -> Dict:
+    def generate_dialogue_summary(self, df: pl.DataFrame) -> dict:
         """
         Генерирует общее саммари диалога с распределением тем и эмоций.
 
@@ -172,7 +173,7 @@ Return JSON in format: {{"category": "main_category", "subcategory": "subcategor
         emotion_scores = df.get_column("emotion_scores")
         avg_emotions = {
             emotion: sum(score[emotion] for score in emotion_scores) / len(emotion_scores)
-            for emotion in base_emotions.keys()
+            for emotion in base_emotions
         }
 
         return {

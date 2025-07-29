@@ -1,10 +1,9 @@
-from datetime import timedelta
-from typing import Optional
 import os
+from datetime import timedelta
+
 import polars as pl
 import torch
 from sentence_transformers import util
-
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
@@ -69,11 +68,15 @@ class TextPreprocessor:
         df = df.with_columns(
             [
                 (pl.col("from_id") != pl.col("from_id").shift(1)).alias("author_changed"),
-                ((pl.col("date") - pl.col("date").shift(1)) > time_window).fill_null(True).alias("time_exceeded"),
+                ((pl.col("date") - pl.col("date").shift(1)) > time_window)
+                .fill_null(True)
+                .alias("time_exceeded"),
             ]
         )
 
-        df = df.with_columns((pl.col("author_changed") | pl.col("time_exceeded")).alias("new_group"))
+        df = df.with_columns(
+            (pl.col("author_changed") | pl.col("time_exceeded")).alias("new_group")
+        )
 
         df = df.with_columns(pl.col("new_group").cum_sum().alias("message_group"))
 
@@ -122,7 +125,8 @@ class TextPreprocessor:
         time_diffs = df.with_columns((pl.col("date").diff().dt.total_seconds()).alias("time_diff"))
 
         breaks = (
-            time_diffs["time_diff"].fill_null(window_duration.total_seconds() * 2) > window_duration.total_seconds()
+            time_diffs["time_diff"].fill_null(window_duration.total_seconds() * 2)
+            > window_duration.total_seconds()
         )
         cluster_ids = breaks.cum_sum().alias("pre_cluster")
         df = df.with_columns(cluster_ids)
@@ -131,7 +135,9 @@ class TextPreprocessor:
             pl.when(pl.col("size") > cluster_size)
             .then(pl.col("pre_cluster"))
             .otherwise(None)
-            .alias("cluster"),  # Only qualify as a cluster if it contains more than 'cluster_size' messages
+            .alias(
+                "cluster"
+            ),  # Only qualify as a cluster if it contains more than 'cluster_size' messages
             pl.when(pl.col("size") > big_cluster_size)
             .then(True)
             .otherwise(False)
@@ -177,7 +183,9 @@ class TextPreprocessor:
         distances = 1 - similarities
         return distances.cpu()
 
-    def calculate_sliding_distances(self, embeddings: torch.Tensor, window_size: int = 5) -> torch.Tensor:
+    def calculate_sliding_distances(
+        self, embeddings: torch.Tensor, window_size: int = 5
+    ) -> torch.Tensor:
         """
         Calculates sliding window distances for embeddings.
 
@@ -213,9 +221,12 @@ class TextPreprocessor:
 
         return distances.cpu()
 
-
     def process_message_groups(
-        self, df: pl.DataFrame, time_window: Optional[str] = None, cluster_size: int = 1, big_cluster_size: int = 10
+        self,
+        df: pl.DataFrame,
+        time_window: str | None = None,
+        cluster_size: int = 1,
+        big_cluster_size: int = 10,
     ) -> pl.DataFrame:
         """
         Processes the provided DataFrame by creating clusters and calculating embeddings.
@@ -239,17 +250,18 @@ class TextPreprocessor:
         processed_dfs = []
         for i in range(0, len(df), self.batch_size):
             batch_df = df.slice(i, min(self.batch_size, len(df) - i))
-            processed_batch = self._process_message_batch(batch_df, time_window, cluster_size, big_cluster_size)
+            processed_batch = self._process_message_batch(
+                batch_df, time_window, cluster_size, big_cluster_size
+            )
             processed_dfs.append(processed_batch)
-            
-        return pl.concat(processed_dfs)
 
+        return pl.concat(processed_dfs)
 
     def _process_message_batch(self, df, time_window, cluster_size, big_cluster_size):
         """
         Process a batch of messages.
         """
-        #df = self.concat_author_messages(df)
+        # df = self.concat_author_messages(df)
         df = self.calculate_embeddings(df)
 
         df = self.create_clusters(df, time_window, cluster_size, big_cluster_size)
@@ -275,10 +287,10 @@ class TextPreprocessor:
             show_progress_bar=True,
             convert_to_tensor=True,
             normalize_embeddings=True,
-            device=self.device
-        )   
+            device=self.device,
+        )
         return df.with_columns(pl.Series("embeddings", embeddings.cpu()))
-    
+
     def calculate_groups(self, df: pl.DataFrame) -> pl.DataFrame:
         """
         Merges the segments with same semantic_segment number or either from the same cluster
@@ -311,8 +323,8 @@ class TextPreprocessor:
 
         Returns:
             pl.DataFrame: DataFrame with semantic_segment column added.
-        """        
-        distances = self.calculate_sliding_distances(torch.Tensor(df['embeddings']), 1)
+        """
+        distances = self.calculate_sliding_distances(torch.Tensor(df["embeddings"]), 1)
 
         if semantic_threshold is None:
             semantic_threshold = float(torch.mean(distances))
@@ -324,9 +336,8 @@ class TextPreprocessor:
             pl.Series("semantic_segment", semantic_segment_ids).fill_null(strategy="forward")
         )
 
-
     ####
-        # Visualisation #
+    # Visualisation #
     ####
     def show_cluster(self, df, cluster_id):
         """
@@ -346,7 +357,12 @@ class TextPreprocessor:
         Args:
             df (pl.DataFrame): DataFrame containing the chat messages.
         """
-        biggest_cluster_id = df.group_by("big_cluster").agg(pl.len().alias("size")).sort("size")["big_cluster"].first()
+        biggest_cluster_id = (
+            df.group_by("big_cluster")
+            .agg(pl.len().alias("size"))
+            .sort("size")["big_cluster"]
+            .first()
+        )
         self.show_cluster(df, biggest_cluster_id)
 
     def show_all_clusters(self, df):

@@ -1,20 +1,18 @@
-import os
+from pathlib import Path
 
 import polars as pl
 from bs4 import BeautifulSoup
 
 # Папка, где находятся HTML файлы
-input_folder = "/home/seva/data/Maria"  # Замените на путь к вашей папке
+input_folder = Path("/home/seva/data/Maria")  # Замените на путь к вашей папке
 
 # Списки для хранения извлеченных данных
 data = []
 
 # Проходим по всем HTML файлам в директории
-for file_name in os.listdir(input_folder):
-    if file_name.startswith("messages") and file_name.endswith(".html"):
-        file_path = os.path.join(input_folder, file_name)
-
-        with open(file_path, "r", encoding="utf-8") as file:
+for file_path in input_folder.iterdir():
+    if file_path.name.startswith("messages") and file_path.name.endswith(".html"):
+        with open(file_path, encoding="utf-8") as file:
             soup = BeautifulSoup(file, "html.parser")  # Замените 'html.parser' на 'html5lib'
 
             # Извлечение сообщений из HTML
