@@ -51,6 +51,7 @@ help:
 	@echo "  install-terrorblade Install Terrorblade module"
 	@echo "  install-thoth     Install Thoth module"
 
+
 # Colors
 YELLOW := \033[1;33m
 GREEN := \033[1;32m
@@ -174,7 +175,6 @@ install-thoth-only: setup-uv check-env
 
 install-all: install install-subprojects
 	@echo -e "$(GREEN)Complete installation finished!$(NC)"
-
 
 # Override specific targets from included files with project-specific implementations
 

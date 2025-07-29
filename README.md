@@ -326,6 +326,7 @@ docker build --target thoth_prod -t thoth-prod .
 
 To run the `Terrorblade` service (production):
 
+
 ```bash
 docker run -d --name terrorblade \\
   -v ./data:/app/data \\ # Mount a volume for DuckDB data (adjust path if needed)
