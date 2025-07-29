@@ -35,7 +35,7 @@ jobs:
       uses: astral-sh/setup-uv@v4
       with:
         enable-cache: true
-        cache-dependency-glob: "pyproject.toml"
+        cache-dependency-glob: "requirements*.in"
         
     - name: Set up virtual environment
       run: |
@@ -43,9 +43,11 @@ jobs:
         echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
         echo "$PWD/.venv/bin" >> $GITHUB_PATH
         
-    - name: Install dependencies
+    - name: Compile and install dependencies
       run: |
-        uv pip install -e ".[dev]"
+        uv pip compile requirements-dev.in --output-file requirements-dev.txt
+        uv pip install -r requirements-dev.txt
+        uv pip install -e "."
         
     - name: Cache mypy
       uses: actions/cache@v4
@@ -105,9 +107,11 @@ jobs:
         echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
         echo "$PWD/.venv/bin" >> $GITHUB_PATH
         
-    - name: Install dependencies
+    - name: Compile and install dependencies
       run: |
-        uv pip install -e ".[dev]"
+        uv pip compile requirements-dev.in --output-file requirements-dev.txt
+        uv pip install -r requirements-dev.txt
+        uv pip install -e "."
         
     - name: Run auto-formatting
       run: |
@@ -153,23 +157,27 @@ jobs:
       uses: astral-sh/setup-uv@v4
       with:
         enable-cache: true
-        cache-dependency-glob: "pyproject.toml"
+        cache-dependency-glob: "requirements*.in"
         
     - name: Set up virtual environment
       run: |
         uv venv --python ${{ matrix.python-version }}
         
-    - name: Install dependencies (Unix)
+    - name: Compile and install dependencies (Unix)
       if: runner.os != 'Windows'
       run: |
         source .venv/bin/activate
-        uv pip install -e ".[dev]"
+        uv pip compile requirements-dev.in --output-file requirements-dev.txt
+        uv pip install -r requirements-dev.txt
+        uv pip install -e "."
         
-    - name: Install dependencies (Windows)
+    - name: Compile and install dependencies (Windows)
       if: runner.os == 'Windows'
       run: |
         .venv\Scripts\activate
-        uv pip install -e ".[dev]"
+        uv pip compile requirements-dev.in --output-file requirements-dev.txt
+        uv pip install -r requirements-dev.txt
+        uv pip install -e "."
         
     - name: Run tests (Unix)
       if: runner.os != 'Windows'
@@ -182,24 +190,6 @@ jobs:
       run: |
         .venv\Scripts\activate
         python -m pytest tests/ -v --tb=short
-
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Run Bandit Security Linter
-      uses: securecodewarrior/github-action-bandit@v1
-      with:
-        buildbreaker: false
-        
-    - name: Run Safety Security Check
-      run: |
-        pip install safety
-        safety check --json || true
 
   dependency-review:
     name: Dependency Review

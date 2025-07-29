@@ -1,0 +1,150 @@
+# Enhanced Security Scanning Workflow
+# Comprehensive vulnerability scanning and security analysis
+name: Security
+
+on:
+  push:
+    branches: [ main, master, dev ]
+  pull_request:
+    branches: [ main, master, dev ]
+  schedule:
+    # Run daily at 2 AM UTC for dependency vulnerability updates
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-scan:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+        cache-dependency-glob: "requirements*.in"
+        
+    - name: Set up virtual environment
+      run: |
+        uv venv --python 3.12
+        echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
+        echo "$PWD/.venv/bin" >> $GITHUB_PATH
+        
+    - name: Install dependencies and security tools
+      run: |
+        uv pip install -r requirements-dev.txt
+        uv pip install bandit[toml] safety pip-audit semgrep
+        
+    - name: Create reports directory
+      run: mkdir -p reports
+      
+    - name: Run Bandit Security Linter
+      run: |
+        echo "::group::Bandit Security Analysis"
+        bandit -r terrorblade/ thoth/ -f json -o reports/bandit-report.json --quiet || true
+        bandit -r terrorblade/ thoth/ --format txt
+        echo "::endgroup::"
+        
+    - name: Run Safety Dependency Check
+      run: |
+        echo "::group::Safety Vulnerability Check"
+        uv pip freeze > reports/requirements-freeze.txt
+        safety check --file reports/requirements-freeze.txt --json --output reports/safety-report.json || true
+        safety check --file reports/requirements-freeze.txt
+        echo "::endgroup::"
+        
+    - name: Run pip-audit Vulnerability Scan
+      run: |
+        echo "::group::pip-audit Dependency Audit"
+        pip-audit --format=json --output=reports/pip-audit-report.json --progress-spinner=off || true
+        pip-audit --format=cyclonedx-json --output=reports/sbom.json --progress-spinner=off || true
+        pip-audit
+        echo "::endgroup::"
+        
+    - name: Run Semgrep Static Analysis
+      run: |
+        echo "::group::Semgrep Static Analysis"
+        semgrep --config=auto --json --output=reports/semgrep-report.json terrorblade/ thoth/ --quiet || true
+        semgrep --config=auto terrorblade/ thoth/
+        echo "::endgroup::"
+        
+    - name: Upload Security Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-reports-${{ github.run_number }}
+        path: reports/
+        retention-days: 30
+        
+    - name: Upload SARIF results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: reports/semgrep-report.json
+      continue-on-error: true
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: moderate
+        comment-summary-in-pr: always
+
+  supply-chain-security:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Scorecard Analysis
+      uses: ossf/scorecard-action@v2.3.1
+      with:
+        results_file: reports/scorecard-results.sarif
+        results_format: sarif
+        publish_results: true
+        
+    - name: Upload Scorecard results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: reports/scorecard-results.sarif
+
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run TruffleHog Secrets Scan
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: ${{ github.event.repository.default_branch }}
+        head: HEAD
+        extra_args: --debug --only-verified 
