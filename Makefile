@@ -184,9 +184,12 @@ lint:
 	isort .
 	@echo -e "$(BLUE)Running linters...$(NC)"
 	ruff check .
-#	@echo -e "$(BLUE)Running type checker...$(NC)"
-#	mypy .
-	@echo -e "$(GREEN)Linting completed successfully!$(NC)"
+	@echo -e "$(BLUE)Running pylint...$(NC)"
+	source .venv/bin/activate && pylint terrorblade || echo "$(YELLOW)Pylint found some issues$(NC)"
+	@echo -e "$(BLUE)Running type checker...$(NC)"
+	@rm -rf .mypy_cache
+	source .venv/bin/activate && mypy terrorblade --exclude "tests/" || echo "$(YELLOW)MyPy found some issues$(NC)"
+	@echo -e "$(GREEN)Linting completed!$(NC)"
 
 clean:
 	rm -rf build/
