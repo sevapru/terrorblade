@@ -21,6 +21,17 @@ stats/
 # Environment variables
 .env
 
+# Compiled requirements files (generated from .in files)
+requirements.txt
+requirements-dev.txt
+requirements-cuda.txt
+requirements-lock.txt
+requirements-dev-lock.txt
+
+# Security and audit reports
+reports/
+exports/
+
 # DB
 *.db
 *.sqlite
