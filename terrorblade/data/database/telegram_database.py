@@ -62,7 +62,6 @@ class TelegramDatabase:
         self.db_path = db_path
         self.read_only = read_only
 
-        # Initialize logger
         self.logger = Logger(
             name="ChatDatabaseInterface",
             level=getattr(logging, os.getenv("LOG_LEVEL", "INFO")),
@@ -71,7 +70,6 @@ class TelegramDatabase:
         )
 
         try:
-            # Connect to database with appropriate mode
             if read_only:
                 self.db = duckdb.connect(db_path, read_only=True)
             else:
@@ -84,7 +82,6 @@ class TelegramDatabase:
     def _init_database(self) -> None:
         """Initialize necessary database tables if they don't exist"""
         try:
-            # Create users table if it doesn't exist with first_seen field
             self.db.execute(
                 """
                 CREATE TABLE IF NOT EXISTS users (
@@ -95,15 +92,12 @@ class TelegramDatabase:
             """
             )
 
-            # Scan for existing message tables to populate users
             table_list = self.db.execute("SHOW TABLES").fetchall()
             existing_tables = [table[0] for table in table_list]
 
-            # Find all message tables and extract phone numbers
             message_tables = [table for table in existing_tables if table.startswith("messages_")]
             for table in message_tables:
                 phone = "+" + table.replace("messages_", "")
-                # Get first message date as first_seen
                 result = self.db.execute(
                     f"""
                     SELECT MIN(date) FROM {table}
@@ -111,7 +105,6 @@ class TelegramDatabase:
                 ).fetchone()
                 first_seen = result[0] if result else None
 
-                # Add user if not exists
                 self.db.execute(
                     """
                     INSERT OR IGNORE INTO users (phone, last_update, first_seen)
@@ -140,7 +133,6 @@ class TelegramDatabase:
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
 
-            # Check if required tables exist
             table_list = self.db.execute("SHOW TABLES").fetchall()
             existing_tables = [table[0] for table in table_list]
 
@@ -148,7 +140,6 @@ class TelegramDatabase:
                 self.logger.warning(f"Required tables for user {phone} do not exist")
                 return False
 
-            # Add user to users table if not exists
             if not self.read_only:
                 self.db.execute(
                     """
@@ -171,7 +162,6 @@ class TelegramDatabase:
             int: Number of users
         """
         try:
-            # First ensure users table exists
             if not self.read_only:
                 self._init_database()
 
@@ -189,7 +179,6 @@ class TelegramDatabase:
             List[str]: List of phone numbers
         """
         try:
-            # First ensure users table exists
             if not self.read_only:
                 self._init_database()
 
@@ -216,7 +205,6 @@ class TelegramDatabase:
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
 
-            # Get total messages
             total_messages = self.db.execute(
                 f"""
                 SELECT COUNT(*) FROM {messages_table}
@@ -226,7 +214,6 @@ class TelegramDatabase:
                 return None
             total_messages = total_messages[0]
 
-            # Get chat statistics
             chat_stats = self.db.execute(
                 f"""
                 SELECT
@@ -239,13 +226,11 @@ class TelegramDatabase:
             """
             ).fetchall()
 
-            # Get largest chat
             largest_chat = chat_stats[0] if chat_stats else None
             largest_chat_tuple = (
                 (largest_chat[0], largest_chat[1], largest_chat[2]) if largest_chat else None
             )
 
-            # Get largest cluster
             largest_cluster = self.db.execute(
                 f"""
                 SELECT
@@ -266,7 +251,6 @@ class TelegramDatabase:
                 else None
             )
 
-            # Compile chat statistics
             chat_stats_dict = {}
             for chat_id, chat_name, message_count in chat_stats:
                 cluster_stats = self.db.execute(
@@ -326,7 +310,6 @@ class TelegramDatabase:
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
 
-            # Get list of large clusters
             large_clusters = self.db.execute(
                 f"""
                 WITH cluster_sizes AS (
@@ -351,11 +334,9 @@ class TelegramDatabase:
                 self.logger.info(f"No clusters found with size >= {min_size}")
                 return None
 
-            # Select random cluster
             selected_cluster = random.choice(large_clusters)
             group_id, chat_id, size = selected_cluster
 
-            # Get messages from the selected cluster using centralized SQL generation
             where_clause = "WHERE c.group_id = ? AND c.chat_id = ?"
             sql = self.__get_join_messages_clusters_sql(
                 messages_table, clusters_table, where_clause
@@ -389,7 +370,6 @@ class TelegramDatabase:
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
 
-            # Get basic chat info
             chat_info = self.db.execute(
                 f"""
                 SELECT
@@ -407,7 +387,6 @@ class TelegramDatabase:
                 self.logger.warning(f"Chat {chat_id} not found for user {phone}")
                 return None
 
-            # Get cluster statistics
             cluster_stats = self.db.execute(
                 f"""
                 SELECT
@@ -449,8 +428,6 @@ class TelegramDatabase:
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
 
-            # Create messages table using the centralized schema
-            # Quote column names to avoid reserved keyword issues
             columns = [f'"{field}" {info["db_type"]}' for field, info in TELEGRAM_SCHEMA.items()]
             self.db.execute(
                 f"""
@@ -460,11 +437,7 @@ class TelegramDatabase:
             )
             """
             )
-
-            # Create clusters table
             self.db.execute(self.__get_create_clusters_table_sql(clusters_table))
-
-            # Add user to users table if not exists
             self.db.execute(
                 """
                 INSERT OR IGNORE INTO users (phone, last_update, first_seen)
@@ -494,9 +467,7 @@ class TelegramDatabase:
 
             self.logger.info(f"Adding {messages_df.height} messages for user {phone}")
 
-            # Check if from_name is missing in the DataFrame
             if "from_name" not in messages_df.columns:
-                # Add from_name column with NULL values
                 messages_df = messages_df.with_columns(pl.lit(None).alias("from_name"))
                 self.logger.info(f"Added missing 'from_name' column to DataFrame for user {phone}")
 
@@ -541,8 +512,6 @@ class TelegramDatabase:
 
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
-
-            # Find the largest cluster
             largest_cluster = self.db.execute(
                 f"""
                 WITH cluster_sizes AS (
@@ -568,8 +537,6 @@ class TelegramDatabase:
                 return None
 
             group_id, chat_id, size = largest_cluster
-
-            # Get messages from the largest cluster using centralized SQL generation
             where_clause = "WHERE c.group_id = ? AND c.chat_id = ?"
             sql = self.__get_join_messages_clusters_sql(
                 messages_table, clusters_table, where_clause
@@ -593,21 +560,15 @@ class TelegramDatabase:
         Args:
             phone (str): User's phone number
         """
-        # Get number of users
         user_count = self.get_user_count()
         self.logger.info(f"\nTotal users in database: {user_count}")
-
-        # Get all users
         users = self.get_all_users()
         self.logger.info(f"Users: {users}")
 
-        # Get stats for a specific user
         if user_stats := self.get_user_stats(phone):
             self.logger.info(f"\nStats for user {phone}:")
             self.logger.info(f"Total messages: {user_stats.total_messages}")
             self.logger.info(f"Total chats: {user_stats.total_chats}")
-
-            # Show top-3 largest chats
             if user_stats and user_stats.chat_stats:
                 sorted_chats = sorted(
                     user_stats.chat_stats.values(), key=lambda x: x.message_count, reverse=True
@@ -623,20 +584,17 @@ class TelegramDatabase:
                     f"Largest cluster: {user_stats.largest_cluster[1]} ({user_stats.largest_cluster[2]} messages)"
                 )
 
-            # Get a random large cluster
             cluster = self.get_random_large_cluster(phone, min_size=5)
             if cluster is not None and not cluster.is_empty():
                 self.logger.info(f"\nRandom cluster size: {len(cluster)}")
                 self.logger.info("Sample messages from cluster:")
                 self.logger.info(cluster.select(["text", "date"]).head(3))  # type: ignore
 
-            # Get largest cluster messages
             largest_cluster = self.get_largest_cluster_messages(phone)
             if largest_cluster is not None and not largest_cluster.is_empty():
                 self.logger.info(f"\nLargest cluster messages ({len(largest_cluster)} messages):")
                 self.logger.info(largest_cluster.select(["text", "date"]).head(5))  # type: ignore
 
-            # Get stats for the largest chat
             if (
                 user_stats
                 and user_stats.largest_chat
@@ -682,7 +640,6 @@ class TelegramDatabase:
 
             messages_table = f"messages_{phone.replace('+', '')}"
 
-            # Check if the table exists
             table_list = self.db.execute("SHOW TABLES").fetchall()
             existing_tables = [table[0] for table in table_list]
 
@@ -690,7 +647,6 @@ class TelegramDatabase:
                 self.logger.info(f"Table {messages_table} does not exist yet")
                 return -1
 
-            # Get the maximum message_id - no need to change this as we're only querying one field
             result = self.db.execute(
                 f"""
                 SELECT MAX(message_id) FROM {messages_table}

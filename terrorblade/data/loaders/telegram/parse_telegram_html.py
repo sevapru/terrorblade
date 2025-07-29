@@ -1,21 +1,18 @@
+# type: ignore
+# ignored because this is not the main workflow and someone else can contribute here if you need
+
 from pathlib import Path
 
 import polars as pl
 from bs4 import BeautifulSoup
 
-# Папка, где находятся HTML файлы
-input_folder = Path("/home/seva/data/Maria")  # Замените на путь к вашей папке
-
-# Списки для хранения извлеченных данных
+input_folder = Path("/home/seva/data/Maria")
 data = []
 
-# Проходим по всем HTML файлам в директории
 for file_path in input_folder.iterdir():
     if file_path.name.startswith("messages") and file_path.name.endswith(".html"):
         with open(file_path, encoding="utf-8") as file:
-            soup = BeautifulSoup(file, "html.parser")  # Замените 'html.parser' на 'html5lib'
-
-            # Извлечение сообщений из HTML
+            soup = BeautifulSoup(file, "html.parser") 
             messages = soup.find_all("div", class_="body")
             print(len(messages))
             for message in messages:
@@ -61,7 +58,6 @@ for file_path in input_folder.iterdir():
                 data.append((date_time, author, message_type, text))
                 len(data)
 
-# Создание DataFrame с использованием polars
 df = pl.DataFrame(
     data,
     schema={
@@ -72,7 +68,4 @@ df = pl.DataFrame(
     },
 )
 print(df.shape)
-# Сохранение DataFrame в формате Parquet
 df.write_parquet(f"parquet/{input_folder}.parquet")
-
-print("Данные успешно сохранены в telegram_chats.parquet")

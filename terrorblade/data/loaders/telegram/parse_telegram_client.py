@@ -1,3 +1,5 @@
+# type: ignore 
+# ignored because this is not the main workflow and someone else can contribute here if you need
 import asyncio
 import logging
 import os
@@ -39,14 +41,12 @@ class TelegramParser:
         """
         self.api_id = api_id or os.getenv("API_ID")
         self.api_hash = api_hash or os.getenv("API_HASH")
-        self.phone = phone or os.getenv("PHONE")
+        self.phone = phone or os.getenv("PHONE") or "31627866359"
         self.client = None
         self.session_db_path = session_db_path or str(
             Path(os.getenv("LOG_DIR", "data")) / "telegram_sessions.db"
         )
         self.db = db or TelegramDatabase()
-
-        # Initialize session manager
         self.session_manager = SessionManager(db_path=self.session_db_path)
 
         self.logger = Logger(
@@ -59,43 +59,33 @@ class TelegramParser:
     async def connect(self):
         """Connecting to Telegram API using stored session if available"""
         self.logger.info("Attempting to connect to Telegram API")
-
-        # Try to get existing session
         session_string = self.session_manager.get_session(self.phone)
 
         if session_string:
             self.logger.info(f"Using existing session for phone {self.phone}")
-            # Create client with existing session
             self.client = TelegramClient(StringSession(session_string), self.api_id, self.api_hash)
         else:
             self.logger.info(
                 f"No existing session found for phone {self.phone}, creating new session"
             )
-            # Create new client with StringSession
             self.client = TelegramClient(StringSession(), self.api_id, self.api_hash)
 
         try:
-            # Connect to Telegram servers (doesn't log in yet)
             await self.client.connect()
 
-            # Check if already authorized
             if not await self.client.is_user_authorized():
                 self.logger.info("User not authorized. Starting authentication process...")
 
-                # Request verification code
                 await self.client.send_code_request(self.phone)
                 self.logger.info(f"Verification code sent to {self.phone}")
 
-                # Ask for the code
                 verification_code = input(f"Enter the verification code sent to {self.phone}: ")
 
-                # Sign in with the code
                 await self.client.sign_in(self.phone, verification_code)
                 self.logger.info("Successfully authenticated with Telegram API")
             else:
                 self.logger.info("User already authorized")
 
-            # Save the session string after successful connection
             if self.client.session:
                 session_string = self.client.session.save()
                 self.session_manager.save_session(self.phone, session_string)
@@ -107,8 +97,7 @@ class TelegramParser:
                 f"FloodWaitError: Need to wait {wait_time} seconds due to Telegram rate limiting"
             )
             await asyncio.sleep(wait_time)
-            # Try to reconnect after waiting
-            await self.connect()  # Recursive call to retry the connection
+            await self.connect()
 
         except Exception as e:
             self.logger.error(f"Failed to connect to Telegram API: {str(e)}")
@@ -186,8 +175,6 @@ class TelegramParser:
                     "chat_name": dialog_name,
                     "forwarded_from": (message.fwd_from.from_name if message.fwd_from else None),
                 }
-
-                # Get information about sender
                 if message.from_id and self.client is not None:
                     sender = await self.client.get_entity(message.from_id)
                     msg_dict["from_name"] = (
@@ -200,10 +187,7 @@ class TelegramParser:
                 self.logger.info(f"No messages found in chat {chat_id}")
                 return None
 
-            # Get the centralized schema
             schema = get_polars_schema()
-
-            # Create DataFrame with schema applied directly
             df = pl.DataFrame(
                 messages,
                 schema={
@@ -211,8 +195,6 @@ class TelegramParser:
                 },
                 strict=False,
             )
-
-            # Get unique sender IDs and fetch their information once
             unique_sender_ids = (
                 df.filter(pl.col("from_id").is_not_null())["from_id"].unique().to_list()
             )
@@ -229,7 +211,6 @@ class TelegramParser:
                     self.logger.warning(f"Could not fetch info for sender {sender_id}: {str(e)}")
                     sender_info[sender_id] = ""
 
-            # Apply the mapping to the DataFrame with explicit return type and skip_nulls=False
             df = df.with_columns(
                 pl.when(pl.col("from_id").is_not_null())
                 .then(
@@ -271,18 +252,14 @@ class TelegramParser:
             for dialog in dialogs:
                 chat_id = dialog.id
 
-                # Получаем максимальный message_id из базы данных для этого чата
                 min_id = self.db.get_max_message_id(self.phone, chat_id) if self.db else -1
 
-                # Передаем min_id в get_chat_messages
                 df = await self.get_chat_messages(
                     chat_id, limit=limit_messages, min_id=min_id, dialog_name=dialog.name
                 )
 
-                # Получаем максимальный message_id из базы данных для этого чата
                 min_id = self.db.get_max_message_id(self.phone, chat_id) if self.db else -1
 
-                # Передаем min_id в get_chat_messages
                 df = await self.get_chat_messages(
                     chat_id, limit=limit_messages, min_id=min_id, dialog_name=dialog.name
                 )
@@ -291,7 +268,6 @@ class TelegramParser:
                     self.logger.info(f"Added {len(df)} messages from chat {chat_id}")
                     chats_dict[chat_id] = df
 
-                    # If database is provided, store messages
                     if self.db is not None:
                         self.db.add_messages(self.phone, df)
                 elif min_id > -1 or min_id > -1:
@@ -311,14 +287,13 @@ class TelegramParser:
         self.logger.info("Closing Telegram and database connections")
         try:
             if self.client:
-                await self.client.disconnect()
+                await self.client.disconnect() # type: ignore
                 self.logger.info("Successfully closed Telegram connection")
 
             if self.db is not None:
                 self.db.close()
                 self.logger.info("Successfully closed database connection")
 
-            # Close session manager
             self.session_manager.close()
             self.logger.info("Successfully closed session manager")
 
@@ -345,30 +320,21 @@ async def update_telegram_data(
     Returns:
         None
     """
-    # Setup path for session database
     session_db_path = str(Path(os.getenv("LOG_DIR", "data")) / "telegram_sessions.db")
-
-    # Verify required parameters
     if not phone:
         raise ValueError("Phone number must be provided")
 
     parser = TelegramParser(phone=phone, db=db, session_db_path=session_db_path)
 
     try:
-        # Connect to Telegram API
         await parser.connect()
-
-        # Fetch all chats with optional limits
         await parser.get_all_chats(limit_dialogs=limit_dialogs, limit_messages=limit_messages)
-
-        # Print summary for the user
         db.print_user_summary(phone)
 
     except Exception as e:
         logging.error(f"Error updating Telegram data: {str(e)}")
         raise
     finally:
-        # Ensure all connections are properly closed
         await parser.close()
 
 

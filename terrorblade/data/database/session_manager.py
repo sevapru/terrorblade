@@ -57,7 +57,7 @@ class SessionManager:
             self.logger.error(f"Error initializing session database: {str(e)}")
             raise
 
-    def get_session(self, phone: str) -> str | None:
+    def get_session(self, phone: str | None) -> str | None:
         """
         Retrieve a session string for the given phone number.
 
