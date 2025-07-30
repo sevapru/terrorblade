@@ -1,31 +1,33 @@
+# type: ignore
+# ignored because this is not the main workflow and someone else can contribute here if you need
 import asyncio
 import logging
 import os
-from typing import Dict, List, Optional
+from pathlib import Path
 
 import polars as pl
 from dotenv import load_dotenv
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
+from telethon.sessions import StringSession
 from telethon.tl.types import MessageService
 
 from terrorblade import Logger
+from terrorblade.data.database.session_manager import SessionManager
 from terrorblade.data.database.telegram_database import TelegramDatabase
+from terrorblade.data.dtypes import get_polars_schema
 
 load_dotenv(".env")
-
-api_id = os.getenv("API_ID")
-api_hash = os.getenv("API_HASH")
-phone = os.getenv("PHONE")
 
 
 class TelegramParser:
     def __init__(
         self,
-        api_id: str,
-        api_hash: str,
         phone: str,
-        db: Optional[TelegramDatabase] = None,
+        api_id: str | None = None,
+        api_hash: str | None = None,
+        db: TelegramDatabase | None = None,
+        session_db_path: str = "telegram_sessions.db",
     ):
         """
         Initialize Telegram parser.
@@ -35,12 +37,17 @@ class TelegramParser:
             api_hash (str): API Hash from Telegram
             phone (str): Phone number for authentication
             db (Optional[TelegramDatabase]): Database instance for storing messages
+            session_db_path (str): Path to the session database
         """
-        self.api_id = api_id
-        self.api_hash = api_hash
-        self.phone = phone
+        self.api_id = api_id or os.getenv("API_ID")
+        self.api_hash = api_hash or os.getenv("API_HASH")
+        self.phone = phone or os.getenv("PHONE") or "31627866359"
         self.client = None
-        self.db = db
+        self.session_db_path = session_db_path or str(
+            Path(os.getenv("LOG_DIR", "data")) / "telegram_sessions.db"
+        )
+        self.db = db or TelegramDatabase()
+        self.session_manager = SessionManager(db_path=self.session_db_path)
 
         self.logger = Logger(
             name="TelegramParser",
@@ -50,22 +57,56 @@ class TelegramParser:
         )
 
     async def connect(self):
-        """Connecting to Telegram API"""
+        """Connecting to Telegram API using stored session if available"""
         self.logger.info("Attempting to connect to Telegram API")
-        self.client = TelegramClient("session_name", self.api_id, self.api_hash)
+        session_string = self.session_manager.get_session(self.phone)
+
+        if session_string:
+            self.logger.info(f"Using existing session for phone {self.phone}")
+            self.client = TelegramClient(StringSession(session_string), self.api_id, self.api_hash)
+        else:
+            self.logger.info(
+                f"No existing session found for phone {self.phone}, creating new session"
+            )
+            self.client = TelegramClient(StringSession(), self.api_id, self.api_hash)
+
         try:
-            await self.client.start(phone=self.phone)
-            self.logger.info("Successfully connected to Telegram API")
+            await self.client.connect()
+
+            if not await self.client.is_user_authorized():
+                self.logger.info("User not authorized. Starting authentication process...")
+
+                await self.client.send_code_request(self.phone)
+                self.logger.info(f"Verification code sent to {self.phone}")
+
+                verification_code = input(f"Enter the verification code sent to {self.phone}: ")
+
+                await self.client.sign_in(self.phone, verification_code)
+                self.logger.info("Successfully authenticated with Telegram API")
+            else:
+                self.logger.info("User already authorized")
+
+            if self.client.session:
+                session_string = self.client.session.save()
+                self.session_manager.save_session(self.phone, session_string)
+                self.logger.info(f"Saved session for phone {self.phone}")
+
         except FloodWaitError as e:
             wait_time = e.seconds
-            self.logger.warning(f"FloodWaitError: Need to wait {wait_time} seconds due to Telegram rate limiting")
+            self.logger.warning(
+                f"FloodWaitError: Need to wait {wait_time} seconds due to Telegram rate limiting"
+            )
             await asyncio.sleep(wait_time)
-            await self.client.start(phone=self.phone)
+            await self.connect()
+
         except Exception as e:
             self.logger.error(f"Failed to connect to Telegram API: {str(e)}")
             raise
+        finally:
+            if self.db:
+                self.db.init_user_tables(self.phone)
 
-    async def get_dialogs(self, limit: Optional[int] = None) -> List:
+    async def get_dialogs(self, limit: int | None = None) -> list:
         """
         Getting list of dialogs.
 
@@ -87,10 +128,10 @@ class TelegramParser:
     async def get_chat_messages(
         self,
         chat_id: int,
-        limit: Optional[int] = None,
-        min_id: Optional[int] = None,
-        dialog_name: Optional[str] = None,
-    ) -> Optional[pl.DataFrame]:
+        limit: int | None = None,
+        min_id: int | None = None,
+        dialog_name: str | None = None,
+    ) -> pl.DataFrame | None:
         """
         Getting messages from specific chat.
 
@@ -103,8 +144,13 @@ class TelegramParser:
         Returns:
             Optional[pl.DataFrame]: DataFrame with messages or None if no messages found
         """
-        self.logger.info(f"Fetching messages from chat {chat_id} (limit: {limit}, min_id: {min_id})")
+        self.logger.info(
+            f"Fetching messages from chat {chat_id} (limit: {limit}, min_id: {min_id})"
+        )
         messages = []
+        if chat_id < 0:
+            self.logger.info(f"Chat {chat_id} is a service chat, skipping")
+            return None
 
         if min_id is None:
             min_id = -1
@@ -126,15 +172,14 @@ class TelegramParser:
                     "reply_to_message_id": message.reply_to_msg_id,
                     "media_type": (message.media.__class__.__name__ if message.media else None),
                     "file_name": message.file.name if message.file else None,
-                    "from": message.from_id.user_id if message.from_id else None,
                     "chat_name": dialog_name,
                     "forwarded_from": (message.fwd_from.from_name if message.fwd_from else None),
                 }
-
-                # Get information about sender
                 if message.from_id and self.client is not None:
                     sender = await self.client.get_entity(message.from_id)
-                    msg_dict["from"] = f"{sender.first_name} {sender.last_name if sender.last_name else ''}".strip()
+                    msg_dict["from_name"] = (
+                        f"{sender.first_name} {sender.last_name if sender.last_name else ''}".strip()
+                    )
 
                 messages.append(msg_dict)
 
@@ -142,23 +187,42 @@ class TelegramParser:
                 self.logger.info(f"No messages found in chat {chat_id}")
                 return None
 
-            df = pl.DataFrame(messages)
-            self.logger.info(f"Successfully fetched {len(messages)} messages from chat {chat_id}")
-
-            # Cast types to needed format
-            df = df.with_columns(
-                [
-                    pl.col("date").cast(pl.Datetime),
-                    pl.col("from_id").cast(pl.Int64),
-                    pl.col("chat_id").cast(pl.Int64),
-                    pl.col("reply_to_message_id").cast(pl.Int64),
-                    pl.col("text").cast(pl.Utf8),
-                    pl.col("media_type").cast(pl.Utf8),
-                    pl.col("file_name").cast(pl.Utf8),
-                    pl.col("forwarded_from").cast(pl.Utf8),
-                    pl.col("message_id").alias("message_id").cast(pl.Int64),
-                ]
+            schema = get_polars_schema()
+            df = pl.DataFrame(
+                messages,
+                schema={
+                    col_name: dtype for col_name, dtype in schema.items() if col_name in messages[0]
+                },
+                strict=False,
             )
+            unique_sender_ids = (
+                df.filter(pl.col("from_id").is_not_null())["from_id"].unique().to_list()
+            )
+            sender_info = {}
+
+            for sender_id in unique_sender_ids:
+                try:
+                    if self.client is not None:
+                        sender = await self.client.get_entity(sender_id)
+                        sender_info[sender_id] = (
+                            f"{sender.first_name} {sender.last_name if sender.last_name else ''}".strip()
+                        )
+                except Exception as e:
+                    self.logger.warning(f"Could not fetch info for sender {sender_id}: {str(e)}")
+                    sender_info[sender_id] = ""
+
+            df = df.with_columns(
+                pl.when(pl.col("from_id").is_not_null())
+                .then(
+                    pl.col("from_id").map_elements(
+                        lambda x: sender_info.get(x, ""), return_dtype=pl.Utf8, skip_nulls=False
+                    )
+                )
+                .otherwise(pl.col("chat_name"))
+                .alias("from_name")
+            )
+
+            self.logger.info(f"Successfully fetched {len(messages)} messages from chat {chat_id}")
 
             return df
         except Exception as e:
@@ -166,8 +230,8 @@ class TelegramParser:
             raise
 
     async def get_all_chats(
-        self, limit_dialogs: Optional[int] = None, limit_messages: Optional[int] = None
-    ) -> Dict[int, pl.DataFrame]:
+        self, limit_dialogs: int | None = None, limit_messages: int | None = None
+    ) -> dict[int, pl.DataFrame]:
         """
         Get messages from all chats and optionally store them in database.
 
@@ -178,22 +242,38 @@ class TelegramParser:
         Returns:
             Dict[int, pl.DataFrame]: Dictionary mapping chat_id to messages DataFrame
         """
-        self.logger.info(f"Fetching all chats (dialog limit: {limit_dialogs}, messages limit: {limit_messages})")
+        self.logger.info(
+            f"Fetching all chats (dialog limit: {limit_dialogs}, messages limit: {limit_messages})"
+        )
         try:
             dialogs = await self.get_dialogs(limit=limit_dialogs)
             chats_dict = {}
 
             for dialog in dialogs:
                 chat_id = dialog.id
-                df = await self.get_chat_messages(chat_id, limit=limit_messages, dialog_name=dialog.name)
+
+                min_id = self.db.get_max_message_id(self.phone, chat_id) if self.db else -1
+
+                df = await self.get_chat_messages(
+                    chat_id, limit=limit_messages, min_id=min_id, dialog_name=dialog.name
+                )
+
+                min_id = self.db.get_max_message_id(self.phone, chat_id) if self.db else -1
+
+                df = await self.get_chat_messages(
+                    chat_id, limit=limit_messages, min_id=min_id, dialog_name=dialog.name
+                )
 
                 if df is not None and not df.is_empty():
                     self.logger.info(f"Added {len(df)} messages from chat {chat_id}")
                     chats_dict[chat_id] = df
 
-                    # If database is provided, store messages
                     if self.db is not None:
                         self.db.add_messages(self.phone, df)
+                elif min_id > -1 or min_id > -1:
+                    self.logger.info(
+                        f"No new messages found for chat {chat_id} since message_id {min_id}"
+                    )
 
             self.logger.info(f"Successfully fetched messages from {len(chats_dict)} chats")
             return chats_dict
@@ -206,42 +286,60 @@ class TelegramParser:
         """Close connections"""
         self.logger.info("Closing Telegram and database connections")
         try:
-            await self.client.disconnect()
-            self.logger.info("Successfully closed Telegram connection")
+            if self.client:
+                await self.client.disconnect()  # type: ignore
+                self.logger.info("Successfully closed Telegram connection")
 
             if self.db is not None:
                 self.db.close()
                 self.logger.info("Successfully closed database connection")
+
+            self.session_manager.close()
+            self.logger.info("Successfully closed session manager")
+
         except Exception as e:
             self.logger.error(f"Error closing connections: {str(e)}")
             raise
 
 
-async def main(phone: str) -> None:
-    api_id = os.getenv("API_ID")
-    api_hash = os.getenv("API_HASH")
+async def update_telegram_data(
+    phone: str,
+    db: TelegramDatabase,
+    limit_dialogs: int | None = None,
+    limit_messages: int | None = None,
+) -> None:
+    """
+    Update function that can be called during service initialization to fetch
+    and update all chats for a given phone number.
 
-    if api_id is None or api_hash is None:
-        raise ValueError("API_ID and API_HASH must be set in environment variables")
+    Args:
+        phone (str): Phone number to use for Telegram authentication
+        limit_dialogs (int, optional): Limit number of dialogs to fetch
+        limit_messages (int, optional): Limit number of messages per dialog
 
-    # Initialize database
-    db = TelegramDatabase()
-    parser = TelegramParser(api_id, api_hash, phone, db)
+    Returns:
+        None
+    """
+    session_db_path = str(Path(os.getenv("LOG_DIR", "data")) / "telegram_sessions.db")
+    if not phone:
+        raise ValueError("Phone number must be provided")
+
+    parser = TelegramParser(phone=phone, db=db, session_db_path=session_db_path)
 
     try:
         await parser.connect()
-        await parser.get_all_chats(limit_dialogs=None, limit_messages=None)
-
-        # Print summary for the user
+        await parser.get_all_chats(limit_dialogs=limit_dialogs, limit_messages=limit_messages)
         db.print_user_summary(phone)
 
+    except Exception as e:
+        logging.error(f"Error updating Telegram data: {str(e)}")
+        raise
     finally:
         await parser.close()
-        db.close()
 
 
 if __name__ == "__main__":
     phone_env = os.getenv("PHONE")
     if phone_env is None:
         raise ValueError("PHONE must be set in environment variables")
-    asyncio.run(main(phone_env))
+    # asyncio.run(main("+31627866359"))  # main function not defined

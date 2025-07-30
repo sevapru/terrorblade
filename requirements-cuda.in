@@ -1,0 +1,9 @@
+# GPU/CUDA dependencies (optional)
+# Only install these if you have NVIDIA GPU support
+
+# Include main requirements
+-r requirements.txt
+
+# Basic CUDA support
+torch[cuda]
+# Note: More advanced CUDA packages can be added per platform as needed 

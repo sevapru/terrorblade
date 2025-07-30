@@ -3,7 +3,7 @@ name = "terrorblade"
 version = "0.2.0"
 description = "A Python-based Telegram message parser and analyzer"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [
     { name = "Vsevolod Prudius", email = "sevapru@gmail.com" }
@@ -12,7 +12,6 @@ dependencies = [
     "polars",
     "telethon",
     "duckdb",
-    "vllm",
     "python-dotenv",
     "beautifulsoup4",
     "numpy",
@@ -26,10 +25,16 @@ dev = [
     "tomli",
     "packaging",
     "pytest",
-    "black",
-    "isort",
-    "mypy",
-    "ruff",
+    "pytest-cov",
+    "pytest-watch",
+    "black>=24.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
+    "ruff>=0.1.0",
+    "watchdog",
+    "build",
+    "wheel",
+    "twine",
 ]
 
 cuda = [
@@ -48,8 +53,7 @@ cuda = [
     "cuvs-cu12==24.10.*",
 ]
 
-[project.scripts]
-terrorblade = "terrorblade.main:main"
+
 
 [tool.pytest.ini_options]
 pythonpath = [
@@ -59,9 +63,17 @@ pythonpath = [
 [tool.isort]
 profile = "black"
 multi_line_output = 3
+line_length = 120
+known_first_party = ["terrorblade"]
+known_third_party = ["polars", "telethon", "duckdb", "numpy", "pandas"]
+skip_glob = ["thoth/*", ".venv/*", "build/*", "dist/*"]
+combine_as_imports = true
+force_grid_wrap = 0
+include_trailing_comma = true
+use_parentheses = true
 
 [tool.black]
-line-length = 120
+line-length = 100
 target-version = ['py312']
 include = '\.pyi?$'
 
@@ -69,6 +81,13 @@ include = '\.pyi?$'
 python_version = "3.12"
 ignore_missing_imports = true
 disallow_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+check_untyped_defs = true
+no_implicit_reexport = true
+show_error_codes = true
+show_column_numbers = true
+pretty = true
 exclude = [
     "data/loaders/telegram/parse_telegram_html.py",
     "build/",
@@ -80,12 +99,14 @@ exclude = [
     ".mypy_cache/",
     ".ruff_cache/",
     ".pytest_cache/",
-    ".cache/"
+    ".cache/",
+    "thoth/"
 ]
 
 [[tool.mypy.overrides]]
 module = ["tests.*", "terrorblade.data.loaders.*"]
 disallow_untyped_defs = false
+ignore_errors = true
 
 [tool.setuptools]
 packages = ["terrorblade"]
@@ -99,27 +120,316 @@ exclude = [
     "build",
     "proto",
     "dist",
-    "data/loaders/telegram/parse_telegram_html.py",  # Excluding the telegram parser file (why
+    "thoth",  # Exclude thoth module
+    "data/loaders/telegram/parse_telegram_html.py",  # Excluding the telegram parser file
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
 ]
 
-# Enable specific rules
-lint.select = [
-    "E",   # pycodestyle errors
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-]
-
-# Ignore specific rules
-lint.ignore = [
-    "E501",    # Line too long
-    "B008",    # Do not perform function call in argument defaults
-    "C901",    # Function is too complex
-]
+# Target Python version
+target-version = "py312"
 
 # Line length configuration
 line-length = 120
 
+# Enable specific rules
+lint.select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "PTH",  # flake8-use-pathlib
+]
+
+# Ignore specific rules
+lint.ignore = [
+    "E501",    # Line too long (handled by black)
+    "B008",    # Do not perform function call in argument defaults
+    "C901",    # Function is too complex
+    "E203",    # Whitespace before ':' (conflicts with black)
+    "PTH123",  # Use pathlib instead of os.path.dirname
+]
+
+# Autofix settings
+lint.fixable = ["ALL"]
+lint.unfixable = []
+
 [tool.ruff.lint.per-file-ignores]
-#"__init__.py" = ["F401"]  # Ignore unused imports in __init__.py files
+"__init__.py" = ["F401"]  # Ignore unused imports in __init__.py files
+"tests/*" = ["S101"]      # Allow assert statements in tests
+
+[tool.ruff.lint.isort]
+known-first-party = ["terrorblade"]
+force-single-line = false
+combine-as-imports = true
+
+[tool.pylint.main]
+# Use multiple processes to speed up pylint
+jobs = 0
+
+# Python code to execute, usually for sys.path manipulation such as
+# pygtk.require().
+#init-hook=
+
+# Files or directories to be skipped. They should be base names, not paths.
+ignore = ["CVS"]
+
+# Add files or directories matching the regex patterns to the ignore-list.
+ignore-paths = [
+    "^data/loaders/telegram/parse_telegram_html\\.py$",
+    "^build/.*",
+    "^dist/.*",
+    "^proto/.*",
+    "^\\.venv/.*",
+    "^\\.virtualenv/.*",
+    "^\\.virtualenvs/.*",
+    "^\\.mypy_cache/.*",
+    "^\\.ruff_cache/.*",
+    "^\\.pytest_cache/.*",
+    "^\\.cache/.*",
+    "^thoth/.*"
+]
+
+# Pickle collected data for later comparisons
+persistent = true
+
+# Minimum supported python version
+py-version = "3.12"
+
+# Control the amount of potential inferred values when inferring a single
+# object. This can help the performance when dealing with large functions or
+# complex, nested conditions.
+limit-inference-results = 100
+
+# List of plugins (as comma separated values of python module names) to load,
+# usually to register additional checkers.
+load-plugins = []
+
+[tool.pylint.messages_control]
+# Disable the message, report, category or checker with the given id(s).
+disable = [
+    "raw-checker-failed",
+    "bad-inline-option",
+    "locally-disabled",
+    "file-ignored",
+    "suppressed-message",
+    "useless-suppression",
+    "deprecated-pragma",
+    "use-symbolic-message-instead",
+    # Disable checks that conflict with ruff/black
+    "line-too-long",           # Handled by black (E501 in ruff)
+    "trailing-whitespace",     # Handled by black
+    "missing-final-newline",   # Handled by black
+    "too-many-lines",         # Not enforced in ruff
+    "too-many-branches",      # Similar to C901 which is ignored in ruff
+    "too-many-statements",    # Not enforced in ruff
+    "too-many-arguments",     # Not enforced in ruff
+    "too-many-locals",        # Not enforced in ruff
+    "too-many-instance-attributes",  # Not enforced in ruff
+    "too-few-public-methods", # Not enforced in ruff
+    # Allow function call in argument defaults (B008 is ignored in ruff)
+    "dangerous-default-value",
+    # Allow complex functions (C901 is ignored in ruff)
+    "too-many-branches",
+]
+
+# Enable the message, report, category or checker with the given id(s).
+enable = [
+    # Enable checks that align with ruff rules
+    "unused-import",           # F401 (but allowed in __init__.py)
+    "unused-variable",         # F841
+    "undefined-variable",      # F821
+    "redefined-outer-name",    # F811
+    "import-error",            # F401
+    "wrong-import-order",      # I001 (isort)
+]
+
+[tool.pylint.reports]
+# Set the output format. Available formats are text, parseable, colorized, json
+# and msvs (visual studio). You can also give a reporter class, e.g.
+# mypackage.mymodule.MyReporterClass.
+output-format = "text"
+
+# Tells whether to display a full report or only the messages.
+reports = false
+
+# Activate the evaluation score.
+score = true
+
+[tool.pylint.format]
+# Maximum number of characters on a single line.
+max-line-length = 120
+
+# Regexp for a line that is allowed to be longer than the limit.
+ignore-long-lines = "^\\s*(# )?<?https?://\\S+>?$"
+
+[tool.pylint.logging]
+# The type of string formatting that logging methods do. `old` means using %
+# formatting, `new` is for `{}` formatting.
+logging-format-style = "new"
+
+[tool.pylint.miscellaneous]
+# List of note tags to take in consideration, separated by a comma.
+notes = ["FIXME", "XXX", "TODO"]
+
+[tool.pylint.similarities]
+# Minimum lines number of a similarity.
+min-similarity-lines = 4
+
+# Comments are removed from the similarity computation
+ignore-comments = true
+
+# Docstrings are removed from the similarity computation
+ignore-docstrings = true
+
+# Imports are removed from the similarity computation
+ignore-imports = true
+
+[tool.pylint.string]
+# This flag controls whether inconsistent-quotes generates a warning when the
+# character used as a quote delimiter is used inconsistently within a module.
+check-quote-consistency = false
+
+[tool.pylint.typecheck]
+# List of decorators that produce context managers, such as
+# contextlib.contextmanager. Add to this list to register other decorators that
+# produce valid context managers.
+contextmanager-decorators = ["contextlib.contextmanager"]
+
+# List of members which are set dynamically and missed by pylint inference
+# system, and so shouldn't trigger E1101 when accessed. Python regular
+# expressions are accepted.
+generated-members = []
+
+[tool.pylint.variables]
+# Tells whether unused global variables should be treated as a violation.
+allow-global-unused-variables = true
+
+# List of strings which can identify a callback function by name. A callback
+# name must start or end with one of those strings.
+callbacks = ["cb_", "_cb"]
+
+# A regular expression matching the name of dummy variables (i.e. expected to
+# not be used).
+dummy-variables-rgx = "_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy|^ignored_|^unused_"
+
+# Argument names that match this expression will be ignored. Default to name
+# with leading underscore.
+ignored-argument-names = "_.*|^ignored_|^unused_"
+
+# Tells whether we should check for unused import in __init__ files.
+init-import = false
+
+# List of qualified module names which can have objects that can redefine
+# builtins.
+redefining-builtins-modules = ["six.moves", "past.builtins", "future.builtins", "builtins", "io"]
+
+[tool.pylint.classes]
+# Warn about protected attribute access inside special methods
+check-protected-access-in-special-methods = false
+
+# List of method names used to declare (i.e. assign) instance attributes.
+defining-attr-methods = ["__init__", "__new__", "setUp", "asyncSetUp", "__post_init__"]
+
+# List of member names, which should be excluded from the protected access
+# warning.
+exclude-protected = ["_asdict", "_fields", "_replace", "_source", "_make", "_name", "_value_"]
+
+# List of valid names for the first argument in a class method.
+valid-classmethod-first-arg = ["cls"]
+
+# List of valid names for the first argument in a metaclass class method.
+valid-metaclass-classmethod-first-arg = ["cls"]
+
+[tool.pylint.design]
+# List of regular expressions of class ancestor names to ignore when counting
+# public methods (see R0903)
+exclude-too-few-public-methods = []
+
+# List of qualified class names to ignore when counting class parents (see
+# R0901)
+ignored-parents = []
+
+# Maximum number of arguments for function / method.
+max-args = 10
+
+# Maximum number of attributes for a class (see R0902).
+max-attributes = 15
+
+# Maximum number of boolean expressions in an if statement (see R0916).
+max-bool-expr = 5
+
+# Maximum number of branch for function / method body.
+max-branches = 25
+
+# Maximum number of locals for function / method body.
+max-locals = 25
+
+# Maximum number of parents for a class (see R0901).
+max-parents = 7
+
+# Maximum number of public methods for a class (see R0904).
+max-public-methods = 25
+
+# Maximum number of return / yield for function / method body.
+max-returns = 6
+
+# Maximum number of statements in function / method body.
+max-statements = 50
+
+# Minimum number of public methods for a class (see R0903).
+min-public-methods = 1
+
+[tool.pylint.exceptions]
+# Exceptions that will emit a warning when being caught. Defaults to
+# "BaseException, Exception".
+overgeneral-exceptions = ["builtins.BaseException", "builtins.Exception"]
+
+[tool.pylint.imports]
+# List of modules that can be imported at any level, not just the top level
+# one.
+allow-any-import-level = []
+
+# Allow wildcard imports from modules that define __all__.
+allow-wildcard-with-all = false
+
+# Deprecated modules which should not be used, separated by a comma.
+deprecated-modules = []
+
+# Output a graph (.gv or any supported image format) of external dependencies
+# to the given file (report RP0402 must not be disabled).
+ext-import-graph = []
+
+# Output a graph (.gv or any supported image format) of all (i.e. internal
+# and external) dependencies to the given file (report RP0402 must not be
+# disabled).
+import-graph = []
+
+# Output a graph (.gv or any supported image format) of internal dependencies
+# to the given file (report RP0402 must not be disabled).
+int-import-graph = []
+
+# Force import order to recognize a module as part of the standard
+# compatibility libraries.
+known-standard-library = []
+
+# Force import order to recognize a module as part of a third party library.
+known-third-party = ["enchant"]
+
+# Couples of modules and preferred modules, separated by a comma.
+preferred-modules = []
+
+[tool.pylint.refactoring]
+# Maximum number of nested blocks for function / method body
+max-nested-blocks = 5
+
+# Complete name of functions that never returns. When checking for
+# inconsistent-return-statements if a never returning function is called then
+# it will be considered as an explicit return statement and no message will be
+# printed.
+never-returning-functions = ["sys.exit", "argparse.parse_error"]

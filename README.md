@@ -1,40 +1,104 @@
-# **Chat Analysis Tool**
+<div align="center">
+  <a href="https://github.com/sevapru/terrorblade">
+    <img alt="terrorblade" width="240" src="fun/terrorblade_logo.png">
+  </a>
+</div>
 
-A Python-based Telegram message parser that allows you to fetch and store messages from Telegram chats using the Telegram API. The parser stores messages in a DuckDB database for efficient querying and analysis.
+# Terrorblade
+
+A unified data extraction and parsing platform for messaging platforms, featuring Telegram message processing, data standardization, and analytics preparation capabilities.
+
+
+## Linux, Windows, macOS
+```bash
+curl -fsSL https://raw.githubusercontent.com/sevapru/terrorblade/main/scripts/install.sh | bash
+```
+
+<details>
+<summary>Installation Steps</summary>
+
+The installer will:
+- ✅ Set up Python environment with `uv`
+- ✅ Install all dependencies using unified requirements
+- ✅ Configure security scanning tools
+- ✅ Create convenient activation scripts
+- ✅ Verify the installation
+
+</details>
+
+
+
+### Prerequisites
+#### Required
+* Python 3.12+
+* DuckDB CLI (for database operations)
+
+#### Optional 
+* Telegram API credentials (API ID and API Hash)  
+* CUDA-compatible GPU (for GPU-accelerated features)
+  
+
+## Manual Installation
+
+Full installation guide and troubleshooting: [INSTALL.md](fun/generated/v0.2.0/INSTALL.md)
+
+```bash
+git clone https://github.com/sevapru/terrorblade.git
+cd terrorblade
+make install
+```
+
+After installation:
+```bash
+cd ~/terrorblade
+source .venv/bin/activate  # or: ./activate.sh
+make help                  # See all available commands
+make test                  # Verify your setup
+make security              # Run security scans
+cp .env.example .env       # Configure your local variables
+```
+
 
 
 
 ## Implemented Features
 
-- Asynchronous message fetching using Telethon
-- Incremental updates to avoid re-downloading existing messages
-- DuckDB storage for efficient message management
-- Support for media messages and reply tracking
-- Comprehensive logging system
-- Rate limiting protection with automatic retry
-- GPU acceleration for data processing (optional)
-- Semantic search in messages
-- Message sentiment analysis
-- Topic modeling and clustering
-- Advanced data analysis through the Thoth package
+- **Data Extraction:**
+  - Asynchronous message fetching using Telethon API
+  - JSON archive processing from Telegram Desktop exports
+  - Incremental updates to avoid re-downloading existing messages
+  - Support for media messages and reply tracking
+  
+- **Data Storage & Management:**
+  - DuckDB storage for efficient message management
+  - Standardized schema across different messaging platforms
+  - Comprehensive logging system
+  - Rate limiting protection with automatic retry
+  
+- **Data Processing & Analytics Preparation:**
+  - GPU acceleration for data processing (optional)
+  - Message preprocessing and cleaning
+  - Embedding generation for semantic search capabilities
+  - Conversation clustering and grouping
+  - Advanced data analysis pipeline (Thoth module - in development)
 
-
-## **Development Roadmap**  
-
-### **Phase 1: Core Analytics**  
-| Module | Mythological Figure | Function | Status |  
-|--------|---------------------|----------|--------|  
-| **Terrorblade** | Demon | Behavioral pattern extraction | ✅ Released |  
-| **Thoth** | Egyptian Scribe God | Topic analysis & visualization | 🚧 In Development |  
 
 <details>
-<summary>Future Development Phases</summary>
+<summary>Development Phases</summary>
 
-### **Phase 2: Security & Observation**  
+### **Phase 1: Data Ingestion & Processing**  
 | Module | Mythological Figure | Function | Status |  
 |--------|---------------------|----------|--------|  
-| **Argus** | All-Seeing Giant (Greek) | Cross-platform monitoring (Telegram, WhatsApp, etc.) | Planned (Q4 2024) |  
-| **Themis**/**Nemesis** | Goddess of Justice/Retribution (Greek) | Threat detection (terrorism, extremism patterns) | Planned (Q1 2025) |  
+| **Terrorblade** | Demon | Data extraction and parsing (Telegram, WhatsApp, VK/Instagram/Facebook) | ✅ Released (Telegram) |  
+| **Thoth** | Egyptian Scribe God | Topic analysis & visualization | 🔄 Coming Soon |  
+
+
+
+### **Phase 2: Multi-Platform Expansion**  
+| Module | Mythological Figure | Function | Status |  
+|--------|---------------------|----------|--------|  
+| **Argus** | All-Seeing Giant (Greek) | Multi-platform data extraction (WhatsApp, VK, Instagram, Facebook) | Planned (Q4 2024) |  
+| **Themis**/**Nemesis** | Goddess of Justice/Retribution (Greek) | Advanced analytics & pattern detection | Planned (Q1 2025) |  
 
 ### **Phase 3: Ethics & Infrastructure**  
 | Module | Mythological Figure | Function | Status |  
@@ -50,16 +114,52 @@ A Python-based Telegram message parser that allows you to fetch and store messag
 
 ---
 
+## Quick Start Demo
+### Processing messages from extracted archive
+This method is much safer from the perspective of account access and implementation since you upload your messages directly with machine-readable JSON.
 
-## Prerequisites
+#### Step 1: Export your Telegram messages as JSON
 
-* Python 3.12+
-* DuckDB CLI (for database operations)
+1. **Open Telegram Desktop** (this feature is not available on mobile apps)
+2. **Go to Settings** → **Advanced** → **Export Telegram data**
+3. **Configure export settings:**
+   - ✅ Check "Personal chats"
+   - **Format**: Select **"Machine-readable JSON"**
+   - **Media**: You can uncheck all media types to speed up export (we only need text messages)
+   - **Size limit**: Doesn't matter, chill
+4. **Click "Export"** and choose a location to save the files
+5. **Wait for export to complete** - this may take several minutes depending on your message history size
+6. **Locate the `result.json` file** in the exported folder
 
-Optional 
-* Telegram API credentials (API ID and API Hash)  
-* CUDA-compatible GPU (for GPU-accelerated features)
-  
+#### Step 2: Process the JSON file with Terrorblade
+
+Once you have the `result.json` file, you can process it using our JSON processor:
+
+```python
+from terrorblade.examples.create_db_from_tg_json import create_db_from_telegram_json
+
+phone = "1234567890"  # Replace with your phone number (numbers only, no spaces or special characters required)
+json_file_path = "/path/to/your/result.json" # Your telegram archive
+db_path = "telegram_data.db"# Defaults to "telegram_data.db" in current directory)
+
+create_db_from_telegram_json(phone, json_file_path, db_path)
+```
+
+**Parameters explained:**
+
+- `phone` (required): Your phone number as a string with numbers only. This is used as an identifier in the database and doesn't need to match your actual Telegram number exactly.
+- `json_file_path` (required): Full path to your exported `result.json` file
+- `db_path` (optional): Where to save the database file. Defaults to `"telegram_data.db"` in the current directory.
+
+The processor will:
+- Create a DuckDB database with your messages
+- Parse and clean the message data
+- Generate embeddings for semantic search
+- Group messages into conversation clusters
+- Display a summary of processed data
+
+
+### Processing messages directly from Telegram API
 
 <details>
 <summary>Obtaining Telegram API Credentials</summary>
@@ -86,143 +186,42 @@ To use direct Telegram message synchronization, you'll need to obtain API creden
 Note: Keep these credentials secure and never share them publicly.
 </details>
 
-## Installation
+####  Before you start
+⚠️ **WARNING**: 
 
-> **Note**: See the [Docker Usage](#docker-usage) section below for docker installation instructions.
+**This example is designed for small accounts with limited message history. Using it on accounts with large message histories may:**
+- **Trigger Telegram's rate limits**
+- **Cause your account to be temporarily disconnected**
+- **Require re-authentication on all devices**
+- **Result in temporary loss of access to your account**
 
-The project uses `uv` for fast Python package management and virtual environment handling.
+If you have a large message history, consider using a test account first.
 
-1. Clone the repository:
+This example is: 
 
-```bash
-git clone git@github.com:sevapru/terrorblade.git
-cd terrorblade
-```
+1. Initialize a DuckDB database to store your Telegram messages
+2. Connect to Telegram using your phone number (you'll need to input auth code)
+3. Download your message history
+4. Process messages to:
+   - Calculate embeddings for semantic search
+   - Group messages into conversation clusters
+   - Store everything in the database
 
-2. Set up the environment:
-```bash
-# Copy environment configuration
-cp .env.example .env
+The process may take some time depending on your message history size. Progress will be shown in the console.
 
-# Edit .env file with your credentials
-# Required: API_ID, API_HASH
-# Optional: DUCKDB_PATH, LOG_LEVEL, LOG_FILE, LOG_DIR
-```
+**Note from Maintainers**: I am actively working on implementing rate limiting and batch processing to make the tool safer for accounts with larger message histories. In the meantime, please exercise caution when using this tool with accounts containing extensive message histories.
 
-3. Choose your installation type:
+**Known Issue**: In case of API failure, recent messages from the last few minutes may be deleted from your Telegram account.
 
-```bash
-# Full functionality (+ testing & linting)
-make dev
-```
-
-```bash
-# CPU only
-make install
-```
-
-The installation process will:
-
-- Check for required system dependencies (DuckDB CLI)
-- Install `uv` if not present
-- Set up a virtual environment
-- Install required Python packages
-- Verify configuration files
-
-## Quick Start Demo
-
-### 1. Message Loading
+#### Try it on your own risk
+After you have placed your credentials in the `.env` file, you can run the preprocessor which will organize your data within the DuckDB.
 
 ```python
-from terrorblade.data.loaders import TelegramLoader
+from terrorblade.examples.create_db_from_tg_account import run_processor
 
-# Initialize the loader
-loader = TelegramLoader()
-
-# Load messages from a specific chat
-chat_id = "your_chat_id"
-messages = await loader.load_messages(chat_id)
+phone = "+1234567890"  # Replace with your actual phone number (include country code)
+run_processor(phone)
 ```
-
-### 2. Basic Analysis
-
-```python
-from terrorblade.analysis import MessageAnalyzer
-
-# Initialize analyzer
-analyzer = MessageAnalyzer()
-
-# Get basic statistics
-stats = analyzer.get_chat_statistics(chat_id)
-print(f"Total messages: {stats.total_messages}")
-print(f"Active users: {stats.unique_users}")
-print(f"Media messages: {stats.media_count}")
-```
-
-## Additional Examples
-### 3. Semantic Search
-
-```python
-from terrorblade.search import SemanticSearcher
-
-# Initialize searcher
-searcher = SemanticSearcher()
-
-# Search for semantically similar messages
-query = "What do you think about AI?"
-results = searcher.search(query, limit=5)
-
-for msg in results:
-    print(f"Score: {msg.score:.2f} | Message: {msg.text}")
-```
-
-### 4. Advanced Analysis with Thoth
-
-```python
-from thoth import find_most_common_token, find_most_common_topic
-
-# Find the most common token in embeddings
-token, count = find_most_common_token("telegram_data.db")
-print(f"Most common token: {token} (count: {count})")
-
-# Find the most common topic cluster
-topic, size = find_most_common_topic("telegram_data.db")
-print(f"Most common topic: {topic} (size: {size})")
-```
-
-### 5. Topic Modeling
-
-```python
-from terrorblade.analysis import TopicModeler
-
-# Initialize topic modeler
-modeler = TopicModeler()
-
-# Extract topics from chat
-topics = modeler.extract_topics(chat_id)
-
-for topic in topics:
-    print(f"Topic: {topic.name}")
-    print(f"Keywords: {', '.join(topic.keywords)}")
-```
-
-### 6. GPU-Accelerated Analysis (if CUDA is enabled)
-
-```python
-from terrorblade.analysis import GPUMessageAnalyzer
-
-# Initialize GPU-accelerated analyzer
-analyzer = GPUMessageAnalyzer()
-
-# Perform clustering on messages
-clusters = analyzer.cluster_messages(chat_id)
-```
-
-## Development Commands
-
-- `make lint`: Run code formatting (black), import sorting (isort), and type checking (mypy)
-- `make test`: Run test suite with pytest
-- `make clean`: Clean up temporary files, caches, and virtual environments
 
 ## Database Schema
 
@@ -244,7 +243,7 @@ The parser creates several tables for each user (where phone number is used as a
 - `reply_to_message_id`: BIGINT
 - `media_type`: TEXT
 - `file_name`: TEXT
-- `from`: TEXT
+- `from_name`: TEXT
 - `chat_name`: TEXT
 - `forwarded_from`: TEXT
 
@@ -273,142 +272,3 @@ This project includes support for GPU acceleration through NVIDIA RAPIDS librari
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-Creative Commons Attribution-NonCommercial 4.0 International License
-
-Copyright (c) 2025 Vsevolod Prudius
-
-This work is licensed under the Creative Commons Attribution-NonCommercial 4.0
-International License. To view a copy of this license, visit
-<http://creativecommons.org/licenses/by-nc/4.0/> or send a letter to Creative Commons,
-PO Box 1866, Mountain View, CA 94042, USA.
-
-
-# Docker Usage
-
-The project includes a `Dockerfile` to build and run `Terrorblade` and `Thoth` services in containers. This uses a multi-stage build approach with `uv` for dependency management.
-
-### Prerequisites
-
-- Docker installed and running.
-
-### Building the Images
-
-To build the Docker images, navigate to the project root directory (where the `Dockerfile` is located) and run:
-
-```bash
-# Build the development image (includes debugging tools)
-docker build --target dev -t terrorblade-dev .
-
-# Build the production image for Terrorblade
-docker build --target terrorblade_prod -t terrorblade-prod .
-
-# Build the production image for Thoth
-docker build --target thoth_prod -t thoth-prod .
-```
-
-### Running the Containers
-
-#### Terrorblade Service
-
-To run the `Terrorblade` service (production):
-
-```bash
-docker run -d --name terrorblade \\
-  -v ./data:/app/data \\ # Mount a volume for DuckDB data (adjust path if needed)
-  -v ./path/to/your/.env:/app/.env \\ # Mount your .env file
-  terrorblade-prod
-```
-
-To run the `Terrorblade` service in development mode with debugging enabled on port 5678:
-
-```bash
-docker run -d --name terrorblade-dev \\
-  -p 5678:5678 \\
-  -v $(pwd):/app \\ # Mount current directory for live code changes
-  -v ./path/to/your/.env:/app/.env \\ # Mount your .env file
-  terrorblade-dev
-```
-
-Attach your debugger to port `5678`.
-
-#### Thoth Service
-
-**Note:** The `Thoth` service entrypoint in the `Dockerfile` is currently a placeholder. You will need to update the `CMD` in the `thoth_prod` stage of the `Dockerfile` to correctly start your Thoth application (e.g., if it's a web server like Flask/Gunicorn).
-
-Assuming you have updated the `Thoth` entrypoint, you can run it (production):
-
-```bash
-docker run -d --name thoth \\
-  # Add necessary port mappings if Thoth is a web service, e.g., -p 8000:8000
-  # Add volume mounts if Thoth needs to access data or config files
-  # -v ./data:/app/data # Example: If Thoth reads the same DuckDB
-  # -v ./path/to/thoth/config:/app/config # Example: Thoth specific config
-  thoth-prod
-```
-
-### Networking and Data Sharing
-
-- **DuckDB Access**: If `Thoth` needs to access the DuckDB database managed by the `Terrorblade` container, you will need to ensure the database file is accessible. This can be achieved by:
-    - Mounting the same host directory (containing the DuckDB file) as a volume into both containers.
-    - If DuckDB is run in server mode within the `Terrorblade` container, configure networking (e.g., a Docker network) so `Thoth` can connect to it.
-- **Loki Logging**: The `Dockerfile` includes comments regarding Loki integration. To fully implement this, you would typically:
-    - Configure your application's logger (`terrorblade/utils/logger.py`) to output logs in a structured format (e.g., JSON).
-    - Run a log shipper like Promtail, either as a sidecar container or on the host, configured to send logs from your containers to Loki.
-
-### Using Docker Compose (Recommended)
-
-For managing multi-container applications like this, Docker Compose is highly recommended. You can create a `docker-compose.yml` file to define and run both `Terrorblade` and `Thoth` services, manage networks, volumes, and environment variables more easily.
-
-**Example `docker-compose.yml` structure:**
-
-```yaml
-version: '3.8'
-services:
-  terrorblade:
-    build:
-      context: .
-      target: terrorblade_prod # or dev for development
-    container_name: terrorblade
-    volumes:
-      - ./data:/app/data
-      - ./your.env:/app/.env # Ensure your .env file is correctly named and present
-    # ports:
-      # - "5678:5678" # If running dev target and need debugger access
-    environment:
-      # Define environment variables here or use env_file
-      - DUCKDB_PATH=/app/data/telegram_data.db # Example
-
-  thoth:
-    build:
-      context: .
-      target: thoth_prod
-    container_name: thoth
-    ports:
-      - "8000:8000" # Example if Thoth runs a web server on port 8000
-    volumes:
-      - ./data:/app/data # If Thoth needs access to the same DuckDB data
-    depends_on:
-      - terrorblade # Optional: if Thoth depends on Terrorblade starting first
-    environment:
-      # Thoth specific environment variables
-      - DUCKDB_PATH=/app/data/telegram_data.db # Example
-
-volumes:
-  data:
-    # You can define a named volume for persistent data
-```
-
-To run with Docker Compose:
-
-```bash
-docker-compose up -d
-```
-
-To stop:
-
-```bash
-docker-compose down
-```

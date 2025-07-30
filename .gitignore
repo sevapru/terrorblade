@@ -1,5 +1,5 @@
 # Python
-__pycache__/
+*/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -21,8 +21,26 @@ stats/
 # Environment variables
 .env
 
-# DuckDB
+# Compiled requirements files (generated from .in files)
+requirements.txt
+requirements-dev.txt
+requirements-cuda.txt
+requirements-lock.txt
+requirements-dev-lock.txt
+
+# Security and audit reports
+reports/
+exports/
+
+# DB
 *.db
+*.sqlite
+*.sqlite3
+*.sqlite3.zip
+*.sqlite3.zip.part
+*.sqlite3.zip.part.1
+*.sqlite3.zip.part.2
+*.sqlite3.zip.part.3
 
 # Telegram session
 session_name/
@@ -33,8 +51,8 @@ telegram.log
 telegram.log.1
 
 proto/
-
+qdrant_db/
 # Logs
 logs/
 *.wal
-
+.vscode/settings.json
