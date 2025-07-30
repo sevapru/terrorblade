@@ -1,6 +1,6 @@
 # Requirements Management System
 
-This project uses a unified, platform-independent requirements management system powered by `uv` for both **terrorblade** and **thoth** projects.
+This project uses a unified, platform-independent requirements management system powered by `uv` for **terrorblade** with support for optional **thoth** module (when present).
 
 ## System Overview
 
