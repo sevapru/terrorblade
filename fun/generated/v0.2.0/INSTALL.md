@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/sevapru/terrorblade/main/scripts/in
 
 ### Option 2: Custom Domain
 ```bash
-curl -fsSL https://yourdomain.com/install.sh | bash
+curl -fsSL https://sevap.ru/terrorblade/install.sh | bash
 ```
 
 ### Option 3: With Custom Settings
