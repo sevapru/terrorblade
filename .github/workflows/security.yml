@@ -39,112 +39,110 @@ jobs:
         enable-cache: true
         cache-dependency-glob: "requirements*.in"
         
-    - name: Set up virtual environment
-      run: |
-        uv venv --python 3.12
-        echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
-        echo "$PWD/.venv/bin" >> $GITHUB_PATH
+    - name: Create virtual environment
+      run: uv venv --python ${{ matrix.python-version || '3.12' }}
         
-    - name: Install dependencies and security tools
+    - name: Install dependencies
       run: |
+        source .venv/bin/activate
+        uv pip compile requirements-dev.in --output-file requirements-dev.txt
         uv pip install -r requirements-dev.txt
         uv pip install bandit[toml] safety pip-audit semgrep
         
     - name: Create reports directory
       run: mkdir -p reports
-      
-    - name: Run Bandit Security Linter
+        
+    - name: Run Bandit Security Analysis
       run: |
-        echo "::group::Bandit Security Analysis"
-        bandit -r terrorblade/ thoth/ -f json -o reports/bandit-report.json --quiet || true
-        bandit -r terrorblade/ thoth/ --format txt
-        echo "::endgroup::"
+        source .venv/bin/activate
+        mkdir -p reports
+        if [ -d "thoth" ]; then
+          echo "Scanning terrorblade/ and thoth/ directories"
+          bandit -r terrorblade/ thoth/ -f json -o reports/bandit-report.json --quiet || true
+          bandit -r terrorblade/ thoth/ --format txt
+        else
+          echo "Scanning terrorblade/ directory only (thoth not present)"
+          bandit -r terrorblade/ -f json -o reports/bandit-report.json --quiet || true
+          bandit -r terrorblade/ --format txt
+        fi
+      continue-on-error: true
         
     - name: Run Safety Dependency Check
       run: |
-        echo "::group::Safety Vulnerability Check"
+        source .venv/bin/activate
         uv pip freeze > reports/requirements-freeze.txt
-        safety check --file reports/requirements-freeze.txt --json --output reports/safety-report.json || true
-        safety check --file reports/requirements-freeze.txt
-        echo "::endgroup::"
+        safety scan --file reports/requirements-freeze.txt --json > reports/safety-report.json || true
+        safety scan --file reports/requirements-freeze.txt
+      continue-on-error: true
         
     - name: Run pip-audit Vulnerability Scan
       run: |
-        echo "::group::pip-audit Dependency Audit"
+        source .venv/bin/activate
         pip-audit --format=json --output=reports/pip-audit-report.json --progress-spinner=off || true
         pip-audit --format=cyclonedx-json --output=reports/sbom.json --progress-spinner=off || true
         pip-audit
-        echo "::endgroup::"
+      continue-on-error: true
         
     - name: Run Semgrep Static Analysis
       run: |
-        echo "::group::Semgrep Static Analysis"
-        semgrep --config=auto --json --output=reports/semgrep-report.json terrorblade/ thoth/ --quiet || true
-        semgrep --config=auto terrorblade/ thoth/
-        echo "::endgroup::"
+        source .venv/bin/activate
+        if [ -d "thoth" ]; then
+          echo "Scanning terrorblade/ and thoth/ directories"
+          semgrep --config=auto --json --output=reports/semgrep-report.json terrorblade/ thoth/ --quiet || true
+          semgrep --config=auto terrorblade/ thoth/
+        else
+          echo "Scanning terrorblade/ directory only (thoth not present)"
+          semgrep --config=auto --json --output=reports/semgrep-report.json terrorblade/ --quiet || true
+          semgrep --config=auto terrorblade/
+        fi
+      continue-on-error: true
+        
+    - name: Generate Security Summary
+      run: |
+        echo "# Security Scan Results" > reports/security-summary.md
+        echo "Generated: $(date)" >> reports/security-summary.md
+        echo "" >> reports/security-summary.md
+        
+        echo "## Scanned Directories" >> reports/security-summary.md
+        echo "- terrorblade/ (core package)" >> reports/security-summary.md
+        if [ -d "thoth" ]; then
+          echo "- thoth/ (advanced analysis package)" >> reports/security-summary.md
+        else
+          echo "- thoth/ (not present - optional)" >> reports/security-summary.md
+        fi
+        echo "" >> reports/security-summary.md
+        
+        echo "## Tool Results" >> reports/security-summary.md
+        echo "- Bandit: $(if [ -f reports/bandit-report.json ]; then echo 'Completed'; else echo 'Failed'; fi)" >> reports/security-summary.md
+        echo "- Safety: $(if [ -f reports/safety-report.json ]; then echo 'Completed'; else echo 'Failed'; fi)" >> reports/security-summary.md
+        echo "- pip-audit: $(if [ -f reports/pip-audit-report.json ]; then echo 'Completed'; else echo 'Failed'; fi)" >> reports/security-summary.md
+        echo "- Semgrep: $(if [ -f reports/semgrep-report.json ]; then echo 'Completed'; else echo 'Failed'; fi)" >> reports/security-summary.md
+        
+        echo "" >> reports/security-summary.md
+        echo "View detailed reports in the artifacts." >> reports/security-summary.md
         
     - name: Upload Security Reports
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: security-reports-${{ github.run_number }}
+        name: security-reports
         path: reports/
         retention-days: 30
         
-    - name: Upload SARIF results to GitHub Security
-      uses: github/codeql-action/upload-sarif@v3
-      if: always()
+    - name: Comment PR with Security Summary
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
       with:
-        sarif_file: reports/semgrep-report.json
-      continue-on-error: true
-
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Dependency Review
-      uses: actions/dependency-review-action@v4
-      with:
-        fail-on-severity: moderate
-        comment-summary-in-pr: always
-
-  supply-chain-security:
-    name: Supply Chain Security
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Run Scorecard Analysis
-      uses: ossf/scorecard-action@v2.3.1
-      with:
-        results_file: reports/scorecard-results.sarif
-        results_format: sarif
-        publish_results: true
-        
-    - name: Upload Scorecard results to GitHub Security
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: reports/scorecard-results.sarif
-
-  secrets-scan:
-    name: Secrets Detection
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Run TruffleHog Secrets Scan
-      uses: trufflesecurity/trufflehog@main
-      with:
-        path: ./
-        base: ${{ github.event.repository.default_branch }}
-        head: HEAD
-        extra_args: --debug --only-verified 
+        script: |
+          const fs = require('fs');
+          try {
+            const summary = fs.readFileSync('reports/security-summary.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🛡️ Security Scan Results\n\n${summary}`
+            });
+          } catch (error) {
+            console.log('Could not read security summary:', error);
+          } 

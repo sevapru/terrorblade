@@ -15,8 +15,13 @@ security-scan:
 	@uv pip install --quiet "bandit[toml]" safety pip-audit semgrep 2>/dev/null || true
 	
 	$(call log_info,Running Bandit code analysis...)
-	@bandit -r terrorblade/ thoth/ -f json -o reports/bandit-report.json --quiet || true
-	@bandit -r terrorblade/ thoth/ --format txt > reports/bandit-summary.txt || true
+	@if [ -d "thoth" ]; then \
+		bandit -r terrorblade/ thoth/ -f json -o reports/bandit-report.json --quiet || true; \
+		bandit -r terrorblade/ thoth/ --format txt > reports/bandit-summary.txt || true; \
+	else \
+		bandit -r terrorblade/ -f json -o reports/bandit-report.json --quiet || true; \
+		bandit -r terrorblade/ --format txt > reports/bandit-summary.txt || true; \
+	fi
 	
 	$(call log_info,Running Safety dependency check...)
 	@uv pip freeze > reports/requirements-freeze.txt
@@ -28,8 +33,13 @@ security-scan:
 	@pip-audit > reports/pip-audit-summary.txt || true
 	
 	$(call log_info,Running Semgrep static analysis...)
-	@semgrep --config=auto --json --output=reports/semgrep-report.json terrorblade/ thoth/ --quiet || true
-	@semgrep --config=auto terrorblade/ thoth/ > reports/semgrep-summary.txt || true
+	@if [ -d "thoth" ]; then \
+		semgrep --config=auto --json --output=reports/semgrep-report.json terrorblade/ thoth/ --quiet || true; \
+		semgrep --config=auto terrorblade/ thoth/ > reports/semgrep-summary.txt || true; \
+	else \
+		semgrep --config=auto --json --output=reports/semgrep-report.json terrorblade/ --quiet || true; \
+		semgrep --config=auto terrorblade/ > reports/semgrep-summary.txt || true; \
+	fi
 	
 	$(call log_success,Security scan completed - check reports/ for details)
 
@@ -45,6 +55,15 @@ security-report: security-scan
 	@echo "- **Safety**: $(shell if [ -f reports/safety-report.json ]; then echo 'Completed'; else echo 'Failed'; fi)" >> reports/security-report.md
 	@echo "- **pip-audit**: $(shell if [ -f reports/pip-audit-report.json ]; then echo 'Completed'; else echo 'Failed'; fi)" >> reports/security-report.md
 	@echo "- **Semgrep**: $(shell if [ -f reports/semgrep-report.json ]; then echo 'Completed'; else echo 'Failed'; fi)" >> reports/security-report.md
+	
+	@echo "" >> reports/security-report.md
+	@echo "## Scanned Directories" >> reports/security-report.md
+	@echo "- **terrorblade/**: Core package" >> reports/security-report.md
+	@if [ -d "thoth" ]; then \
+		echo "- **thoth/**: Advanced analysis package" >> reports/security-report.md; \
+	else \
+		echo "- **thoth/**: Not present (optional)" >> reports/security-report.md; \
+	fi
 	
 	@echo "" >> reports/security-report.md
 	@echo "## Files Generated" >> reports/security-report.md

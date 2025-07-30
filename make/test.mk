@@ -6,18 +6,28 @@ include make/common.mk
 # Run all tests
 test: check-python
 	$(call log_section,🧪 Running Tests)
-	@if [ -d "tests" ] || [ -d "terrorblade/tests" ] || [ -d "thoth/tests" ]; then \
-		echo -e "$(BLUE)[INFO]$(NC) Running pytest..."; \
+	@test_dirs=""; \
+	if [ -d "tests" ]; then \
+		test_dirs="$$test_dirs tests"; \
+	fi; \
+	if [ -d "terrorblade/tests" ]; then \
+		test_dirs="$$test_dirs terrorblade/tests"; \
+	fi; \
+	if [ -d "thoth" ] && [ -d "thoth/tests" ]; then \
+		test_dirs="$$test_dirs thoth/tests"; \
+	fi; \
+	if [ -n "$$test_dirs" ]; then \
+		echo -e "$(BLUE)[INFO]$(NC) Running pytest on:$$test_dirs"; \
 		if [ -n "$$VIRTUAL_ENV" ]; then \
-			python -m pytest -v --tb=short || { echo -e "$(RED)[✗]$(NC) Tests failed"; exit 1; }; \
+			python -m pytest $$test_dirs -v --tb=short || { echo -e "$(RED)[✗]$(NC) Tests failed"; exit 1; }; \
 		elif [ -d ".venv" ]; then \
-			.venv/bin/python -m pytest -v --tb=short || { echo -e "$(RED)[✗]$(NC) Tests failed"; exit 1; }; \
+			.venv/bin/python -m pytest $$test_dirs -v --tb=short || { echo -e "$(RED)[✗]$(NC) Tests failed"; exit 1; }; \
 		else \
-			python -m pytest -v --tb=short || { echo -e "$(RED)[✗]$(NC) Tests failed"; exit 1; }; \
+			python -m pytest $$test_dirs -v --tb=short || { echo -e "$(RED)[✗]$(NC) Tests failed"; exit 1; }; \
 		fi; \
 		echo -e "$(GREEN)[✓]$(NC) All tests passed!"; \
 	else \
-		echo -e "$(YELLOW)[⚠]$(NC) No tests directory found. Skipping tests."; \
+		echo -e "$(YELLOW)[⚠]$(NC) No test directories found. Skipping tests."; \
 	fi
 
 # Run linting and formatting checks
@@ -40,7 +50,11 @@ check: check-python
 	$$PYTHON_CMD -m ruff check . || { echo -e "$(RED)[✗]$(NC) Linting issues found. Run: $$PYTHON_CMD -m ruff check --fix ."; exit 1; }; \
 	\
 	echo -e "$(BLUE)[INFO]$(NC) Running mypy type checker..."; \
-	$$PYTHON_CMD -m mypy terrorblade/ || { echo -e "$(YELLOW)[⚠]$(NC) Type checking issues found"; true; }; \
+	if [ -d "thoth" ]; then \
+		$$PYTHON_CMD -m mypy terrorblade/ thoth/ || { echo -e "$(YELLOW)[⚠]$(NC) Type checking issues found"; true; }; \
+	else \
+		$$PYTHON_CMD -m mypy terrorblade/ || { echo -e "$(YELLOW)[⚠]$(NC) Type checking issues found"; true; }; \
+	fi; \
 	\
 	echo -e "$(GREEN)[✓]$(NC) All code quality checks passed!"
 
