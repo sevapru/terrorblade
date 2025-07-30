@@ -1,97 +1,74 @@
-# Testing processes
-.PHONY: test test-unit test-integration test-coverage test-watch test-verbose
+# Testing and code quality
+include make/common.mk
 
-test: test-unit test-integration
-	@echo "All tests completed successfully!"
+.PHONY: test check clean format
 
-test-unit:
-	@echo "Running unit tests..."
-	@test_dirs=""; \
-	if [ -d "terrorblade/tests" ]; then \
-		test_dirs="$$test_dirs terrorblade/tests"; \
-	fi; \
-	if [ -d "thoth/tests" ]; then \
-		test_dirs="$$test_dirs thoth/tests"; \
-	fi; \
-	if [ -n "$$test_dirs" ]; then \
-		echo "Found test directories:$$test_dirs"; \
-		pytest $$test_dirs -k "not integration" -v; \
-	else \
-		echo "No test directories found. Checked terrorblade/tests and thoth/tests"; \
-		echo "Creating terrorblade/tests directory..."; \
-		mkdir -p terrorblade/tests; \
-		echo "Please add your unit tests to terrorblade/tests/"; \
-	fi
-
-test-integration:
-	@echo "Running integration tests..."
-	@test_dirs=""; \
-	if [ -d "terrorblade/tests" ]; then \
-		test_dirs="$$test_dirs terrorblade/tests"; \
-	fi; \
-	if [ -d "thoth/tests" ]; then \
-		test_dirs="$$test_dirs thoth/tests"; \
-	fi; \
-	if [ -n "$$test_dirs" ]; then \
-		echo "Found test directories:$$test_dirs"; \
-		pytest $$test_dirs -k "integration" -v; \
-	else \
-		echo "No integration test directories found"; \
-	fi
-
-test-coverage:
-	@echo "Running tests with coverage..."
-	@echo "Installing coverage if not present..."
-	@uv pip install coverage pytest-cov 2>/dev/null || true
-	@test_dirs=""; \
-	if [ -d "terrorblade/tests" ]; then \
-		test_dirs="$$test_dirs terrorblade/tests"; \
-	fi; \
-	if [ -d "thoth/tests" ]; then \
-		test_dirs="$$test_dirs thoth/tests"; \
-	fi; \
-	if [ -n "$$test_dirs" ]; then \
-		echo "Running coverage on test directories:$$test_dirs"; \
-		pytest $$test_dirs --cov=terrorblade --cov=thoth --cov-report=html --cov-report=term-missing; \
-		echo "Coverage report generated in htmlcov/"; \
-	else \
-		echo "No test directories found"; \
-	fi
-
-test-watch:
-	@echo "Running tests in watch mode..."
-	@test_dirs=""; \
-	if [ -d "terrorblade/tests" ]; then \
-		test_dirs="$$test_dirs terrorblade/tests"; \
-	fi; \
-	if [ -d "thoth/tests" ]; then \
-		test_dirs="$$test_dirs thoth/tests"; \
-	fi; \
-	if [ -n "$$test_dirs" ]; then \
-		if command -v pytest-watch >/dev/null 2>&1; then \
-			ptw $$test_dirs; \
-		elif command -v entr >/dev/null 2>&1; then \
-			find . -name "*.py" | entr -c pytest $$test_dirs; \
+# Run all tests
+test: check-python
+	$(call log_section,🧪 Running Tests)
+	@if [ -d "tests" ] || [ -d "terrorblade/tests" ] || [ -d "thoth/tests" ]; then \
+		echo -e "$(BLUE)[INFO]$(NC) Running pytest..."; \
+		if [ -n "$$VIRTUAL_ENV" ]; then \
+			python -m pytest -v --tb=short || { echo -e "$(RED)[✗]$(NC) Tests failed"; exit 1; }; \
+		elif [ -d ".venv" ]; then \
+			.venv/bin/python -m pytest -v --tb=short || { echo -e "$(RED)[✗]$(NC) Tests failed"; exit 1; }; \
 		else \
-			echo "Installing pytest-watch..."; \
-			uv pip install pytest-watch; \
-			ptw $$test_dirs; \
+			python -m pytest -v --tb=short || { echo -e "$(RED)[✗]$(NC) Tests failed"; exit 1; }; \
 		fi; \
+		echo -e "$(GREEN)[✓]$(NC) All tests passed!"; \
 	else \
-		echo "No test directories found"; \
+		echo -e "$(YELLOW)[⚠]$(NC) No tests directory found. Skipping tests."; \
 	fi
 
-test-verbose:
-	@echo "Running tests in verbose mode..."
-	@test_dirs=""; \
-	if [ -d "terrorblade/tests" ]; then \
-		test_dirs="$$test_dirs terrorblade/tests"; \
+# Run linting and formatting checks
+check: check-python
+	$(call log_section,✨ Code Quality Check)
+	
+	@# Determine Python command to use
+	@PYTHON_CMD="python"; \
+	if [ -z "$$VIRTUAL_ENV" ] && [ -d ".venv" ]; then \
+		PYTHON_CMD=".venv/bin/python"; \
 	fi; \
-	if [ -d "thoth/tests" ]; then \
-		test_dirs="$$test_dirs thoth/tests"; \
+	\
+	echo -e "$(BLUE)[INFO]$(NC) Checking code formatting with black..."; \
+	$$PYTHON_CMD -m black --check --diff . || { echo -e "$(RED)[✗]$(NC) Code formatting issues found. Run: make format"; exit 1; }; \
+	\
+	echo -e "$(BLUE)[INFO]$(NC) Checking import sorting with isort..."; \
+	$$PYTHON_CMD -m isort --check-only --diff . || { echo -e "$(RED)[✗]$(NC) Import sorting issues found. Run: make format"; exit 1; }; \
+	\
+	echo -e "$(BLUE)[INFO]$(NC) Running ruff linter..."; \
+	$$PYTHON_CMD -m ruff check . || { echo -e "$(RED)[✗]$(NC) Linting issues found. Run: $$PYTHON_CMD -m ruff check --fix ."; exit 1; }; \
+	\
+	echo -e "$(BLUE)[INFO]$(NC) Running mypy type checker..."; \
+	$$PYTHON_CMD -m mypy terrorblade/ || { echo -e "$(YELLOW)[⚠]$(NC) Type checking issues found"; true; }; \
+	\
+	echo -e "$(GREEN)[✓]$(NC) All code quality checks passed!"
+
+# Format code (fix issues found by check)
+format: check-python
+	$(call log_section,🎨 Formatting Code)
+	@# Determine Python command to use
+	@PYTHON_CMD="python"; \
+	if [ -z "$$VIRTUAL_ENV" ] && [ -d ".venv" ]; then \
+		PYTHON_CMD=".venv/bin/python"; \
 	fi; \
-	if [ -n "$$test_dirs" ]; then \
-		pytest $$test_dirs -v -s --tb=short; \
-	else \
-		echo "No test directories found"; \
-	fi
+	\
+	echo -e "$(BLUE)[INFO]$(NC) Formatting code with black..."; \
+	$$PYTHON_CMD -m black .; \
+	echo -e "$(BLUE)[INFO]$(NC) Sorting imports with isort..."; \
+	$$PYTHON_CMD -m isort .; \
+	echo -e "$(BLUE)[INFO]$(NC) Auto-fixing ruff issues..."; \
+	$$PYTHON_CMD -m ruff check --fix .; \
+	echo -e "$(GREEN)[✓]$(NC) Code formatted successfully!"
+
+# Clean test artifacts
+clean:
+	$(call log_info,Cleaning test artifacts...)
+	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+	@find . -name "*.pyc" -delete 2>/dev/null || true
+	@find . -name ".coverage" -delete 2>/dev/null || true
+	@rm -rf htmlcov/ 2>/dev/null || true
+	@rm -rf build/ dist/ 2>/dev/null || true
+	$(call log_success,Cleaned test artifacts)
