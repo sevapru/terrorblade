@@ -1,8 +1,49 @@
-# **Chat Analysis Tool**
+# **Terrorblade** 🗡️
 
-A Python-based Telegram message parser that allows you to fetch and store messages from Telegram chats using the Telegram API. The parser stores messages in a DuckDB database for efficient querying and analysis.
+A unified AI platform for data analysis and machine learning, featuring Telegram message parsing, advanced analytics, and security scanning capabilities.
+
+## 🚀 Quick Installation
+
+Install Terrorblade with a single command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sevapru/terrorblade/main/scripts/install.sh | bash
+```
+
+**That's it!** The installer will:
+- ✅ Set up Python environment with `uv`
+- ✅ Install all dependencies using unified requirements
+- ✅ Configure security scanning tools
+- ✅ Create convenient activation scripts
+- ✅ Verify the installation
 
 
+#### Development Version
+```bash
+TERRORBLADE_BRANCH="dev" curl -fsSL https://raw.githubusercontent.com/sevapru/terrorblade/main/scripts/install.sh | bash
+```
+
+#### Manual Installation
+```bash
+git clone https://github.com/sevapru/terrorblade.git
+cd terrorblade
+make install
+```
+
+📖 **Full installation guide:** [INSTALL.md](INSTALL.md)
+
+</details>
+
+## 🎯 Quick Start
+
+After installation:
+```bash
+cd ~/terrorblade
+source .venv/bin/activate  # or: ./activate.sh
+make help                  # See all available commands
+make test                  # Verify your setup
+make security              # Run security scans
+```
 
 ## Implemented Features
 
@@ -16,7 +57,7 @@ A Python-based Telegram message parser that allows you to fetch and store messag
 - Semantic search in messages
 - Message sentiment analysis
 - Topic modeling and clustering
-- Advanced data analysis through the Thoth package
+- Advanced data analysis capabilities (Thoth module - in development)
 
 
 ## **Development Roadmap**  
@@ -25,7 +66,7 @@ A Python-based Telegram message parser that allows you to fetch and store messag
 | Module | Mythological Figure | Function | Status |  
 |--------|---------------------|----------|--------|  
 | **Terrorblade** | Demon | Behavioral pattern extraction | ✅ Released |  
-| **Thoth** | Egyptian Scribe God | Topic analysis & visualization | 🚧 In Development |  
+| **Thoth** | Egyptian Scribe God | Topic analysis & visualization | 🔄 Coming Soon |  
 
 <details>
 <summary>Future Development Phases</summary>
@@ -100,6 +141,7 @@ cd terrorblade
 ```
 
 2. Set up the environment:
+
 ```bash
 # Copy environment configuration
 cp .env.example .env
@@ -198,10 +240,11 @@ for msg in results:
     print(f"Score: {msg.score:.2f} | Message: {msg.text}")
 ```
 
-### 4. Advanced Analysis with Thoth
+### 4. Advanced Analysis with Thoth (Coming Soon)
 
 ```python
-from thoth import find_most_common_token, find_most_common_topic
+# Thoth module will provide advanced topic analysis
+# from thoth import find_most_common_token, find_most_common_topic
 
 # Find the most common token in embeddings
 token, count = find_most_common_token("telegram_data.db")
