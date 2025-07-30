@@ -1,4 +1,5 @@
-# Unified requirements for terrorblade and thoth projects
+# Core requirements for terrorblade
+# Additional dependencies are included for optional thoth module (when present)
 # This file is used with `uv pip compile` to generate platform-independent requirements.txt
 
 # Core terrorblade dependencies
@@ -12,11 +13,10 @@ sentence-transformers>=2.2.2
 pyarrow>=13.0.0
 seaborn>=0.12.2
 
-# Additional thoth dependencies
+# Additional dependencies (used by thoth module when present)
 scikit-learn>=1.3.0
 networkx>=3.0.0
 torch>=2.0.0
-qdrant-client>=1.6.0
 matplotlib>=3.7.0
 scipy>=1.11.0
 textblob>=0.17.1 

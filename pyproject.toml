@@ -3,7 +3,7 @@ name = "terrorblade"
 version = "0.2.0"
 description = "A Python-based Telegram message parser and analyzer"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [
     { name = "Vsevolod Prudius", email = "sevapru@gmail.com" }

@@ -1,10 +1,9 @@
-# CUDA dependencies for GPU acceleration
-# This file is used with `uv pip compile` to generate requirements-cuda.txt
-# Note: These packages require NVIDIA GPU support and may not work on all platforms
+# GPU/CUDA dependencies (optional)
+# Only install these if you have NVIDIA GPU support
 
 # Include main requirements
 -r requirements.txt
 
-# CUDA-specific packages from terrorblade
-# Note: These are platform-specific and may fail on non-CUDA systems
-cupy-cuda12x; platform_machine == "x86_64" 
+# Basic CUDA support
+torch[cuda]
+# Note: More advanced CUDA packages can be added per platform as needed 

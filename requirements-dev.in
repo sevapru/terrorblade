@@ -1,4 +1,5 @@
-# Development dependencies for terrorblade and thoth projects
+# Development dependencies for terrorblade project
+# Includes dependencies for optional thoth module (when present)
 # This file is used with `uv pip compile` to generate requirements-dev.txt
 
 # Include main requirements
