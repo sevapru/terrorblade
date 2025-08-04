@@ -363,7 +363,9 @@ class TelegramPreprocessor(TextPreprocessor):
             return chat_df.with_columns(
                 [
                     pl.col("members")
-                    .map_elements(lambda x: str(list(set(x))) if isinstance(x, list) else x)
+                    .map_elements(
+                        lambda x: str(list(set(x))) if isinstance(x, list) else x,
+                    )
                     .alias("members")
                 ]
             )
@@ -388,7 +390,8 @@ class TelegramPreprocessor(TextPreprocessor):
                             x[0]["emoji"]
                             if isinstance(x, list | pl.Series) and len(x) > 0
                             else None
-                        )
+                        ),
+                        return_dtype=pl.Utf8,
                     )
                     .alias("reactions")
                 ]
