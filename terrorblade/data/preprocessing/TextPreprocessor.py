@@ -293,10 +293,7 @@ class TextPreprocessor:
         if embeddings_f32.shape[1] != 768:
             raise ValueError(f"Expected embeddings dimension 768, got {embeddings_f32.shape[1]}")
 
-
-        return df.with_columns(
-            pl.Series("embeddings", embeddings_f32)
-        )
+        return df.with_columns(pl.Series("embeddings", embeddings_f32))
 
     def calculate_groups(self, df: pl.DataFrame) -> pl.DataFrame:
         """

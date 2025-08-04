@@ -168,11 +168,13 @@ class TelegramPreprocessor(TextPreprocessor):
         # Validate embeddings column exists and has correct type
         if "embeddings" not in embeddings_df.columns:
             raise ValueError("DataFrame must contain 'embeddings' column")
-        
+
         # Validate embeddings are F32 arrays with correct shape
         embeddings_dtype = embeddings_df["embeddings"].dtype
         if not isinstance(embeddings_dtype, pl.Array) or embeddings_dtype.inner != pl.Float32:
-            raise ValueError(f"Embeddings must be Array(Float32, shape=768), got {embeddings_dtype}")
+            raise ValueError(
+                f"Embeddings must be Array(Float32, shape=768), got {embeddings_dtype}"
+            )
 
         try:
             # The register + INSERT approach (0.0114s) is 65x faster than executemany(.rows()) (0.7483s)
