@@ -29,8 +29,8 @@ requirements-lock.txt
 requirements-dev-lock.txt
 
 # Security and audit reports
-reports/
 exports/
+reports/reports/
 
 # DB
 *.db
