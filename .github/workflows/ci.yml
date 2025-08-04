@@ -45,6 +45,7 @@ jobs:
         
     - name: Compile and install dependencies
       run: |
+        uv pip compile requirements.in --output-file requirements.txt
         uv pip compile requirements-dev.in --output-file requirements-dev.txt
         uv pip install -r requirements-dev.txt
         uv pip install -e "."
@@ -109,6 +110,7 @@ jobs:
         
     - name: Compile and install dependencies
       run: |
+        uv pip compile requirements.in --output-file requirements.txt
         uv pip compile requirements-dev.in --output-file requirements-dev.txt
         uv pip install -r requirements-dev.txt
         uv pip install -e "."
@@ -167,6 +169,7 @@ jobs:
       if: runner.os != 'Windows'
       run: |
         source .venv/bin/activate
+        uv pip compile requirements.in --output-file requirements.txt
         uv pip compile requirements-dev.in --output-file requirements-dev.txt
         uv pip install -r requirements-dev.txt
         uv pip install -e "."
@@ -175,6 +178,7 @@ jobs:
       if: runner.os == 'Windows'
       run: |
         .venv\Scripts\activate
+        uv pip compile requirements.in --output-file requirements.txt
         uv pip compile requirements-dev.in --output-file requirements-dev.txt
         uv pip install -r requirements-dev.txt
         uv pip install -e "."
