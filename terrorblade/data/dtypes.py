@@ -68,10 +68,7 @@ TELEGRAM_SCHEMA: dict[str, SchemaInfo] = {
         "polars_type": pl.Utf8,
         "db_type": "TEXT",
         "description": "Source of forwarded messages",
-    }
-}
-
-embeddings_schema = {
+    },
     "embeddings": {
         "polars_type": pl.Array(pl.Float32, shape=768),
         "db_type": "FLOAT[768]",
