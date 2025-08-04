@@ -127,10 +127,9 @@ class TestTelegramWorkflow:
         """Create sample message DataFrame for testing."""
         # Create dummy embeddings for testing (768-dimensional vectors)
         import numpy as np
-        dummy_embeddings = [
-            np.random.rand(768).astype(np.float32).tolist() for _ in range(5)
-        ]
-        
+
+        dummy_embeddings = [np.random.rand(768).astype(np.float32).tolist() for _ in range(5)]
+
         return pl.DataFrame(
             {
                 "text": [
