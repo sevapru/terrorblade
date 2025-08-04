@@ -125,6 +125,12 @@ class TestTelegramWorkflow:
     @pytest.fixture
     def sample_messages_df(self) -> pl.DataFrame:
         """Create sample message DataFrame for testing."""
+        # Create dummy embeddings for testing (768-dimensional vectors)
+        import numpy as np
+        dummy_embeddings = [
+            np.random.rand(768).astype(np.float32).tolist() for _ in range(5)
+        ]
+        
         return pl.DataFrame(
             {
                 "text": [
@@ -145,7 +151,11 @@ class TestTelegramWorkflow:
                 # Add missing columns required by TELEGRAM_SCHEMA
                 "media_type": [None] * 5,
                 "file_name": [None] * 5,
+                "embeddings": dummy_embeddings,
             }
+        ).with_columns(
+            # Ensure embeddings column has correct type
+            pl.col("embeddings").cast(pl.Array(pl.Float32, shape=768))
         )
 
     def test_textpreprocessor_init(self, text_preprocessor: TextPreprocessor) -> None:
