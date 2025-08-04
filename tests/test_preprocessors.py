@@ -41,7 +41,7 @@ class TestTelegramWorkflow:
         cls.test_phone = "123456789"
 
         # Load subset of test data
-        cls.test_data_path = Path("tests/data/messages_test.json")
+        cls.test_data_path = Path(__file__).parent / "data" / "messages_test.json"
         cls.small_test_file = cls.temp_dir / "small_test.json"
 
         # Create a smaller test dataset for faster testing
