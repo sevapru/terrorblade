@@ -10,8 +10,8 @@ This script transforms Telegram message data by:
 
 import argparse
 import json
-import os
 import random
+from pathlib import Path
 from typing import Any
 
 # Animal-themed author name replacements
@@ -150,7 +150,7 @@ def transform_messages(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Transform Telegram messages to animal-themed content"
     )
@@ -161,9 +161,8 @@ def main():
     )
 
     args = parser.parse_args()
-
     # Check if input file exists
-    if not os.path.exists(args.input_file):
+    if not Path(args.input_file).exists():
         print(f"Error: Input file '{args.input_file}' not found.")
         return
 

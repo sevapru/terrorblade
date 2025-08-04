@@ -56,7 +56,7 @@ class TestVectorSearch:
 
         # Create realistic embeddings for the texts
         cls.sample_embeddings = []
-        for i, text in enumerate(cls.sample_texts):
+        for text in cls.sample_texts:
             # Create embeddings that have some semantic similarity
             # Similar texts get similar base vectors
             base_vector = np.random.rand(768).astype(np.float32)
@@ -484,7 +484,7 @@ class TestVectorSearch:
         embedding = vector_store_with_data.get_embedding(message_id=1, chat_id=100)
 
         assert embedding is not None
-        assert isinstance(embedding, (list, tuple))  # DuckDB might return tuple
+        assert isinstance(embedding, list | tuple)  # DuckDB might return tuple
         assert len(embedding) == 768
         assert all(isinstance(x, float) for x in embedding)
 
