@@ -275,7 +275,7 @@ class TextPreprocessor:
             df (pl.DataFrame): DataFrame containing the chat messages.
 
         Returns:
-            torch.Tensor: Tensor containing the embeddings for each text.
+            pl.DataFrame: DataFrame with F32 embeddings array with fixed length 768.
         """
         texts = df["text"].fill_null("").to_list()
 
@@ -287,7 +287,16 @@ class TextPreprocessor:
             normalize_embeddings=True,
             device=self.device,
         )
-        return df.with_columns(pl.Series("embeddings", embeddings.cpu()))
+
+        embeddings_f32 = embeddings.cpu().float()
+
+        if embeddings_f32.shape[1] != 768:
+            raise ValueError(f"Expected embeddings dimension 768, got {embeddings_f32.shape[1]}")
+
+
+        return df.with_columns(
+            pl.Series("embeddings", embeddings_f32)
+        )
 
     def calculate_groups(self, df: pl.DataFrame) -> pl.DataFrame:
         """
