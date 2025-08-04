@@ -1,6 +1,7 @@
 """Example script to create a database from Telegram JSON export file."""
 
 import argparse
+
 from terrorblade.data.database.telegram_database import TelegramDatabase
 from terrorblade.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
 
@@ -44,11 +45,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create a database from Telegram JSON export file")
     parser.add_argument("phone", help="Phone number (e.g., '31627866359')")
     parser.add_argument("json_file_path", help="Path to the Telegram JSON export file")
-    parser.add_argument("-d", "--db-path", default="telegram_data.db", 
-                        help="Path to the database file (default: telegram_data.db)")
-    
+    parser.add_argument(
+        "-d",
+        "--db-path",
+        default="telegram_data.db",
+        help="Path to the database file (default: telegram_data.db)",
+    )
+
     args = parser.parse_args()
-    
+
     create_db_from_telegram_json(
         phone=args.phone,
         json_file_path=args.json_file_path,
