@@ -246,8 +246,8 @@ install_dependencies_direct() {
     log_info "Compiling and installing requirements directly..."
     
     # Compile requirements
-    uv pip compile requirements.in --output-file requirements.txt
-    uv pip compile requirements-dev.in --output-file requirements-dev.txt
+    uv pip compile scripts/requirements.in --output-file requirements.txt
+    uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt
     
     # Install compiled requirements
     uv pip install -r requirements-dev.txt

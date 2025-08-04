@@ -37,7 +37,7 @@ jobs:
       uses: astral-sh/setup-uv@v4
       with:
         enable-cache: true
-        cache-dependency-glob: "requirements*.in"
+        cache-dependency-glob: "scripts/requirements*.in"
         
     - name: Create virtual environment
       run: uv venv --python ${{ matrix.python-version || '3.12' }}
@@ -45,8 +45,8 @@ jobs:
     - name: Install dependencies
       run: |
         source .venv/bin/activate
-        uv pip compile requirements.in --output-file requirements.txt
-        uv pip compile requirements-dev.in --output-file requirements-dev.txt
+        uv pip compile scripts/requirements.in --output-file requirements.txt
+        uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt
         uv pip install -r requirements-dev.txt
         uv pip install bandit[toml] safety pip-audit semgrep
         

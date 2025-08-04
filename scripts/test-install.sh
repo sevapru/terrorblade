@@ -197,7 +197,7 @@ test_requirements_compilation() {
     
     # Test if requirements can be compiled
     if command -v uv >/dev/null; then
-        if uv pip compile requirements.in --output-file /tmp/test-requirements.txt --quiet; then
+        if uv pip compile scripts/requirements.in --output-file /tmp/test-requirements.txt --quiet; then
             log_success "Requirements compilation works"
             rm -f /tmp/test-requirements.txt
         else
@@ -208,16 +208,16 @@ test_requirements_compilation() {
     fi
     
     # Test if requirements files exist and are valid
-    if [[ -f "requirements.in" ]]; then
-        log_success "requirements.in exists"
+    if [[ -f "scripts/requirements.in" ]]; then
+        log_success "scripts/requirements.in exists"
     else
-        error_exit "requirements.in not found"
+        error_exit "scripts/requirements.in not found"
     fi
     
-    if [[ -f "requirements-dev.in" ]]; then
-        log_success "requirements-dev.in exists"
+    if [[ -f "scripts/requirements-dev.in" ]]; then
+        log_success "scripts/requirements-dev.in exists"
     else
-        error_exit "requirements-dev.in not found"
+        error_exit "scripts/requirements-dev.in not found"
     fi
     
     log_success "Requirements compilation tests passed!"
@@ -245,8 +245,8 @@ Test environment: $(uname -a)
 
 - \`scripts/install.sh\` - Full installer with comprehensive features
 - \`scripts/install-minimal.sh\` - Lightweight installer for hosting
-- \`requirements.in\` - Core dependencies
-- \`requirements-dev.in\` - Development dependencies
+- \`scripts/requirements.in\` - Core dependencies
+- \`scripts/requirements-dev.in\` - Development dependencies
 
 ## Installation Commands
 

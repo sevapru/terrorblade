@@ -10,8 +10,8 @@ requirements: requirements-compile
 # Compile requirements for current platform only
 requirements-compile: check-uv
 	$(call log_info,Compiling requirements for current platform...)
-	@uv pip compile requirements.in --output-file requirements.txt --upgrade --quiet
-	@uv pip compile requirements-dev.in --output-file requirements-dev.txt --upgrade --quiet
+	@uv pip compile scripts/requirements.in --output-file requirements.txt --upgrade --quiet
+	@uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt --upgrade --quiet
 	$(call log_success,Requirements compiled successfully)
 
 # Sync environment with compiled requirements
@@ -27,10 +27,10 @@ requirements-sync: check-uv
 # Update all dependencies to latest versions
 requirements-update: check-uv
 	$(call log_info,Updating all dependencies to latest versions...)
-	@uv pip compile requirements.in --output-file requirements.txt --upgrade
-	@uv pip compile requirements-dev.in --output-file requirements-dev.txt --upgrade
-	@if [ -f requirements-cuda.in ]; then \
-		uv pip compile requirements-cuda.in --output-file requirements-cuda.txt --upgrade || true; \
+	@uv pip compile scripts/requirements.in --output-file requirements.txt --upgrade
+	@uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt --upgrade
+	@if [ -f scripts/requirements-cuda.in ]; then \
+		uv pip compile scripts/requirements-cuda.in --output-file requirements-cuda.txt --upgrade || true; \
 	fi
 	$(call log_success,All requirements updated to latest versions)
 
