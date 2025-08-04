@@ -223,6 +223,97 @@ phone = "+1234567890"  # Replace with your actual phone number (include country 
 run_processor(phone)
 ```
 
+## Vector Search
+
+Once your messages are processed and stored in the database, you can perform semantic search to find relevant conversations using the vector search functionality. The system uses embeddings to understand the meaning behind your search terms and finds contextually similar messages.
+
+### Features
+
+- **Semantic Search**: Find messages by meaning, not just exact text matches
+- **Cluster Context**: See conversation snippets around found messages for better understanding
+- **HNSW Indexing**: Fast similarity search using DuckDB's VSS extension
+- **Multi-keyword Support**: Search for multiple terms at once
+
+### Quick Search Example
+
+Use the simplified vector search example to find messages containing specific topics:
+
+```bash
+python terrorblade/examples/vector_search_example.py "поплава" --db telegram_data.db --phone 1234567890
+```
+
+**Example Output:**
+```
+(terrorblade) ┌─[seva@*****] - [~/сode/terrorblade/terrorblade/examples] - [Mon Aug 04, 18:12]
+└─[$]> python vector_search_example.py "паплава" --phone 79992004210 --db telegram_data.db
+Database: 928899 embeddings, 298 chats
+
+HNSW Index Statistics
+==================================================
+Index Name: idx_embeddings_79992004210
+Table: chat_embeddings_79992004210
+Type: HNSW
+Indexed Rows: 928,899
+Estimated Memory: 4082.08 MB
+Key Columns: embeddings
+Unique: False
+
+Performance Estimates:
+   Search complexity: O(log(928,899))
+==================================================
+Keyword: 'паплава'
+============================================================
+shape: (3, 8)
+┌────────────┬───────────┬────────────┬─────────┬───────────────┬───────────┬─────────────────────┬────────────────────────────────────────────────────────────────────────┐
+│ message_id ┆ chat_id   ┆ similarity ┆ cluster ┆ from_name     ┆ chat_name ┆ date                ┆ context_snippet                                                        │
+│ ---        ┆ ---       ┆ ---        ┆ ---     ┆ ---           ┆ ---       ┆ ---                 ┆ ---                                                                    │
+│ i64        ┆ i64       ┆ f64        ┆ str     ┆ str           ┆ str       ┆ datetime[μs]        ┆ str                                                                    │
+╞════════════╪═══════════╪════════════╪═════════╪═══════════════╪═══════════╪═════════════════════╪════════════════════════════════════════════════════════════════════════╡
+│ 578768     ┆ 335211685 ┆ 1.0        ┆ 6       ┆ Seva ✨       ┆ Максим    ┆ 2022-05-20 20:35:32 ┆ Максим Колмаков: Потом прогревается и норм                             │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Seva ✨: хек                                                           │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Seva ✨: Ну заодно посмотрят                                           │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Seva ✨: может скажут                                                  │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Seva ✨: что пиздец                                                    │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ >>> Seva ✨: паплава                                                   │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Максим Колмаков: Да не, это обычная тема на этих движках под 60к пр... │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Максим Колмаков: А чтобы потом мне отец не сказал вот ты хуйню сдел... │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Максим Колмаков...                                                     │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆                                                                        │
+│ 301237     ┆ 246090345 ┆ 0.9502     ┆ 54      ┆ Seva ✨       ┆ Родион    ┆ 2020-04-01 11:20:53 ┆ Родион Спирин: Пошёл нахуй                                             │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Родион Спирин: Ебанный блять                                           │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Seva ✨: У тебя уже это                                                │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Seva ✨: Паплава                                                       │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Родион Спирин: Че                                                      │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ >>> Seva ✨: Паплава                                                   │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Родион Спирин: Че                                                      │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Seva ✨: Че?                                                           │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Родион Спирин: Паплава                                                 │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Родион Спирин: Что это блять                                           │
+│            ┆           ┆            ┆         ┆               ┆           ┆                     ┆ Seva ✨: Именно она                                                    │
+└────────────┴───────────┴────────────┴─────────┴───────────────┴───────────┴─────────────────────┴────────────────────────────────────────────────────────────────────────┘
+```
+
+### Advanced Usage
+
+Search for multiple keywords:
+```bash
+python terrorblade/examples/vector_search_example.py "поплава" "киша" "вода" --db telegram_data.db --phone 1234567890 --top-k 5
+```
+
+Arguments:
+- `keywords`: One or more keywords to search for
+- `--db`: Path to your DuckDB database file
+- `--phone`: Your phone number identifier
+- `--top-k`: Number of results per keyword (default: 10)
+
+### Understanding the Results
+
+- **Similarity**: Cosine similarity score (0-1, higher = more similar)
+- **Cluster**: Conversation cluster ID or "No cluster" for standalone messages
+- **Match Type**: Shows if this is the original similarity match or a related cluster member
+- **Context Snippet**: Shows 5 messages before and after the found message within the same conversation cluster
+- **>>> Symbol**: Marks the exact message that matched your search
+
 ## Database Schema
 
 The parser creates several tables for each user (where phone number is used as an identifier):
