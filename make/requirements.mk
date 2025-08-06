@@ -39,13 +39,13 @@ requirements-status:
 	$(call log_section,Requirements Status)
 	@echo -e "$(BLUE)Core requirements:$(NC)"
 	@if [ -f requirements.txt ]; then \
-		echo "  ✓ requirements.txt ($(shell wc -l < requirements.txt) packages)"; \
+		echo "  [OK] requirements.txt ($(shell wc -l < requirements.txt) packages)"; \
 	else \
-		echo "  ✗ requirements.txt missing"; \
+		echo "  [ERROR] requirements.txt missing"; \
 	fi
 	@echo -e "$(BLUE)Development requirements:$(NC)"
 	@if [ -f requirements-dev.txt ]; then \
-		echo "  ✓ requirements-dev.txt ($(shell wc -l < requirements-dev.txt) packages)"; \
+		echo "  [OK] requirements-dev.txt ($(shell wc -l < requirements-dev.txt) packages)"; \
 	else \
-		echo "  ✗ requirements-dev.txt missing"; \
+		echo "  [ERROR] requirements-dev.txt missing"; \
 	fi 
