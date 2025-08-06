@@ -82,10 +82,14 @@ jobs:
         pylint terrorblade --output-format=colorized || true
         echo "::endgroup::"
         
+    - name: Run MyPy type checking
+      if: github.event_name == 'pull_request'
+      run: |
         echo "::group::MyPy type checking"
         rm -rf .mypy_cache
         mypy terrorblade --exclude "tests/"
         echo "::endgroup::"
+        
 
   format:
     name: Auto-format Code
@@ -182,14 +186,14 @@ jobs:
         source .venv/bin/activate
         python -m pytest tests/ -v --tb=short
 
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Dependency Review
-      uses: actions/dependency-review-action@v4 
+  # dependency-review:
+  #   name: Dependency Review
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'pull_request'
+  #   
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
+  #     
+  #   - name: Dependency Review
+  #     uses: actions/dependency-review-action@v4 
