@@ -173,7 +173,6 @@ class TestTelegramWorkflow:
         model = text_preprocessor.embeddings_model
         assert model is not None
         assert hasattr(model, "encode")
-        # Second call should return the same cached model
         assert text_preprocessor.embeddings_model is model
 
     def test_concat_author_messages(
@@ -181,13 +180,8 @@ class TestTelegramWorkflow:
     ) -> None:
         """Test concatenation of consecutive messages from same author."""
         result = text_preprocessor.concat_author_messages(sample_messages_df)
-
-        # Check that consecutive messages from same author are concatenated
         assert len(result) < len(sample_messages_df)
-        # The implementation concatenates with ". "
         assert "Hello world!. How are you doing today?" in result["text"].to_list()
-
-        # Check that DataFrame structure is preserved
         expected_columns = [
             "chat_name",
             "date",
