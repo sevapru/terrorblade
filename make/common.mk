@@ -58,7 +58,7 @@ check-python:
 	is_compatible = spec.contains(current); \
 	print(f"  Required: {required}"); \
 	print(f"  Current:  {current}"); \
-	print(f"  Status:   {"[OK] Compatible" if is_compatible else "[ERROR] Incompatible"}"); \
+	print(f"""  Status:   {"[OK] Compatible" if is_compatible else "[ERROR] Incompatible"}"""); \
 	exit(0 if is_compatible else 1);' \
 	|| { $(call log_error,Python version incompatible with project requirements); exit 1; }
 
