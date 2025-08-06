@@ -16,10 +16,10 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-TERRORBLADE_REPO="${TERRORBLADE_REPO:-https://github.com/sevapru/terrorblade.git}"
+TERRORBLADE_REPO="${TERRORBLADE_REPO:-git@github.com:sevapru/terrorblade.git}"
 TERRORBLADE_BRANCH="${TERRORBLADE_BRANCH:-main}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/terrorblade}"
-PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
+INSTALL_DIR="${INSTALL_DIR:-$(pwd)/terrorblade}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.13}"
 
 # Script info
 SCRIPT_VERSION="1.0.0"
@@ -101,11 +101,8 @@ detect_platform() {
     log_info "Detected platform: $PLATFORM ($ARCHITECTURE)"
 }
 
-# Check prerequisites
 check_prerequisites() {
     log_info "Checking prerequisites..."
-    
-    # Check if running as root (not recommended)
     if [[ $EUID -eq 0 ]]; then
         log_warning "Running as root is not recommended. Consider using a regular user account."
         read -p "Continue anyway? (y/N): " -r
@@ -125,7 +122,10 @@ check_prerequisites() {
     for cmd in python3 python; do
         if command -v $cmd &> /dev/null; then
             PYTHON_VERSION_FOUND=$($cmd --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
-            if [[ $(echo "$PYTHON_VERSION_FOUND >= 3.9" | bc -l 2>/dev/null || echo "0") -eq 1 ]]; then
+            MAJOR=$(echo "$PYTHON_VERSION_FOUND" | cut -d. -f1)
+            MINOR=$(echo "$PYTHON_VERSION_FOUND" | cut -d. -f2)
+            VERSION_NUM=$((MAJOR * 100 + MINOR))
+            if [[ $VERSION_NUM -ge 309 ]]; then
                 PYTHON_CMD=$cmd
                 break
             fi
@@ -133,7 +133,7 @@ check_prerequisites() {
     done
     
     if [[ -z "$PYTHON_CMD" ]]; then
-        error_exit "Python 3.12+ (but 3.8+ is fine) is required but not found. Please install Python first."
+        error_exit "Python 3.9+ is required but not found. Please install Python first."
     fi
     log_success "Python found: $($PYTHON_CMD --version)"
     
@@ -142,16 +142,14 @@ check_prerequisites() {
         error_exit "curl is required but not installed."
     fi
     
-    # Check available disk space (require at least 2GB)
     if command -v df &> /dev/null; then
         AVAILABLE_SPACE=$(df -BG . | awk 'NR==2 {print $4}' | sed 's/G//')
-        if [[ $AVAILABLE_SPACE -lt 2 ]]; then
-            log_warning "Low disk space detected. At least 2GB recommended."
+        if [[ $AVAILABLE_SPACE -lt 8 ]]; then
+            log_warning "Low disk space detected. At least 8GB recommended."
         fi
     fi
 }
 
-# Install uv (Python package manager)
 install_uv() {
     log_info "Installing uv (Python package manager)..."
     
@@ -198,7 +196,17 @@ setup_repository() {
     else
         log_info "Cloning repository..."
         if ! git clone -b "$TERRORBLADE_BRANCH" "$TERRORBLADE_REPO" "$INSTALL_DIR"; then
-            error_exit "Failed to clone repository"
+            # If SSH fails, try HTTPS as fallback
+            if [[ "$TERRORBLADE_REPO" == *"git@"* ]]; then
+                log_warning "SSH clone failed, trying HTTPS fallback..."
+                HTTPS_REPO="https://github.com/sevapru/terrorblade.git"
+                if ! git clone -b "$TERRORBLADE_BRANCH" "$HTTPS_REPO" "$INSTALL_DIR"; then
+                    error_exit "Failed to clone repository (both SSH and HTTPS failed)"
+                fi
+                log_success "Repository cloned using HTTPS fallback"
+            else
+                error_exit "Failed to clone repository"
+            fi
         fi
     fi
     
@@ -246,8 +254,8 @@ install_dependencies_direct() {
     log_info "Compiling and installing requirements directly..."
     
     # Compile requirements
-    uv pip compile requirements.in --output-file requirements.txt
-    uv pip compile requirements-dev.in --output-file requirements-dev.txt
+    uv pip compile scripts/requirements.in --output-file requirements.txt
+    uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt
     
     # Install compiled requirements
     uv pip install -r requirements-dev.txt
@@ -348,7 +356,7 @@ print_completion() {
     echo -e "   • Run ${BLUE}make security${NC} to check for vulnerabilities"
     echo -e "   • Join the community: ${BLUE}https://github.com/sevapru/terrorblade${NC}"
     echo
-    echo -e "${GREEN}Happy hacking! 🗡️${NC}"
+    echo -e "${GREEN}Hope you have a good day! (c) Seva${NC}"
 }
 
 # Main installation flow

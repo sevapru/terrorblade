@@ -29,8 +29,11 @@ requirements-lock.txt
 requirements-dev-lock.txt
 
 # Security and audit reports
-reports/
 exports/
+docs/generated/
+docs/project management/*
+docs/reports/
+docs/Cursor-versus-CoPilot/
 
 # DB
 *.db
@@ -56,3 +59,6 @@ qdrant_db/
 logs/
 *.wal
 .vscode/settings.json
+
+# Original test data
+tests/data/messages_test.json

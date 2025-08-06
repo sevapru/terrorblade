@@ -58,11 +58,11 @@ source .venv/bin/activate
 if command -v make >/dev/null && [[ -f Makefile ]]; then
     make install 2>/dev/null || {
         log "Make failed, using direct install..."
-        uv pip compile requirements-dev.in --output-file requirements-dev.txt 2>/dev/null || true
+        uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt 2>/dev/null || true
         uv pip install -r requirements-dev.txt 2>/dev/null || uv pip install -e .
     }
 else
-    uv pip compile requirements-dev.in --output-file requirements-dev.txt 2>/dev/null || true
+    uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt 2>/dev/null || true
     uv pip install -r requirements-dev.txt 2>/dev/null || uv pip install -e .
 fi
 

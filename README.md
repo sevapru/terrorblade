@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/sevapru/terrorblade">
-    <img alt="terrorblade" width="240" src="fun/terrorblade_logo.png">
+    <img alt="terrorblade" width="120" src="docs/images/terrorblade_logo.png">
   </a>
 </div>
 
@@ -152,76 +152,12 @@ create_db_from_telegram_json(phone, json_file_path, db_path)
 - `db_path` (optional): Where to save the database file. Defaults to `"telegram_data.db"` in the current directory.
 
 The processor will:
+
 - Create a DuckDB database with your messages
 - Parse and clean the message data
 - Generate embeddings for semantic search
 - Group messages into conversation clusters
 - Display a summary of processed data
-
-
-### Processing messages directly from Telegram API
-
-<details>
-<summary>Obtaining Telegram API Credentials</summary>
-
-To use direct Telegram message synchronization, you'll need to obtain API credentials:
-
-1. Visit [https://my.telegram.org/apps](https://my.telegram.org/apps)
-2. Log in with your Telegram account
-3. Click "Create application"
-4. Fill in the required fields:
-   - App title: Choose any name
-   - Short name: Choose a short identifier
-   - Platform: Desktop
-   - Description: Brief description of your use case
-5. After creation, you'll receive:
-   - `api_id`: A numeric value
-   - `api_hash`: A 32-character hexadecimal string
-6. Add these values to your `.env` file:
-   ```
-   API_ID=your_api_id
-   API_HASH=your_api_hash
-   ```
-
-Note: Keep these credentials secure and never share them publicly.
-</details>
-
-####  Before you start
-⚠️ **WARNING**: 
-
-**This example is designed for small accounts with limited message history. Using it on accounts with large message histories may:**
-- **Trigger Telegram's rate limits**
-- **Cause your account to be temporarily disconnected**
-- **Require re-authentication on all devices**
-- **Result in temporary loss of access to your account**
-
-If you have a large message history, consider using a test account first.
-
-This example is: 
-
-1. Initialize a DuckDB database to store your Telegram messages
-2. Connect to Telegram using your phone number (you'll need to input auth code)
-3. Download your message history
-4. Process messages to:
-   - Calculate embeddings for semantic search
-   - Group messages into conversation clusters
-   - Store everything in the database
-
-The process may take some time depending on your message history size. Progress will be shown in the console.
-
-**Note from Maintainers**: I am actively working on implementing rate limiting and batch processing to make the tool safer for accounts with larger message histories. In the meantime, please exercise caution when using this tool with accounts containing extensive message histories.
-
-**Known Issue**: In case of API failure, recent messages from the last few minutes may be deleted from your Telegram account.
-
-#### Try it on your own risk
-After you have placed your credentials in the `.env` file, you can run the preprocessor which will organize your data within the DuckDB.
-
-```python
-from terrorblade.examples.create_db_from_tg_account import run_processor
-
-phone = "+1234567890"  # Replace with your actual phone number (include country code)
-run_processor(phone)
-```
 
 ## Vector Search
 
@@ -241,8 +177,16 @@ Use the simplified vector search example to find messages containing specific to
 ```bash
 python terrorblade/examples/vector_search_example.py "поплава" --db telegram_data.db --phone 1234567890
 ```
+Arguments:
 
-**Example Output:**
+- `keywords`: One or more keywords to search for in the vector store
+- `--db`: Path to your DuckDB database file
+- `--phone`: Your phone number identifier
+- `--top-k`: Number of results per keyword (default: 10)
+  
+<details>
+<summary>Possible Output</summary>
+
 ```
 (terrorblade) ┌─[seva@*****] - [~/сode/terrorblade/terrorblade/examples] - [Mon Aug 04, 18:12]
 └─[$]> python vector_search_example.py "паплава" --phone 79992004210 --db telegram_data.db
@@ -293,18 +237,6 @@ shape: (3, 8)
 └────────────┴───────────┴────────────┴─────────┴───────────────┴───────────┴─────────────────────┴────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Advanced Usage
-
-Search for multiple keywords:
-```bash
-python terrorblade/examples/vector_search_example.py "поплава" "киша" "вода" --db telegram_data.db --phone 1234567890 --top-k 5
-```
-
-Arguments:
-- `keywords`: One or more keywords to search for
-- `--db`: Path to your DuckDB database file
-- `--phone`: Your phone number identifier
-- `--top-k`: Number of results per keyword (default: 10)
 
 ### Understanding the Results
 
@@ -314,51 +246,85 @@ Arguments:
 - **Context Snippet**: Shows 5 messages before and after the found message within the same conversation cluster
 - **>>> Symbol**: Marks the exact message that matched your search
 
+</details>
+
+## Processing messages directly from Telegram API
+
+###  Before you start
+
+>
+>⚠️ **WARNING**:
+>
+> **This example is designed for small accounts with limited message history. Using it on accounts with large message histories may:**
+> 
+> - **Trigger Telegram's rate limits**
+> - **Cause your account to be temporarily disconnected**
+> - **Require re-authentication on all devices**
+> - **Result in temporary loss of access to your account**
+>
+>If you have a large message history, consider using a test account first.
+
+In order to continue with this example you need to be able to obtain creditnails from the Telegram
+<details>
+<summary>Obtaining Telegram API Credentials</summary>
+
+To use direct Telegram message synchronization, you'll need to obtain API credentials:
+
+1. Visit [https://my.telegram.org/apps](https://my.telegram.org/apps)
+2. Log in with your Telegram account
+3. Click "Create application"
+4. Fill in the required fields:
+   - App title: Choose any name
+   - Short name: Choose a short identifier
+   - Platform: Desktop
+   - Description: Brief description of your use case
+5. After creation, you'll receive:
+   - `api_id`: A numeric value
+   - `api_hash`: A 32-character hexadecimal string
+6. Add these values to your `.env` file:
+   ```
+   API_ID=your_api_id
+   API_HASH=your_api_hash
+   ```
+
+Note: Keep these credentials secure and never share them publicly.
+
+</details>
+
+This example:
+
+1. Initialize a DuckDB database to store your Telegram messages
+2. Connect to Telegram using your phone number (you'll need to input auth code)
+3. Download your message history
+4. Process messages to:
+   - Calculate embeddings for semantic search
+   - Group messages into conversation clusters
+   - Store everything in the database
+
+The process may take some time depending on your message history size. Progress will be shown in the console.
+
+**Note from Maintainers**: I am actively working on implementing rate limiting and batch processing to make the tool safer for accounts with larger message histories. In the meantime, please exercise caution when using this tool with accounts containing extensive message histories.
+
+**Known Issue**: In case of API failure, recent messages from the last few minutes may be deleted from your Telegram account.
+
+#### Try it on your own risk
+
+After you have placed your credentials in the `.env` file, you can run the preprocessor which will organize your data within the DuckDB.
+
+```python
+from terrorblade.examples.create_db_from_tg_account import run_processor
+
+phone = "+1234567890"  # Replace with your actual phone number (include country code)
+run_processor(phone)
+```
+
 ## Database Schema
 
-The parser creates several tables for each user (where phone number is used as an identifier):
-
-### Users Table
-
-- `phone`: VARCHAR (Primary Key)
-- `last_update`: TIMESTAMP
-- `first_seen`: TIMESTAMP
-
-### Messages Table (`messages_{phone}`)
-
-- `message_id`: BIGINT
-- `chat_id`: BIGINT
-- `date`: TIMESTAMP
-- `text`: TEXT
-- `from_id`: BIGINT
-- `reply_to_message_id`: BIGINT
-- `media_type`: TEXT
-- `file_name`: TEXT
-- `from_name`: TEXT
-- `chat_name`: TEXT
-- `forwarded_from`: TEXT
-
-### Message Clusters Table (`message_clusters_{phone}`)
-
-- `message_id`: BIGINT
-- `chat_id`: BIGINT
-- `group_id`: INTEGER
-Primary Key: (message_id, chat_id)
-
-### Chat Embeddings Table (`chat_embeddings_{phone}`)
-
-- `message_id`: BIGINT
-- `chat_id`: BIGINT
-- `embedding`: DOUBLE[]
-Primary Key: (message_id, chat_id)
+For detailed information about the database structure, vector search capabilities, and DuckDB integration, see the comprehensive [Database Schema Documentation](docs/DATABASE_SCHEMA.md).
 
 ## GPU Acceleration
 
-This project includes support for GPU acceleration through NVIDIA RAPIDS libraries. To enable GPU features:
-
-1. Ensure you have a CUDA-compatible GPU
-2. Install with CUDA support: `make install-cuda`
-3. Set `USE_CUDA=true` in your `.env` file
+This project includes support for GPU acceleration through NVIDIA RAPIDS libraries.
 
 ## Contributing
 

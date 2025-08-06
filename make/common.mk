@@ -16,7 +16,7 @@ define log_info
 endef
 
 define log_success
-	@echo -e "$(GREEN)[✓]$(NC) $(1)"
+	@echo -e "$(GREEN)[OK]$(NC) $(1)"
 endef
 
 define log_warning
@@ -24,7 +24,7 @@ define log_warning
 endef
 
 define log_error
-	@echo -e "$(RED)[✗]$(NC) $(1)"
+	@echo -e "$(RED)[ERROR]$(NC) $(1)"
 endef
 
 define log_section
@@ -58,27 +58,27 @@ check-python:
 	is_compatible = spec.contains(current); \
 	print(f"  Required: {required}"); \
 	print(f"  Current:  {current}"); \
-	print(f"  Status:   {"✓ Compatible" if is_compatible else "✗ Incompatible"}"); \
+	print(f"  Status:   {"[OK] Compatible" if is_compatible else "[ERROR] Incompatible"}"); \
 	exit(0 if is_compatible else 1);' \
 	|| { $(call log_error,Python version incompatible with project requirements); exit 1; }
 
 # Smart virtual environment setup
 setup-venv: check-uv check-python
 	@if [ -n "$$VIRTUAL_ENV" ]; then \
-		echo -e "$(GREEN)[✓]$(NC) Using active virtual environment: $$VIRTUAL_ENV"; \
+		echo -e "$(GREEN)[OK]$(NC) Using active virtual environment: $$VIRTUAL_ENV"; \
 	elif [ -d ".venv" ]; then \
 		echo -e "$(BLUE)[INFO]$(NC) Found existing .venv directory"; \
-		echo -e "$(GREEN)[✓]$(NC) Virtual environment ready at .venv"; \
+		echo -e "$(GREEN)[OK]$(NC) Virtual environment ready at .venv"; \
 	else \
 		echo -e "$(BLUE)[INFO]$(NC) Creating new virtual environment..."; \
 		uv venv --python python3; \
-		echo -e "$(GREEN)[✓]$(NC) Virtual environment created at .venv"; \
+		echo -e "$(GREEN)[OK]$(NC) Virtual environment created at .venv"; \
 	fi
 
 # Validate and sync virtual environment
 validate-venv:
 	@if [ -n "$$VIRTUAL_ENV" ]; then \
-		echo -e "$(GREEN)[✓]$(NC) Virtual environment is active"; \
+		echo -e "$(GREEN)[OK]$(NC) Virtual environment is active"; \
 	elif [ -d ".venv" ]; then \
 		echo -e "$(YELLOW)[⚠]$(NC) Virtual environment exists but not activated"; \
 		echo -e "$(BLUE)[INFO]$(NC) To activate: source .venv/bin/activate"; \

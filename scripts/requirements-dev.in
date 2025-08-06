@@ -3,7 +3,7 @@
 # This file is used with `uv pip compile` to generate requirements-dev.txt
 
 # Include main requirements
--r requirements.txt
+-r ../requirements.txt
 
 # Testing dependencies
 pytest>=7.0.0
