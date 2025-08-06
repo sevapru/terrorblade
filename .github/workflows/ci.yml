@@ -3,6 +3,10 @@
 # and includes security scanning for a production-ready open source project
 name: CI
 
+permissions:
+  contents: read
+  security-events: read
+
 on:
   push:
     branches: [ main, master, dev ]
