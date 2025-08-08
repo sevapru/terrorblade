@@ -45,34 +45,116 @@ TELEGRAM_SCHEMA: dict[str, SchemaInfo] = {
         "description": "Message ID this message is replying to",
     },
     "media_type": {
-        "polars_type": pl.Utf8,
-        "db_type": "TEXT",
-        "description": "Type of media attached to the message",
+        "polars_type": pl.Int32,
+        "db_type": "INTEGER",
+        "description": "Integer reference to media type (maps to media_types table)",
     },
-    "file_name": {
-        "polars_type": pl.Utf8,
-        "db_type": "TEXT",
-        "description": "Name of the attached file",
-    },
-    "from_name": {
-        "polars_type": pl.Utf8,
-        "db_type": "TEXT",
-        "description": "Name or username of the sender",
-    },
-    "chat_name": {
-        "polars_type": pl.Utf8,
-        "db_type": "TEXT",
-        "description": "Name of the chat or conversation",
-    },
-    "forwarded_from": {
-        "polars_type": pl.Utf8,
-        "db_type": "TEXT",
-        "description": "Source of forwarded messages",
+    "forwarded_from_id": {
+        "polars_type": pl.Int32,
+        "db_type": "INTEGER",
+        "description": "Integer reference to forwarded source (maps to forwarded_sources table)",
     },
     "embeddings": {
         "polars_type": pl.Array(pl.Float32, shape=768),
         "db_type": "FLOAT[768]",
         "description": "F32 embeddings array with fixed length 768",
+    },
+}
+
+
+# Mapping tables schemas
+# Global media types dictionary table
+MEDIA_TYPES_SCHEMA: dict[str, SchemaInfo] = {
+    "media_type_id": {
+        "polars_type": pl.Int32,
+        "db_type": "INTEGER",
+        "description": "Primary key (auto-increment) for media type",
+    },
+    "name": {
+        "polars_type": pl.Utf8,
+        "db_type": "TEXT",
+        "description": "Unique media type name",
+    },
+}
+
+# Global forwarded sources dictionary table (e.g., usernames or labels of forwarded messages)
+FORWARDED_SOURCES_SCHEMA: dict[str, SchemaInfo] = {
+    "forwarded_from_id": {
+        "polars_type": pl.Int32,
+        "db_type": "INTEGER",
+        "description": "Primary key (auto-increment) for forwarded source",
+    },
+    "name": {
+        "polars_type": pl.Utf8,
+        "db_type": "TEXT",
+        "description": "Unique forwarded source name",
+    },
+}
+
+# Per-user chat name mapping: chat_id -> chat_name (may have multiple historical names)
+CHAT_NAMES_SCHEMA: dict[str, SchemaInfo] = {
+    "chat_id": {
+        "polars_type": pl.Int64,
+        "db_type": "BIGINT",
+        "description": "Chat identifier",
+    },
+    "chat_name": {
+        "polars_type": pl.Utf8,
+        "db_type": "TEXT",
+        "description": "Observed chat name",
+    },
+    "first_seen": {
+        "polars_type": pl.Datetime,
+        "db_type": "TIMESTAMP",
+        "description": "First time this name was seen for this chat",
+    },
+    "last_seen": {
+        "polars_type": pl.Datetime,
+        "db_type": "TIMESTAMP",
+        "description": "Last time this name was seen for this chat",
+    },
+}
+
+# Per-user user name mapping: from_id -> from_name (may have multiple historical names)
+USER_NAMES_SCHEMA: dict[str, SchemaInfo] = {
+    "from_id": {
+        "polars_type": pl.Int64,
+        "db_type": "BIGINT",
+        "description": "User identifier",
+    },
+    "from_name": {
+        "polars_type": pl.Utf8,
+        "db_type": "TEXT",
+        "description": "Observed user name",
+    },
+    "first_seen": {
+        "polars_type": pl.Datetime,
+        "db_type": "TIMESTAMP",
+        "description": "First time this name was seen for this user",
+    },
+    "last_seen": {
+        "polars_type": pl.Datetime,
+        "db_type": "TIMESTAMP",
+        "description": "Last time this name was seen for this user",
+    },
+}
+
+# Per-user files mapping: message_id -> file_name (path)
+FILES_SCHEMA: dict[str, SchemaInfo] = {
+    "message_id": {
+        "polars_type": pl.Int64,
+        "db_type": "BIGINT",
+        "description": "Message identifier",
+    },
+    "chat_id": {
+        "polars_type": pl.Int64,
+        "db_type": "BIGINT",
+        "description": "Chat identifier",
+    },
+    "file_name": {
+        "polars_type": pl.Utf8,
+        "db_type": "TEXT",
+        "description": "File path or name",
     },
 }
 
@@ -115,7 +197,10 @@ def get_schema_for_api() -> dict[str, dict[str, Any]]:
 
 
 def get_process_schema() -> dict[str, Any]:
-    """Return a schema suitable for processing that maps to the central schema."""
+    """Return a schema suitable for processing that maps to the central schema.
+
+    Note: keeps human-readable names for preprocessing; names are normalized into separate tables on DB insert.
+    """
     process_schema = {}
     # Add fields that are common between process schema and central schema
     for field in [
@@ -128,10 +213,23 @@ def get_process_schema() -> dict[str, Any]:
         "chat_id",
         "message_id",
         "from_id",
+        "media_type",  # remains as string during preprocessing, mapped to INT on insert
+        "file_name",  # remains as string/path during preprocessing, moved to files table
     ]:
+        # Explicit overrides for preprocess-only types
+        if field == "media_type":
+            process_schema[field] = pl.Utf8
+            continue
+        # For fields that exist in TELEGRAM_SCHEMA use their polars type
         if field in TELEGRAM_SCHEMA:
             process_schema[field] = TELEGRAM_SCHEMA[field]["polars_type"]
-
+        else:
+            if field in ("chat_name", "from_name", "forwarded_from", "file_name", "text"):
+                process_schema[field] = pl.Utf8
+            elif field == "date":
+                process_schema[field] = pl.Datetime  # type: ignore
+            elif field in ("chat_id", "message_id", "from_id"):
+                process_schema[field] = pl.Int64  # type: ignore # TODO: check if this is correct
     return process_schema
 
 
