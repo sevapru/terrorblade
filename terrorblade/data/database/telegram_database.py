@@ -9,7 +9,14 @@ import polars as pl
 from dotenv import load_dotenv
 
 from terrorblade import Logger
-from terrorblade.data.dtypes import TELEGRAM_SCHEMA
+from terrorblade.data.dtypes import (
+    CHAT_NAMES_SCHEMA,
+    FILES_SCHEMA,
+    FORWARDED_SOURCES_SCHEMA,
+    MEDIA_TYPES_SCHEMA,
+    TELEGRAM_SCHEMA,
+    USER_NAMES_SCHEMA,
+)
 
 load_dotenv(".env")
 
@@ -92,6 +99,42 @@ class TelegramDatabase:
             """
             )
 
+            # Global media types dictionary
+            media_cols = ", ".join(
+                [f'"{field}" {info["db_type"]}' for field, info in MEDIA_TYPES_SCHEMA.items()]
+            )
+            self.db.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS media_types (
+                    {media_cols},
+                    PRIMARY KEY (media_type_id)
+                )
+            """
+            )
+            self.db.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_media_types_name ON media_types(name)
+                """
+            )
+
+            # Global forwarded sources dictionary
+            fwd_cols = ", ".join(
+                [f'"{field}" {info["db_type"]}' for field, info in FORWARDED_SOURCES_SCHEMA.items()]
+            )
+            self.db.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS forwarded_sources (
+                    {fwd_cols},
+                    PRIMARY KEY (forwarded_from_id)
+                )
+            """
+            )
+            self.db.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_forwarded_sources_name ON forwarded_sources(name)
+                """
+            )
+
             table_list = self.db.execute("SHOW TABLES").fetchall()
             existing_tables = [table[0] for table in table_list]
 
@@ -132,11 +175,20 @@ class TelegramDatabase:
         try:
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
+            chat_names_table = f"chat_names_{phone.replace('+', '')}"
+            user_names_table = f"user_names_{phone.replace('+', '')}"
+            files_table = f"files_{phone.replace('+', '')}"
 
             table_list = self.db.execute("SHOW TABLES").fetchall()
             existing_tables = [table[0] for table in table_list]
 
-            if messages_table not in existing_tables or clusters_table not in existing_tables:
+            if (
+                messages_table not in existing_tables
+                or clusters_table not in existing_tables
+                or chat_names_table not in existing_tables
+                or user_names_table not in existing_tables
+                or files_table not in existing_tables
+            ):
                 self.logger.warning(f"Required tables for user {phone} do not exist")
                 return False
 
@@ -188,6 +240,19 @@ class TelegramDatabase:
             self.logger.error(f"Error getting users: {str(e)}")
             raise
 
+    def _latest_chat_names_cte(self, chat_names_table: str) -> str:
+        return f"""
+        WITH latest_names AS (
+            SELECT chat_id, chat_name
+            FROM (
+                SELECT chat_id, chat_name,
+                       ROW_NUMBER() OVER (PARTITION BY chat_id ORDER BY COALESCE(last_seen, first_seen) DESC) AS rn
+                FROM {chat_names_table}
+            ) t
+            WHERE rn = 1
+        )
+        """
+
     def get_user_stats(self, phone: str) -> UserStats | None:
         """
         Get comprehensive statistics for a specific user.
@@ -204,6 +269,7 @@ class TelegramDatabase:
 
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
+            chat_names_table = f"chat_names_{phone.replace('+', '')}"
 
             total_messages = self.db.execute(
                 f"""
@@ -214,14 +280,18 @@ class TelegramDatabase:
                 return None
             total_messages = total_messages[0]
 
+            latest_names_cte = self._latest_chat_names_cte(chat_names_table)
+
             chat_stats = self.db.execute(
                 f"""
+                {latest_names_cte}
                 SELECT
-                    chat_id,
-                    chat_name,
+                    m.chat_id,
+                    ln.chat_name,
                     COUNT(*) as message_count
-                FROM {messages_table}
-                GROUP BY chat_id, chat_name
+                FROM {messages_table} m
+                LEFT JOIN latest_names ln ON m.chat_id = ln.chat_id
+                GROUP BY m.chat_id, ln.chat_name
                 ORDER BY message_count DESC
             """
             ).fetchall()
@@ -233,13 +303,15 @@ class TelegramDatabase:
 
             largest_cluster = self.db.execute(
                 f"""
+                {latest_names_cte}
                 SELECT
                     m.chat_id,
-                    m.chat_name,
+                    ln.chat_name,
                     COUNT(*) as cluster_size
                 FROM {clusters_table} c
-                JOIN {messages_table} m ON c.message_id = m.message_id
-                GROUP BY c.group_id, m.chat_id, m.chat_name
+                JOIN {messages_table} m ON c.message_id = m.message_id AND c.chat_id = m.chat_id
+                LEFT JOIN latest_names ln ON m.chat_id = ln.chat_id
+                GROUP BY c.group_id, m.chat_id, ln.chat_name
                 ORDER BY cluster_size DESC
                 LIMIT 1
             """
@@ -369,16 +441,21 @@ class TelegramDatabase:
 
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
+            chat_names_table = f"chat_names_{phone.replace('+', '')}"
+
+            latest_names_cte = self._latest_chat_names_cte(chat_names_table)
 
             chat_info = self.db.execute(
                 f"""
+                {latest_names_cte}
                 SELECT
-                    chat_id,
-                    chat_name,
+                    m.chat_id,
+                    ln.chat_name,
                     COUNT(*) as message_count
-                FROM {messages_table}
-                WHERE chat_id = ?
-                GROUP BY chat_id, chat_name
+                FROM {messages_table} m
+                LEFT JOIN latest_names ln ON m.chat_id = ln.chat_id
+                WHERE m.chat_id = ?
+                GROUP BY m.chat_id, ln.chat_name
             """,
                 [chat_id],
             ).fetchone()
@@ -427,7 +504,14 @@ class TelegramDatabase:
         try:
             messages_table = f"messages_{phone.replace('+', '')}"
             clusters_table = f"message_clusters_{phone.replace('+', '')}"
+            chat_names_table = f"chat_names_{phone.replace('+', '')}"
+            user_names_table = f"user_names_{phone.replace('+', '')}"
+            files_table = f"files_{phone.replace('+', '')}"
 
+            # Ensure global tables
+            self._init_database()
+
+            # Messages table
             columns = [f'"{field}" {info["db_type"]}' for field, info in TELEGRAM_SCHEMA.items()]
             self.db.execute(
                 f"""
@@ -437,7 +521,46 @@ class TelegramDatabase:
             )
             """
             )
+
+            # Clusters table
             self.db.execute(self.__get_create_clusters_table_sql(clusters_table))
+
+            # Name mapping tables
+            chat_cols = ", ".join(
+                [f'"{field}" {info["db_type"]}' for field, info in CHAT_NAMES_SCHEMA.items()]
+            )
+            user_cols = ", ".join(
+                [f'"{field}" {info["db_type"]}' for field, info in USER_NAMES_SCHEMA.items()]
+            )
+            files_cols = ", ".join(
+                [f'"{field}" {info["db_type"]}' for field, info in FILES_SCHEMA.items()]
+            )
+
+            self.db.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {chat_names_table} (
+                    {chat_cols},
+                    PRIMARY KEY (chat_id, chat_name)
+                )
+            """
+            )
+            self.db.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {user_names_table} (
+                    {user_cols},
+                    PRIMARY KEY (from_id, from_name)
+                )
+            """
+            )
+            self.db.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {files_table} (
+                    {files_cols},
+                    PRIMARY KEY (message_id, chat_id)
+                )
+            """
+            )
+
             self.db.execute(
                 """
                 INSERT OR IGNORE INTO users (phone, last_update, first_seen)
@@ -450,6 +573,125 @@ class TelegramDatabase:
         except Exception as e:
             self.logger.error(f"Error initializing user tables: {str(e)}")
             raise
+
+    def _upsert_media_types(self, names: list[str]) -> dict[str, int]:
+        """Ensure media types exist and return mapping name->id."""
+        if not names:
+            return {}
+        # Read existing mapping
+        rows = self.db.execute("SELECT media_type_id, name FROM media_types").fetchall()
+        name_to_id: dict[str, int] = {name: mtid for mtid, name in rows}
+        # Assign new ids
+        new_names = [n for n in set(names) if n is not None and n not in name_to_id]
+        if new_names:
+            # Compute next id
+            max_id_row = self.db.execute(
+                "SELECT COALESCE(MAX(media_type_id), 0) FROM media_types"
+            ).fetchone()
+            next_id = (max_id_row[0] or 0) + 1  # type: ignore # TODO: check if this is correct
+            to_insert = [(next_id + i, n) for i, n in enumerate(sorted(new_names))]
+            self.db.executemany(
+                "INSERT OR IGNORE INTO media_types(media_type_id, name) VALUES (?, ?)", to_insert
+            )
+            for mid, n in to_insert:
+                name_to_id[n] = mid
+        return name_to_id
+
+    def _upsert_forwarded_sources(self, names: list[str]) -> dict[str, int]:
+        if not names:
+            return {}
+        rows = self.db.execute("SELECT forwarded_from_id, name FROM forwarded_sources").fetchall()
+        name_to_id: dict[str, int] = {name: fid for fid, name in rows}
+        new_names = [n for n in set(names) if n is not None and n not in name_to_id]
+        if new_names:
+            max_id_row = self.db.execute(
+                "SELECT COALESCE(MAX(forwarded_from_id), 0) FROM forwarded_sources"
+            ).fetchone()
+            next_id = (max_id_row[0] or 0) + 1  # type: ignore # TODO: check if this is correct
+            to_insert = [(next_id + i, n) for i, n in enumerate(sorted(new_names))]
+            self.db.executemany(
+                "INSERT OR IGNORE INTO forwarded_sources(forwarded_from_id, name) VALUES (?, ?)",
+                to_insert,
+            )
+            for fid, n in to_insert:
+                name_to_id[n] = fid
+        return name_to_id
+
+    def _upsert_name_mappings(self, phone: str, messages_df: pl.DataFrame) -> None:
+        """Insert/update chat and user name mappings based on messages_df."""
+        phone_clean = phone.replace("+", "")
+        chat_names_table = f"chat_names_{phone_clean}"
+        user_names_table = f"user_names_{phone_clean}"
+
+        if "date" not in messages_df.columns:
+            return
+
+        # Chat names: chat_id, chat_name
+        if "chat_id" in messages_df.columns and "chat_name" in messages_df.columns:
+            chat_pairs = messages_df.select(["chat_id", "chat_name", "date"]).drop_nulls(
+                subset=["chat_id", "chat_name"]
+            )
+            if chat_pairs.height > 0:
+                agg = chat_pairs.group_by(["chat_id", "chat_name"]).agg(
+                    [
+                        pl.col("date").min().alias("first_seen"),
+                        pl.col("date").max().alias("last_seen"),
+                    ]
+                )
+                self.db.register("chat_pairs", agg)
+                self.db.execute(
+                    f"""
+                    INSERT OR REPLACE INTO {chat_names_table}(chat_id, chat_name, first_seen, last_seen)
+                    SELECT chat_id, chat_name, first_seen, last_seen FROM chat_pairs
+                    """
+                )
+
+                # Validation: log chats with multiple distinct names
+                dupes = self.db.execute(
+                    f"""
+                    SELECT chat_id, COUNT(DISTINCT chat_name) AS name_count
+                    FROM {chat_names_table}
+                    GROUP BY chat_id
+                    HAVING COUNT(DISTINCT chat_name) > 1
+                    """
+                ).fetchall()
+                for _row in dupes:
+                    self.logger.warning("Chat {_row[0]} has {_row[1]} distinct names")
+
+        # User names: from_id, from_name
+        if "from_id" in messages_df.columns and "from_name" in messages_df.columns:
+            user_pairs = messages_df.select(["from_id", "from_name", "date"]).drop_nulls(
+                subset=["from_id", "from_name"]
+            )
+            if user_pairs.height > 0:
+                agg_u = user_pairs.group_by(["from_id", "from_name"]).agg(
+                    [
+                        pl.col("date").min().alias("first_seen"),
+                        pl.col("date").max().alias("last_seen"),
+                    ]
+                )
+                self.db.register("user_pairs", agg_u)
+                self.db.execute(
+                    f"""
+                    INSERT OR REPLACE INTO {user_names_table}(from_id, from_name, first_seen, last_seen)
+                    SELECT from_id, from_name, first_seen, last_seen FROM user_pairs
+                    """
+                )
+
+        # Files: message_id, chat_id, file_name
+        files_table = f"files_{phone_clean}"
+        if {"message_id", "chat_id", "file_name"}.issubset(set(messages_df.columns)):
+            files_df = messages_df.select(["message_id", "chat_id", "file_name"]).drop_nulls(
+                subset=["message_id", "chat_id", "file_name"]
+            )
+            if files_df.height > 0:
+                self.db.register("files_df", files_df)
+                self.db.execute(
+                    f"""
+                    INSERT OR REPLACE INTO {files_table}(message_id, chat_id, file_name)
+                    SELECT message_id, chat_id, file_name FROM files_df
+                    """
+                )
 
     def add_messages(self, phone: str, messages_df: pl.DataFrame) -> None:
         """
@@ -467,10 +709,75 @@ class TelegramDatabase:
 
             self.logger.info(f"Adding {messages_df.height} messages for user {phone}")
 
-            if "from_name" not in messages_df.columns:
-                messages_df = messages_df.with_columns(pl.lit(None).alias("from_name"))
-                self.logger.info(f"Added missing 'from_name' column to DataFrame for user {phone}")
+            # Ensure all schema columns exist in DataFrame with correct types
+            for field, info in TELEGRAM_SCHEMA.items():
+                if field not in messages_df.columns:
+                    default_val = None
+                    messages_df = messages_df.with_columns(
+                        pl.lit(default_val).cast(info["polars_type"]).alias(field)
+                    )
 
+            # Map media_type strings -> ints via media_types table
+            if "media_type" in messages_df.columns:
+                media_names = [
+                    x
+                    for x in messages_df.select("media_type").to_series().drop_nulls().to_list()
+                    if isinstance(x, str)
+                ]
+                mapping = self._upsert_media_types(media_names)
+                if mapping:
+                    messages_df = messages_df.with_columns(
+                        pl.col("media_type")
+                        .map_elements(
+                            lambda x: mapping.get(x) if isinstance(x, str) else None,
+                            return_dtype=pl.Int64,
+                            skip_nulls=False,
+                        )
+                        .cast(pl.Int32)
+                        .alias("media_type")
+                    )
+                else:
+                    messages_df = messages_df.with_columns(
+                        pl.lit(None).cast(pl.Int32).alias("media_type")
+                    )
+
+            # Map forwarded_from -> forwarded_from_id
+            if "forwarded_from" in messages_df.columns:
+                fwd_names = [
+                    x
+                    for x in messages_df.select("forwarded_from").to_series().drop_nulls().to_list()
+                    if isinstance(x, str)
+                ]
+                fwd_map = self._upsert_forwarded_sources(fwd_names)
+                if fwd_map:
+                    messages_df = messages_df.with_columns(
+                        pl.col("forwarded_from")
+                        .map_elements(
+                            lambda x: fwd_map.get(x) if isinstance(x, str) else None,
+                            return_dtype=pl.Int64,
+                            skip_nulls=False,
+                        )
+                        .cast(pl.Int32)
+                        .alias("forwarded_from_id")
+                    )
+                else:
+                    messages_df = messages_df.with_columns(
+                        pl.lit(None).cast(pl.Int32).alias("forwarded_from_id")
+                    )
+
+            # Upsert name mappings
+            self._upsert_name_mappings(phone, messages_df)
+
+            # Register and insert into messages table using schema order
+            # Drop legacy string cols not present in TELEGRAM_SCHEMA
+            cols_to_keep = list(TELEGRAM_SCHEMA.keys())
+            # Ensure DataFrame has those columns in any order
+            missing = [c for c in cols_to_keep if c not in messages_df.columns]
+            for c in missing:
+                messages_df = messages_df.with_columns(
+                    pl.lit(None).cast(TELEGRAM_SCHEMA[c]["polars_type"]).alias(c)
+                )
+            messages_df = messages_df.select(cols_to_keep)
             self.db.register("messages_df", messages_df)
             self.db.execute(
                 f"""INSERT OR IGNORE INTO {messages_table} ({', '.join(list(TELEGRAM_SCHEMA.keys()))}) SELECT {', '.join(list(TELEGRAM_SCHEMA.keys()))} FROM messages_df"""

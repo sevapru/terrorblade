@@ -37,21 +37,25 @@ Central registry of all users in the system:
 
 ### Messages Table (`messages_{phone}`)
 
-Primary storage for all message data with standardized schema:
+Primary storage for all message data with standardized schema. Repeated attributes are normalized into mapping tables to reduce storage.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `message_id` | BIGINT | Unique Telegram message identifier |
+| `message_id` | INTEGER | Unique Telegram message identifier |
 | `chat_id` | BIGINT | Chat/conversation identifier |
 | `date` | TIMESTAMP | Message timestamp with timezone |
 | `text` | TEXT | Message content (cleaned and processed) |
-| `from_id` | BIGINT | Sender's unique identifier |
-| `reply_to_message_id` | BIGINT | ID of message being replied to |
-| `media_type` | TEXT | Type of attached media (photo, video, etc.) |
-| `file_name` | TEXT | Name of attached file |
-| `from_name` | TEXT | Display name of sender |
-| `chat_name` | TEXT | Name of chat/conversation |
-| `forwarded_from` | TEXT | Source of forwarded messages |
+| `from_id` | INTEGER | Sender's unique identifier |
+| `reply_to_message_id` | INTEGER | ID of message being replied to |
+| `media_type` | INTEGER | Media type ID (FK → `media_types.media_type_id`) |
+| `forwarded_from_id` | INTEGER | Forwarded source ID (FK → `forwarded_sources.forwarded_from_id`) |
+| `embeddings` | FLOAT[768] | 768-dim embedding vector (optional) |
+
+Notes:
+
+- `chat_name`/`from_name` are moved to per-user mapping tables (see below).
+- `file_name` moved to per-user `files_{phone}` table.
+- `media_type` is stored as INT referring to global `media_types` dictionary.
 
 ### Message Clusters Table (`message_clusters_{phone}`)
 
@@ -59,7 +63,7 @@ Groups related messages into conversation clusters:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `message_id` | BIGINT | References message in messages table |
+| `message_id` | INTEGER | References message in messages table |
 | `chat_id` | BIGINT | Chat identifier |
 | `group_id` | INTEGER | Cluster identifier (messages in same cluster) |
 
@@ -71,11 +75,51 @@ Vector storage for semantic search capabilities:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `message_id` | BIGINT | References message in messages table |
+| `message_id` | INTEGER | References message in messages table |
 | `chat_id` | BIGINT | Chat identifier |
-| `embedding` | FLOAT[768] | 768-dimensional embedding vector |
+| `embeddings` | FLOAT[768] | 768-dimensional embedding vector |
 
 **Primary Key**: `(message_id, chat_id)`
+
+### Name Mapping Tables (per-user)
+
+To reduce duplication and track historical name changes.
+
+- `chat_names_{phone}`
+  - `chat_id` BIGINT
+  - `chat_name` TEXT
+  - `first_seen` TIMESTAMP
+  - `last_seen` TIMESTAMP
+  - PK: `(chat_id, chat_name)`
+
+- `user_names_{phone}`
+  - `from_id` INTEGER
+  - `from_name` TEXT
+  - `first_seen` TIMESTAMP
+  - `last_seen` TIMESTAMP
+  - PK: `(from_id, from_name)`
+
+### Files Table (per-user)
+
+Stores file associations for messages.
+
+- `files_{phone}`
+  - `message_id` INTEGER
+  - `chat_id` BIGINT
+  - `file_name` TEXT (path or canonical filename)
+  - PK: `(message_id, chat_id)`
+
+### Global Dictionaries
+
+- `media_types`
+  - `media_type_id` INTEGER (PK)
+  - `name` TEXT (unique)
+  - Auto-extended when new media types are encountered during preprocessing
+
+- `forwarded_sources`
+  - `forwarded_from_id` INTEGER (PK)
+  - `name` TEXT (unique)
+  - Auto-extended when new forwarded sources are encountered
 
 ## 🔍 Vector Search Architecture
 
@@ -96,26 +140,6 @@ USING HNSW(embeddings);
 - **Cosine Similarity**: Optimized for semantic similarity matching
 - **Configurable Parameters**: Adjustable index size and search precision
 - **Persistent Storage**: Indexes are automatically persisted to disk
-
-### Vector Operations
-
-The system supports multiple vector operations:
-
-- **Similarity Search**: Find most similar messages to a query
-- **Distance Search**: Find messages within a distance threshold
-- **Batch Operations**: Process multiple queries efficiently
-- **Cluster Context**: Retrieve conversation context around matches
-
-### Search Capabilities
-
-```python
-# Semantic search for messages
-vector_store.similarity_search(
-    query_vector=embedding,
-    top_k=10,
-    similarity_threshold=0.7
-)
-```
 
 ## 🛠️ Database Management
 
@@ -138,13 +162,18 @@ All data types are centrally defined in [`terrorblade/data/dtypes.py`](../terror
 TELEGRAM_SCHEMA = {
     "message_id": {
         "polars_type": pl.Int64,
-        "db_type": "BIGINT",
+        "db_type": "INTEGER",
         "description": "Unique identifier for the message"
     },
-    "embeddings": {
-        "polars_type": pl.Array(pl.Float32, shape=768),
-        "db_type": "FLOAT[768]",
-        "description": "F32 embeddings array with fixed length 768"
+    "media_type": {
+        "polars_type": pl.Int32,
+        "db_type": "INTEGER",
+        "description": "Integer reference to media type (maps to media_types table)"
+    },
+    "forwarded_from_id": {
+        "polars_type": pl.Int32,
+        "db_type": "INTEGER",
+        "description": "Integer reference to forwarded source (maps to forwarded_sources table)"
     }
     ...
 }
@@ -156,6 +185,7 @@ TELEGRAM_SCHEMA = {
 - **Documentation**: Self-documenting schema with descriptions
 - **Maintainability**: Single source of truth for data structure
 - **API Integration**: Automatic schema generation for APIs
+- **Storage Efficiency**: Normalized names/media and downsized integers reduce DB size
 
 ## 📈 Performance Features
 
@@ -167,13 +197,6 @@ The database implements several performance optimizations:
 - **Partitioned Data**: Messages separated by user for faster access
 - **Columnar Storage**: Efficient compression and query performance
 - **Vector Indexing**: HNSW indexes for sub-second similarity search
-
-### Memory Management
-
-- **Lazy Loading**: Indexes loaded on-demand
-- **Connection Pooling**: Efficient database connection management
-- **Batch Operations**: Bulk inserts and updates for better performance
-- **Automatic Cleanup**: Session and temporary data cleanup
 
 ## 🔧 Database Operations
 

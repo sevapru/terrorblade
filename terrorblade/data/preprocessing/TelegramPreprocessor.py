@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-from datetime import datetime
 from typing import Any
 
 import duckdb
@@ -9,7 +8,14 @@ import polars as pl
 from dotenv import load_dotenv
 
 from terrorblade import Logger
-from terrorblade.data.dtypes import get_process_schema, telegram_import_schema_short
+from terrorblade.data.database.telegram_database import TelegramDatabase
+from terrorblade.data.dtypes import (
+    CHAT_NAMES_SCHEMA,
+    FILES_SCHEMA,
+    USER_NAMES_SCHEMA,
+    get_process_schema,
+    telegram_import_schema_short,
+)
 from terrorblade.data.preprocessing.TextPreprocessor import TextPreprocessor
 
 
@@ -39,6 +45,7 @@ class TelegramPreprocessor(TextPreprocessor):
         load_dotenv(".env")
 
         self.use_duckdb = use_duckdb
+        self.db_path = db_path
         self.phone = phone.replace("+", "") if phone else None
 
         self.logger = Logger(
@@ -63,6 +70,9 @@ class TelegramPreprocessor(TextPreprocessor):
         phone_clean = self.phone.replace("+", "") if self.phone else "default"
         clusters_table = f"message_clusters_{phone_clean}"
         embeddings_table = f"chat_embeddings_{phone_clean}"
+        chat_names_table = f"chat_names_{phone_clean}"
+        user_names_table = f"user_names_{phone_clean}"
+        files_table = f"files_{phone_clean}"
 
         self.db.execute(
             f"""
@@ -84,6 +94,58 @@ class TelegramPreprocessor(TextPreprocessor):
                 PRIMARY KEY (message_id, chat_id)
             )
         """
+        )
+
+        # Global media types dictionary
+        self.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS media_types (
+                media_type_id INTEGER,
+                name TEXT,
+                PRIMARY KEY (media_type_id)
+            )
+            """
+        )
+        self.db.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_media_types_name ON media_types(name)
+            """
+        )
+
+        # Name mapping tables (per-user)
+        chat_cols = ", ".join(
+            [f'"{field}" {info["db_type"]}' for field, info in CHAT_NAMES_SCHEMA.items()]
+        )
+        user_cols = ", ".join(
+            [f'"{field}" {info["db_type"]}' for field, info in USER_NAMES_SCHEMA.items()]
+        )
+        files_cols = ", ".join(
+            [f'"{field}" {info["db_type"]}' for field, info in FILES_SCHEMA.items()]
+        )
+
+        self.db.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {chat_names_table} (
+                {chat_cols},
+                PRIMARY KEY (chat_id, chat_name)
+            )
+            """
+        )
+        self.db.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {user_names_table} (
+                {user_cols},
+                PRIMARY KEY (from_id, from_name)
+            )
+            """
+        )
+        self.db.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {files_table} (
+                {files_cols},
+                PRIMARY KEY (message_id, chat_id)
+            )
+            """
         )
 
     def _get_messages_from_db(
@@ -727,44 +789,21 @@ class TelegramPreprocessor(TextPreprocessor):
             messages_df (pl.DataFrame): DataFrame containing messages
         """
         try:
-            phone = phone if phone is not None else self.phone
-            messages_table = f"messages_{phone}"
-
-            self.logger.info(f"Adding {messages_df.height} messages for user {phone}")
-
-            if "from_name" not in messages_df.columns:
-                messages_df = messages_df.with_columns(pl.lit(None).alias("from_name"))
-                self.logger.info(f"Added missing 'from_name' column to DataFrame for user {phone}")
-
-            self.db.register("messages_df", messages_df)
-            column_names = [
-                k
-                for k in telegram_import_schema_short
-                if k not in ("id", "media_type", "file_name")
-            ]
-            self.db.execute(
-                f"""INSERT OR IGNORE INTO {messages_table} ({', '.join(column_names)}) SELECT {', '.join(column_names)} FROM messages_df"""
-            )
-
-            first_seen = self.db.execute(
-                f"""
-                SELECT MIN(date) FROM {messages_table}
-                """
-            ).fetchone()
-            first_seen = first_seen[0] if first_seen else None
-
-            self.db.execute(
-                """
-                INSERT OR REPLACE INTO users (phone, last_update, first_seen)
-                VALUES (?, ?, ?)
-                """,
-                [phone, datetime.now(), first_seen or datetime.now()],
-            )
-
-            self.logger.info(f"Successfully added messages for user {phone}")
+            # Delegate to TelegramDatabase to avoid duplicating logic
+            phone_use = phone if phone is not None else self.phone
+            if phone_use is None:
+                raise ValueError("Phone number is required to add messages to DB")
+            tdb = TelegramDatabase(db_path=self.db_path)
+            try:
+                tdb.add_messages(phone_use, messages_df)
+                self.logger.info(f"Successfully added messages for user {phone_use}")
+            finally:
+                tdb.close()
         except Exception as e:
             self.logger.error(f"Error adding messages: {str(e)}")
             raise
+
+    # Upsert helpers are handled centrally by TelegramDatabase to avoid duplication
 
     def process_file(
         self,
