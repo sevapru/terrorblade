@@ -18,6 +18,8 @@ class VectorStore:
         self.embeddings_table = f"chat_embeddings_{self.phone}"
         self.messages_table = f"messages_{self.phone}"
         self.clusters_table = f"message_clusters_{self.phone}"
+        self.chat_names_table = f"chat_names_{self.phone}"
+        self.user_names_table = f"user_names_{self.phone}"
 
         self.logger = Logger(
             name="VectorStore",
@@ -355,17 +357,39 @@ class VectorStore:
                 params = [query_vector, query_vector, chat_id, top_k]
 
             query = f"""
-                SELECT e.message_id, e.chat_id, m.text, m.chat_name, m.from_name, m.date,
+                WITH latest_chat_names AS (
+                    SELECT chat_id, chat_name FROM (
+                        SELECT chat_id, chat_name,
+                               ROW_NUMBER() OVER (PARTITION BY chat_id ORDER BY COALESCE(last_seen, first_seen) DESC) AS rn
+                        FROM {self.chat_names_table}
+                    ) t WHERE rn = 1
+                ),
+                latest_user_names AS (
+                    SELECT from_id, from_name FROM (
+                        SELECT from_id, from_name,
+                               ROW_NUMBER() OVER (PARTITION BY from_id ORDER BY COALESCE(last_seen, first_seen) DESC) AS rn
+                        FROM {self.user_names_table}
+                    ) t WHERE rn = 1
+                )
+                SELECT e.message_id, e.chat_id, m.text, lcn.chat_name, lun.from_name, m.date,
                        array_cosine_similarity(e.embeddings, ?::FLOAT[768]) as similarity,
                        COALESCE(c.group_id, -1) as cluster_id
                 FROM {self.embeddings_table} e
                 JOIN {self.messages_table} m ON e.message_id = m.message_id AND e.chat_id = m.chat_id
                 LEFT JOIN {self.clusters_table} c ON e.message_id = c.message_id AND e.chat_id = c.chat_id
-                WHERE array_cosine_similarity(e.embeddings, ?::FLOAT[768]) >= {similarity_threshold}
+                LEFT JOIN latest_chat_names lcn ON m.chat_id = lcn.chat_id
+                LEFT JOIN latest_user_names lun ON m.from_id = lun.from_id
+                WHERE array_cosine_similarity(e.embeddings, ?::FLOAT[768]) >= ?
                 {where_clause}
                 ORDER BY similarity DESC
                 LIMIT ?
             """
+
+            # Insert similarity_threshold before LIMIT param; order already correct
+            if chat_id is not None:
+                params = [query_vector, query_vector, similarity_threshold, chat_id, top_k]
+            else:
+                params = [query_vector, query_vector, similarity_threshold, top_k]
 
             results = self._execute_query(
                 query, params, "performing similarity search with text"
@@ -421,9 +445,16 @@ class VectorStore:
                 return (original_text or "")[:100].replace("\n", " ")
 
             cluster_messages = self._execute_query(
-                f"""SELECT m.message_id, m.text, m.from_name, m.date
+                f"""SELECT m.message_id, m.text, lun.from_name, m.date
                     FROM {self.messages_table} m
                     JOIN {self.clusters_table} c ON m.message_id = c.message_id AND m.chat_id = c.chat_id
+                    LEFT JOIN (
+                        SELECT from_id, from_name FROM (
+                            SELECT from_id, from_name,
+                                   ROW_NUMBER() OVER (PARTITION BY from_id ORDER BY COALESCE(last_seen, first_seen) DESC) AS rn
+                            FROM {self.user_names_table}
+                        ) t WHERE rn = 1
+                    ) lun ON m.from_id = lun.from_id
                     WHERE c.group_id = ? AND m.chat_id = ?
                     ORDER BY m.date""",
                 [cluster_id, chat_id],
