@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import contextlib
+
+# --- Logging setup and helpers ---
+import logging
+import os
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Any
 
 import polars as pl
 from fastmcp import FastMCP
-
-# --- Logging setup and helpers ---
-import logging
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
-import os
 
 
 def _get_project_root() -> Path:

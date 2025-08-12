@@ -1,7 +1,6 @@
-import asyncio
-import os
 import tempfile
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import pytest
 from fastmcp import Client
@@ -132,7 +131,7 @@ async def test_prompts_are_registered():
 @pytest.mark.asyncio
 async def test_vector_search_tool_executes(monkeypatch):
     with tempfile.TemporaryDirectory() as td:
-        db_path = os.path.join(td, "test.db")
+        db_path = Path(td / "test.db")
         phone = "+123456"
         _setup_min_db(db_path, phone)
 
@@ -160,7 +159,7 @@ async def test_vector_search_tool_executes(monkeypatch):
 @pytest.mark.asyncio
 async def test_cluster_endpoints(monkeypatch):
     with tempfile.TemporaryDirectory() as td:
-        db_path = os.path.join(td, "test.db")
+        db_path = Path(td / "test.db")
         phone = "+123456"
         _setup_min_db(db_path, phone)
 
@@ -192,4 +191,4 @@ async def test_cluster_endpoints(monkeypatch):
             )
             clusters = _payload(r3)
             assert isinstance(clusters, list)
-            assert len(clusters) >= 0 
+            assert len(clusters) >= 0
