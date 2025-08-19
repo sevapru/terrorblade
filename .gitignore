@@ -13,7 +13,7 @@ reports/nemesis*
 *.pyz
 *.pywz
 *.pyzw
-*.egg-infoterrorblade/mcp/README.md
+*.egg-info/
 
 # Performance logs
 stats/
