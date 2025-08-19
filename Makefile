@@ -3,7 +3,7 @@ include make/requirements.mk
 include make/security.mk
 include make/test.mk
 
-.PHONY: help install test check format requirements security clean show-info
+.PHONY: help install test check format requirements security clean show-info setup-mcp
 
 .DEFAULT_GOAL := help
 
@@ -18,6 +18,7 @@ help:
 	@echo "  format         Auto-fix code formatting and linting issues"
 	@echo "  requirements   Compile and manage dependencies"
 	@echo "  security       Run security scans"
+	@echo "  setup-mcp      Set up MCP server for Claude integration"
 	@echo "  clean          Clean build artifacts and cache"
 	@echo "  show-info      Display project information"
 	@echo ""
@@ -90,4 +91,17 @@ install: setup-venv check-env requirements-compile
 	@if [ -z "$$VIRTUAL_ENV" ] && [ -d ".venv" ]; then \
 		echo -e "$(YELLOW)💡 To activate the environment:$(NC) $(GREEN)source .venv/bin/activate$(NC)"; \
 		echo ""; \
-	fi 
+	fi
+
+# MCP server setup for Claude integration
+setup-mcp:
+	$(call log_section,🤖 Setting up MCP Server for Claude)
+	@if [ ! -f "scripts/setup-mcp-service.sh" ]; then \
+		echo -e "$(RED)[✗]$(NC) setup-mcp-service.sh not found in scripts/"; \
+		exit 1; \
+	fi
+	@chmod +x scripts/setup-mcp-service.sh
+	@bash scripts/setup-mcp-service.sh
+	$(call log_success,MCP setup completed!)
+	@echo ""
+	@echo -e "$(YELLOW)📚 For more details, see:$(NC) $(CYAN)terrorblade/mcp/README.md$(NC)" 
