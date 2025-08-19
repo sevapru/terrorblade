@@ -381,7 +381,7 @@ def random_large_cluster(phone: str, min_size: int = 10, db_path: str = "auto") 
     except Exception:
         # Fallback: try to treat as iterable of dict-like rows
         try:
-            return list(df_or_none)  # type: ignore[misc]
+            return list(df_or_none)  # type: ignore[arg-type]
         except Exception:
             return []
 

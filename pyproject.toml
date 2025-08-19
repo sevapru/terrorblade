@@ -3,7 +3,7 @@ name = "terrorblade"
 version = "0.2.3"
 description = "A Python-based Telegram message parser and analyzer"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
     { name = "Vsevolod Prudius", email = "sevapru@gmail.com" }
@@ -17,7 +17,7 @@ dependencies = [
     "numpy",
     "sentence-transformers",
     "pyarrow",
-    "seaborn",
+    "torch",
     "fastmcp>=2.10.0",
 ]
 
@@ -38,21 +38,9 @@ dev = [
     "wheel",
     "twine",
 ]
-
-cuda = [
-    "cupy-cuda12x",
-    "cudf-cu12==24.10.*",
-    "dask-cudf-cu12==24.10.*",
-    "cuml-cu12==24.10.*",
-    "cugraph-cu12==24.10.*",
-    "nx-cugraph-cu12==24.10.*",
-    "cuspatial-cu12==24.10.*",
-    "cuproj-cu12==24.10.*",
-    "cuxfilter-cu12==24.10.*",
-    "cucim-cu12==24.10.*",
-    "pylibraft-cu12==24.10.*",
-    "raft-dask-cu12==24.10.*",
-    "cuvs-cu12==24.10.*",
+viz = [
+    "seaborn",
+    "matplotlib",
 ]
 
 
