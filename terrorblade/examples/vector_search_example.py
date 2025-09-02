@@ -86,13 +86,11 @@ class VectorSearcher:
                 keywords = [keywords]
 
             stats = self._vector_store.get_table_stats()
-            print(
-                f"Database: {stats.get('total_embeddings', 0)} embeddings, {stats.get('unique_chats', 0)} chats"
-            )
+            print(f"Database: {stats.get('total_embeddings', 0)} embeddings, {stats.get('unique_chats', 0)} chats")
             self._vector_store.print_index_stats()
 
             for keyword in keywords:
-                print(f"\n{'='*60}")
+                print(f"\n{'=' * 60}")
                 print(f"Keyword: '{keyword}'")
                 print("=" * 60)
 
@@ -103,9 +101,7 @@ class VectorSearcher:
 
                 if len(results_df) > 0:
                     display_df = self._format_results(results_df)
-                    with pl.Config(
-                        tbl_width_chars=1200, fmt_str_lengths=1000, tbl_cols=-1, tbl_rows=100
-                    ):
+                    with pl.Config(tbl_width_chars=1200, fmt_str_lengths=1000, tbl_cols=-1, tbl_rows=100):
                         print(display_df)
                 else:
                     print("No results found.")

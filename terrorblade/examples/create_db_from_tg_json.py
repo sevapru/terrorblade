@@ -4,12 +4,13 @@ import argparse
 
 from terrorblade.data.database.telegram_database import TelegramDatabase
 from terrorblade.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
+from terrorblade.utils.config import get_db_path
 
 
 def create_db_from_telegram_json(
     phone: str,
     json_file_path: str,
-    db_path: str = "telegram_data.db",
+    db_path: str = "auto",
     skip_embeddings: bool = False,
 ) -> None:
     """
@@ -21,7 +22,7 @@ def create_db_from_telegram_json(
     Args:
         phone (str): Phone number (e.g., "91654321987")
         json_file_path (str): Path to the Telegram JSON export file
-        db_path (str, optional): Path to the database file. Defaults to "telegram_data.db"
+        db_path (str, optional): Path to the database file or "auto" to use .env variables
         skip_embeddings (bool): If True, will not compute/store embeddings (faster)
 
     Example:
@@ -29,6 +30,9 @@ def create_db_from_telegram_json(
         >>> create_db_from_telegram_json("91654321987", "/path/to/result.json")
     """
     print(f"Creating database from Telegram JSON export for {phone}")
+
+    resolved_db_path = get_db_path(db_path)
+    print(f"Using database: {resolved_db_path}")
 
     db = TelegramDatabase(db_path=db_path)
     db.init_user_tables(phone)
@@ -38,12 +42,9 @@ def create_db_from_telegram_json(
     try:
         print(f"Processing JSON file: {json_file_path}")
         if skip_embeddings:
-            # Only add messages to DB
             chats = preprocessor.prepare_data(json_file_path)
             for _, chat_df in chats.items():
-                preprocessor._add_messages_to_db(
-                    chat_df, phone=phone
-                )  # noqa: SLF001 (intended internal use)
+                preprocessor._add_messages_to_db(chat_df, phone=phone)  # noqa: SLF001 (intended internal use)
         else:
             preprocessor.process_file(json_file_path)
         db.print_user_summary(phone)
@@ -60,8 +61,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-d",
         "--db-path",
-        default="telegram_data.db",
-        help="Path to the database file (default: telegram_data.db)",
+        default="auto",
+        help="Path to the database file (default: auto - uses .env variables)",
     )
     parser.add_argument(
         "--skip-embeddings",
