@@ -115,7 +115,7 @@ class TestClusterAnalyzer:
     def analyzer(self, mock_db: Generator[tuple[str, str]]) -> ClusterAnalyzer:
         """Create ClusterAnalyzer instance with mock database."""
         db_path, phone = mock_db
-        analyzer = ClusterAnalyzer(phone=phone, db_path=db_path)
+        analyzer = ClusterAnalyzer(phone=phone, db_path=db_path) # type: ignore
         return analyzer
 
     def test_cluster_analyzer_init(self, mock_db: Generator[tuple[str, str]]) -> None:
@@ -484,9 +484,13 @@ class TestIntegration:
         if Path(env_path).exists():
             Path(env_path).unlink()
 
-    def test_environment_loading(self, sample_env_file: str) -> None:
+    @patch("terrorblade.examples.cluster_analysis_cli.TelegramDatabase")
+    @patch("terrorblade.examples.cluster_analysis_cli.get_db_path")
+    def test_environment_loading(self, mock_get_db_path: Mock, mock_db_class: Mock, sample_env_file: str) -> None:
         """Test that environment variables are loaded correctly."""
-        # Mock load_dotenv to use our test file
+        mock_get_db_path.return_value = "/tmp/test.db"
+        mock_db_instance = Mock()
+        mock_db_class.return_value = mock_db_instance
         with patch("terrorblade.examples.cluster_analysis_cli.load_dotenv") as mock_load_dotenv:
             mock_load_dotenv.return_value = None
             with patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key-123"}):
@@ -495,6 +499,7 @@ class TestIntegration:
 
                 analyzer = ClusterAnalyzer("+1234567890")
                 assert analyzer.phone == "+1234567890"
+                mock_db_class.assert_called_once_with(db_path="/tmp/test.db", read_only=True)
 
     def test_analyzer_with_real_data_structure(self) -> None:
         """Test analyzer with realistic data structure."""
@@ -503,10 +508,9 @@ class TestIntegration:
 
         import tempfile
 
-        fd, db_path = tempfile.mkstemp(suffix=".db")
-        os.close(fd)
-        Path(db_path).unlink()
-
+        # Use a unique temporary path to avoid conflicts
+        db_path = tempfile.mktemp(suffix=".db", prefix="test_terrorblade_")
+        
         try:
             # Create a proper database first
             db = TelegramDatabase(db_path=db_path, read_only=False)
