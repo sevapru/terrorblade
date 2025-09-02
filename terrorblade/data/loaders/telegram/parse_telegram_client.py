@@ -43,9 +43,7 @@ class TelegramParser:
         self.api_hash = api_hash or os.getenv("API_HASH")
         self.phone = phone or os.getenv("PHONE") or "31627866359"
         self.client = None
-        self.session_db_path = session_db_path or str(
-            Path(os.getenv("LOG_DIR", "data")) / "telegram_sessions.db"
-        )
+        self.session_db_path = session_db_path or str(Path(os.getenv("LOG_DIR", "data")) / "telegram_sessions.db")
         self.db = db or TelegramDatabase()
         self.session_manager = SessionManager(db_path=self.session_db_path)
 
@@ -65,9 +63,7 @@ class TelegramParser:
             self.logger.info(f"Using existing session for phone {self.phone}")
             self.client = TelegramClient(StringSession(session_string), self.api_id, self.api_hash)
         else:
-            self.logger.info(
-                f"No existing session found for phone {self.phone}, creating new session"
-            )
+            self.logger.info(f"No existing session found for phone {self.phone}, creating new session")
             self.client = TelegramClient(StringSession(), self.api_id, self.api_hash)
 
         try:
@@ -93,9 +89,7 @@ class TelegramParser:
 
         except FloodWaitError as e:
             wait_time = e.seconds
-            self.logger.warning(
-                f"FloodWaitError: Need to wait {wait_time} seconds due to Telegram rate limiting"
-            )
+            self.logger.warning(f"FloodWaitError: Need to wait {wait_time} seconds due to Telegram rate limiting")
             await asyncio.sleep(wait_time)
             await self.connect()
 
@@ -144,9 +138,7 @@ class TelegramParser:
         Returns:
             Optional[pl.DataFrame]: DataFrame with messages or None if no messages found
         """
-        self.logger.info(
-            f"Fetching messages from chat {chat_id} (limit: {limit}, min_id: {min_id})"
-        )
+        self.logger.info(f"Fetching messages from chat {chat_id} (limit: {limit}, min_id: {min_id})")
         messages = []
         if chat_id < 0:
             self.logger.info(f"Chat {chat_id} is a service chat, skipping")
@@ -190,14 +182,10 @@ class TelegramParser:
             schema = get_polars_schema()
             df = pl.DataFrame(
                 messages,
-                schema={
-                    col_name: dtype for col_name, dtype in schema.items() if col_name in messages[0]
-                },
+                schema={col_name: dtype for col_name, dtype in schema.items() if col_name in messages[0]},
                 strict=False,
             )
-            unique_sender_ids = (
-                df.filter(pl.col("from_id").is_not_null())["from_id"].unique().to_list()
-            )
+            unique_sender_ids = df.filter(pl.col("from_id").is_not_null())["from_id"].unique().to_list()
             sender_info = {}
 
             for sender_id in unique_sender_ids:
@@ -242,9 +230,7 @@ class TelegramParser:
         Returns:
             Dict[int, pl.DataFrame]: Dictionary mapping chat_id to messages DataFrame
         """
-        self.logger.info(
-            f"Fetching all chats (dialog limit: {limit_dialogs}, messages limit: {limit_messages})"
-        )
+        self.logger.info(f"Fetching all chats (dialog limit: {limit_dialogs}, messages limit: {limit_messages})")
         try:
             dialogs = await self.get_dialogs(limit=limit_dialogs)
             chats_dict = {}
@@ -254,15 +240,11 @@ class TelegramParser:
 
                 min_id = self.db.get_max_message_id(self.phone, chat_id) if self.db else -1
 
-                df = await self.get_chat_messages(
-                    chat_id, limit=limit_messages, min_id=min_id, dialog_name=dialog.name
-                )
+                df = await self.get_chat_messages(chat_id, limit=limit_messages, min_id=min_id, dialog_name=dialog.name)
 
                 min_id = self.db.get_max_message_id(self.phone, chat_id) if self.db else -1
 
-                df = await self.get_chat_messages(
-                    chat_id, limit=limit_messages, min_id=min_id, dialog_name=dialog.name
-                )
+                df = await self.get_chat_messages(chat_id, limit=limit_messages, min_id=min_id, dialog_name=dialog.name)
 
                 if df is not None and not df.is_empty():
                     self.logger.info(f"Added {len(df)} messages from chat {chat_id}")
@@ -271,9 +253,7 @@ class TelegramParser:
                     if self.db is not None:
                         self.db.add_messages(self.phone, df)
                 elif min_id > -1 or min_id > -1:
-                    self.logger.info(
-                        f"No new messages found for chat {chat_id} since message_id {min_id}"
-                    )
+                    self.logger.info(f"No new messages found for chat {chat_id} since message_id {min_id}")
 
             self.logger.info(f"Successfully fetched messages from {len(chats_dict)} chats")
             return chats_dict
