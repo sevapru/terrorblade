@@ -34,12 +34,11 @@ The installer will:
 - Python 3.12+
 - DuckDB CLI (for database operations)
 
-#### Optional 
+#### Optional
 
 - Telegram API credentials (API ID and API Hash)  
 - CUDA-compatible GPU (for GPU-accelerated features)
   
-
 ## Manual Installation
 
 Full installation guide and troubleshooting: [INSTALL.md](fun/generated/v0.2.0/INSTALL.md)
@@ -60,8 +59,6 @@ make test                  # Verify your setup
 make security              # Run security scans
 cp .env.example .env       # Configure your local variables
 ```
-
-
 
 ## Implemented Features
 
@@ -93,8 +90,6 @@ cp .env.example .env       # Configure your local variables
 |--------|---------------------|----------|--------|  
 | **Terrorblade** | Demon | Data extraction and parsing (Telegram, WhatsApp, VK/Instagram/Facebook) | ✅ Released (Telegram) |  
 | **Thoth** | Egyptian Scribe God | Topic analysis & visualization | 🔄 Coming Soon |  
-
-
 
 ### **Phase 2: Multi-Platform Expansion**  
 
@@ -293,7 +288,7 @@ Refer to Cursor’s MCP docs for configuration details.
 >⚠️ **WARNING**:
 >
 > **This example is designed for small accounts with limited message history. Using it on accounts with large message histories may:**
-> 
+>
 > - **Trigger Telegram's rate limits**
 > - **Cause your account to be temporarily disconnected**
 > - **Require re-authentication on all devices**
