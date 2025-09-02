@@ -20,8 +20,12 @@ docs-mkdocs/**
 *fix*.md
 *migration*.md
 *optimization*.md
+*refactor*.md
 task*.txt
 task*.md
+reports/
+RELEASE_*.md
+PULL_REQUEST_*.md
 
 # Performance logs
 stats/
@@ -77,3 +81,6 @@ logs/
 
 # Original test data
 tests/data/messages_test.json
+
+# Cursor agents
+.cursor/

@@ -683,7 +683,7 @@ class OptimizedClusterAnalysisTUI(App):
         chat_selection = ChatSelectionScreen(self.analyzer, self.logging_terminal)
         self.push_screen(chat_selection)
 
-    def action_quit(self) -> None: # type: ignore
+    def action_quit(self) -> None:
         """Quit the application."""
         logger.info("Quitting application")
         if self.analyzer:
