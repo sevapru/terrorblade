@@ -4,13 +4,14 @@ import contextlib
 
 # --- Logging setup and helpers ---
 import logging
-import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
 import polars as pl
 from fastmcp import FastMCP
+
+from terrorblade.utils.config import get_db_path
 
 
 def _get_project_root() -> Path:
@@ -60,28 +61,9 @@ LOGGER = _setup_logging()
 
 def _resolve_db_path(db_path: str | None) -> str:
     """
-    Resolve the DuckDB database path.
-
-    Priority:
-    1) Explicit non-empty db_path parameter
-    2) Environment variable DUCKDB_PATH
-    3) Parent directory of the project: ../telegram_data.db
+    Resolve the DuckDB database path using centralized config.
     """
-    # 1) explicit parameter if provided and not a sentinel
-    if db_path and db_path.strip().lower() not in {"auto", "default"}:
-        resolved = str(Path(db_path).expanduser().resolve())
-        return resolved
-
-    # 2) env var
-    env_path = os.getenv("DUCKDB_PATH")
-    if env_path:
-        resolved = str(Path(env_path).expanduser().resolve())
-        return resolved
-
-    # 3) default in parent of project
-    parent_dir = _get_project_root().parent
-    default_path = parent_dir / "telegram_data.db"
-    return str(default_path)
+    return get_db_path(db_path or "auto")
 
 
 mcp = FastMCP("Terrorblade MCP Server")
@@ -98,7 +80,6 @@ def _encode_query(text: str) -> list[float]:
 
 
 def _df_to_rows(df: pl.DataFrame) -> list[dict[str, Any]]:
-
     if df.is_empty():
         return []
     # Ensure datetimes are ISO strings for JSON serialization
@@ -264,14 +245,17 @@ def cluster_search(
             continue
         chat = int(r["chat_id"]) if "chat_id" in r else -1
         key = (cid, chat)
-        current = clusters.get(key, {
-            "group_id": cid,
-            "chat_id": chat,
-            "chat_name": r.get("chat_name"),
-            "best_similarity": float(r.get("similarity", 0.0)),
-            "hits": 0,
-            "snippet": r.get("text_preview") or r.get("text"),
-        })
+        current = clusters.get(
+            key,
+            {
+                "group_id": cid,
+                "chat_id": chat,
+                "chat_name": r.get("chat_name"),
+                "best_similarity": float(r.get("similarity", 0.0)),
+                "hits": 0,
+                "snippet": r.get("text_preview") or r.get("text"),
+            },
+        )
         current["hits"] += 1
         sim = float(r.get("similarity", 0.0))
         if sim > float(current["best_similarity"]):
