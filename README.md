@@ -39,12 +39,11 @@ The installer will:
 - Python 3.12+
 - DuckDB CLI (for database operations)
 
-#### Optional 
+#### Optional
 
 - Telegram API credentials (API ID and API Hash)  
 - CUDA-compatible GPU (for GPU-accelerated features)
   
-
 ## Manual Installation
 
 ```bash
@@ -64,8 +63,6 @@ make test                  # Verify your setup
 make security              # Run security scans
 cp .env.example .env       # Configure your local variables
 ```
-
-
 
 ## Implemented Features
 
