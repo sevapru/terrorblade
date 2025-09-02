@@ -99,7 +99,7 @@ disallow_untyped_defs = false
 ignore_errors = true
 
 [tool.setuptools]
-packages = ["terrorblade", "nemesis"]
+packages = ["terrorblade"]
 
 [project.scripts]
 terrorblade-mcp = "terrorblade.mcp.server:main"
