@@ -8,10 +8,9 @@
 
 A unified data extraction and parsing platform for messaging platforms, featuring Telegram message processing, data standardization, and analytics preparation capabilities.
 
-## Linux, Windows, macOS
-
+## Linux, macOS
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sevapru/terrorblade/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/sevapru/terrorblade/refs/heads/main/scripts/install.sh | bash
 ```
 
 <details>
@@ -41,8 +40,6 @@ The installer will:
   
 ## Manual Installation
 
-Full installation guide and troubleshooting: [INSTALL.md](fun/generated/v0.2.0/INSTALL.md)
-
 ```bash
 git clone https://github.com/sevapru/terrorblade.git
 cd terrorblade
@@ -53,7 +50,7 @@ After installation:
 
 ```bash
 cd ~/terrorblade
-source .venv/bin/activate  # or: ./activate.sh
+source .venv/bin/activate
 make help                  # See all available commands
 make test                  # Verify your setup
 make security              # Run security scans
@@ -95,8 +92,8 @@ cp .env.example .env       # Configure your local variables
 
 | Module | Mythological Figure | Function | Status |  
 |--------|---------------------|----------|--------|  
-| **Argus** | All-Seeing Giant (Greek) | Multi-platform data extraction (WhatsApp, VK, Instagram, Facebook) | Planned (Q4 2024) |  
-| **Themis**/**Nemesis** | Goddess of Justice/Retribution (Greek) | Advanced analytics & pattern detection | Planned (Q1 2025) |  
+| **Argus** | All-Seeing Giant (Greek) | Multi-platform data extraction (WhatsApp, VK, Instagram, Facebook) | Planned (Q4 2025) |  
+| **Themis**/**Nemesis** | Goddess of Justice/Retribution (Greek) | Advanced analytics & pattern detection | Planned (Q1 2026) |  
 
 ### **Phase 3: Ethics & Infrastructure**  
 
