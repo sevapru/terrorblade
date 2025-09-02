@@ -1077,6 +1077,8 @@ class TelegramDatabase:
             - resource-management
         """
         try:
+            # Ensure all transactions are committed and flushed to disk
+            self.db.execute("CHECKPOINT")
             self.db.close()
             self.logger.info("Database connection closed")
         except Exception as e:

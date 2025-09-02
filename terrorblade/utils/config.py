@@ -31,13 +31,17 @@ def get_db_path(db_path: str = "auto") -> str:
     """
     # 1) explicit parameter if provided and not a sentinel
     if db_path and db_path.strip().lower() not in {"auto", "default"}:
-        resolved = str(Path(db_path).expanduser().resolve())
+        path_obj = Path(db_path).expanduser()
+        # Only resolve if not already absolute to avoid symlink resolution on macOS
+        resolved = str(path_obj.resolve() if not path_obj.is_absolute() else path_obj)
         return resolved
 
     # 2) env var
     env_path = os.getenv("DB_PATH")
     if env_path:
-        resolved = str(Path(env_path).expanduser().resolve())
+        path_obj = Path(env_path).expanduser()
+        # Only resolve if not already absolute to avoid symlink resolution on macOS
+        resolved = str(path_obj.resolve() if not path_obj.is_absolute() else path_obj)
         return resolved
 
     # 3) default in parent of project
