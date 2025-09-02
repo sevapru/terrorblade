@@ -582,6 +582,7 @@ class TelegramPreprocessor(TextPreprocessor):
                     pl.col("members")
                     .map_elements(
                         lambda x: str(list(set(x))) if isinstance(x, list) else x,
+                        return_dtype=pl.self_dtype(),
                     )
                     .alias("members")
                 ]

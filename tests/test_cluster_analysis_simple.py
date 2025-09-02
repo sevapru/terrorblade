@@ -262,9 +262,13 @@ class TestClusterAnalyzerMocked:
     """Test ClusterAnalyzer with fully mocked dependencies."""
 
     @patch("terrorblade.examples.cluster_analysis_cli.TelegramDatabase")
-    def test_cluster_analyzer_init_mocked(self, mock_db_class: Mock) -> None:
+    @patch("terrorblade.examples.cluster_analysis_cli.get_db_path")
+    def test_cluster_analyzer_init_mocked(self, mock_get_db_path: Mock, mock_db_class: Mock) -> None:
         """Test ClusterAnalyzer initialization with mocked database."""
         from terrorblade.examples.cluster_analysis_cli import ClusterAnalyzer
+
+        # Mock the get_db_path to return a predictable path
+        mock_get_db_path.return_value = "/tmp/test.db"
 
         # Mock the database instance
         mock_db_instance = Mock()
@@ -279,13 +283,20 @@ class TestClusterAnalyzerMocked:
         assert analyzer.chat_names_table == "chat_names_1234567890"
         assert analyzer.user_names_table == "user_names_1234567890"
 
-        # Verify database was initialized correctly
-        mock_db_class.assert_called_once_with(db_path="test.db", read_only=True)
+        # Verify get_db_path was called with the provided db_path
+        mock_get_db_path.assert_called_once_with("test.db")
+
+        # Verify database was initialized correctly with the resolved path
+        mock_db_class.assert_called_once_with(db_path="/tmp/test.db", read_only=True)
 
     @patch("terrorblade.examples.cluster_analysis_cli.TelegramDatabase")
-    def test_find_chat_by_name_mocked(self, mock_db_class: Mock) -> None:
+    @patch("terrorblade.examples.cluster_analysis_cli.get_db_path")
+    def test_find_chat_by_name_mocked(self, mock_get_db_path: Mock, mock_db_class: Mock) -> None:
         """Test finding chat by name with mocked database."""
         from terrorblade.examples.cluster_analysis_cli import ClusterAnalyzer
+
+        # Mock the get_db_path to return a predictable path
+        mock_get_db_path.return_value = "/tmp/test.db"
 
         # Mock the database instance
         mock_db_instance = Mock()
@@ -307,9 +318,13 @@ class TestClusterAnalyzerMocked:
         assert result is None
 
     @patch("terrorblade.examples.cluster_analysis_cli.TelegramDatabase")
-    def test_get_cluster_summary_data_mocked(self, mock_db_class: Mock) -> None:
+    @patch("terrorblade.examples.cluster_analysis_cli.get_db_path")
+    def test_get_cluster_summary_data_mocked(self, mock_get_db_path: Mock, mock_db_class: Mock) -> None:
         """Test getting cluster summary data with mocked database."""
         from terrorblade.examples.cluster_analysis_cli import ClusterAnalyzer
+
+        # Mock the get_db_path to return a predictable path
+        mock_get_db_path.return_value = "/tmp/test.db"
 
         # Mock the database instance
         mock_db_instance = Mock()
