@@ -7,7 +7,7 @@ Type=simple
 User=seva
 Group=seva
 WorkingDirectory=/home/seva/code/terrorblade/terrorblade/mcp
-Environment=DUCKDB_PATH=/home/seva/data/telegram_data.db
+Environment=DB_PATH=/home/seva/data/telegram_data.db
 ExecStart=/home/seva/code/terrorblade/.venv/bin/python server.py
 Restart=always
 RestartSec=10
