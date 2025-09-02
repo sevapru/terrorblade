@@ -1,3 +1,6 @@
+nemesis
+reports/nemesis*
+
 # Python
 */__pycache__/
 *.py[cod]
@@ -10,13 +13,26 @@
 *.pyz
 *.pywz
 *.pyzw
-*.egg-info
+*.egg-info/
+
+# Docs
+docs-mkdocs/**
+*fix*.md
+*migration*.md
+*optimization*.md
+*refactor*.md
+task*.txt
+task*.md
+reports/
+RELEASE_*.md
+PULL_REQUEST_*.md
 
 # Performance logs
 stats/
 
 # Virtual environment
 .venv/
+*.lock
 
 # Environment variables
 .env
@@ -27,13 +43,16 @@ requirements-dev.txt
 requirements-cuda.txt
 requirements-lock.txt
 requirements-dev-lock.txt
+requirements-docs.txt
 
 # Security and audit reports
 exports/
 docs/generated/
-docs/project management/*
+docs/project management/
 docs/reports/
 docs/Cursor-versus-CoPilot/
+reports/*.json
+
 
 # DB
 *.db
@@ -62,3 +81,6 @@ logs/
 
 # Original test data
 tests/data/messages_test.json
+
+# Cursor agents
+.cursor/

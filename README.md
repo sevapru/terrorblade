@@ -8,7 +8,6 @@
 
 A unified data extraction and parsing platform for messaging platforms, featuring Telegram message processing, data standardization, and analytics preparation capabilities.
 
-
 ## Linux, macOS
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sevapru/terrorblade/refs/heads/main/scripts/install.sh | bash
@@ -18,6 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/sevapru/terrorblade/refs/heads/main
 <summary>Installation Steps</summary>
 
 The installer will:
+
 - ✅ Set up Python environment with `uv`
 - ✅ Install all dependencies using unified requirements
 - ✅ Configure security scanning tools
@@ -26,18 +26,18 @@ The installer will:
 
 </details>
 
-
-
 ### Prerequisites
+
 #### Required
-* Python 3.12+
-* DuckDB CLI (for database operations)
 
-#### Optional 
-* Telegram API credentials (API ID and API Hash)  
-* CUDA-compatible GPU (for GPU-accelerated features)
+- Python 3.12+
+- DuckDB CLI (for database operations)
+
+#### Optional
+
+- Telegram API credentials (API ID and API Hash)  
+- CUDA-compatible GPU (for GPU-accelerated features)
   
-
 ## Manual Installation
 
 ```bash
@@ -47,6 +47,7 @@ make install
 ```
 
 After installation:
+
 ```bash
 cd ~/terrorblade
 source .venv/bin/activate
@@ -55,9 +56,6 @@ make test                  # Verify your setup
 make security              # Run security scans
 cp .env.example .env       # Configure your local variables
 ```
-
-
-
 
 ## Implemented Features
 
@@ -80,40 +78,44 @@ cp .env.example .env       # Configure your local variables
   - Conversation clustering and grouping
   - Advanced data analysis pipeline (Thoth module - in development)
 
-
 <details>
 <summary>Development Phases</summary>
 
 ### **Phase 1: Data Ingestion & Processing**  
+
 | Module | Mythological Figure | Function | Status |  
 |--------|---------------------|----------|--------|  
 | **Terrorblade** | Demon | Data extraction and parsing (Telegram, WhatsApp, VK/Instagram/Facebook) | ✅ Released (Telegram) |  
 | **Thoth** | Egyptian Scribe God | Topic analysis & visualization | 🔄 Coming Soon |  
 
-
-
 ### **Phase 2: Multi-Platform Expansion**  
+
 | Module | Mythological Figure | Function | Status |  
 |--------|---------------------|----------|--------|  
 | **Argus** | All-Seeing Giant (Greek) | Multi-platform data extraction (WhatsApp, VK, Instagram, Facebook) | Planned (Q4 2025) |  
 | **Themis**/**Nemesis** | Goddess of Justice/Retribution (Greek) | Advanced analytics & pattern detection | Planned (Q1 2026) |  
 
 ### **Phase 3: Ethics & Infrastructure**  
+
 | Module | Mythological Figure | Function | Status |  
 |--------|---------------------|----------|--------|  
 | **Iris** | Rainbow Messenger (Greek) | Data visualization & interactive dashboards | Planned (Q2 2025) |  
 | **Janus** | Two-Faced God of Gates (Roman) | Ethical data anonymization & access control | Planned (Q3 2025) |  
 
 ### **Phase 4: Specialized Expansion**  
+
 - **Hephaestus**: AI customization toolkit (train models on niche slang/contexts).  
 - **Hypnos**: Sleep/fatigue analysis via activity timelines.  
-- **Eris**: Community stress-testing through controlled chaos (A/B message testing).  
+- **Eris**: Community stress-testing through controlled chaos (A/B message testing).
+
 </details>
 
 ---
 
 ## Quick Start Demo
+
 ### Processing messages from extracted archive
+
 This method is much safer from the perspective of account access and implementation since you upload your messages directly with machine-readable JSON.
 
 #### Step 1: Export your Telegram messages as JSON
@@ -175,6 +177,7 @@ Use the simplified vector search example to find messages containing specific to
 ```bash
 python terrorblade/examples/vector_search_example.py "поплава" --db telegram_data.db --phone 1234567890
 ```
+
 Arguments:
 
 - `keywords`: One or more keywords to search for in the vector store
@@ -185,7 +188,7 @@ Arguments:
 <details>
 <summary>Possible Output</summary>
 
-```
+```bash
 (terrorblade) ┌─[seva@*****] - [~/сode/terrorblade/terrorblade/examples] - [Mon Aug 04, 18:12]
 └─[$]> python vector_search_example.py "паплава" --phone 79992004210 --db telegram_data.db
 Database: 928899 embeddings, 298 chats
@@ -235,7 +238,6 @@ shape: (3, 8)
 └────────────┴───────────┴────────────┴─────────┴───────────────┴───────────┴─────────────────────┴────────────────────────────────────────────────────────────────────────┘
 ```
 
-
 ### Understanding the Results
 
 - **Similarity**: Cosine similarity score (0-1, higher = more similar)
@@ -246,15 +248,44 @@ shape: (3, 8)
 
 </details>
 
+## MCP Server
+
+Terrorblade ships an MCP server exposing vector search and cluster retrieval tools (compatible with Cursor, Claude, etc.).
+
+### Run locally (stdio)
+
+```bash
+uv run terrorblade-mcp
+```
+
+### Tools
+
+- `vector_search` — semantic search over messages with optional cluster snippets
+- `get_cluster` — fetch messages for a specific `group_id` in a `chat_id`
+- `random_large_cluster` — return a random large conversation cluster
+
+Inputs mirror the database usage:
+
+- `db_path`: path to DuckDB file (e.g., `telegram_data.db`)
+- `phone`: user phone identifier (with or without `+`)
+
+For Cursor MCP setup, add a server with command `uv` and args like:
+
+```bash
+uvx terrorblade-mcp
+```
+
+Refer to Cursor’s MCP docs for configuration details.
+
 ## Processing messages directly from Telegram API
 
-###  Before you start
+### Before you start
 
 >
 >⚠️ **WARNING**:
 >
 > **This example is designed for small accounts with limited message history. Using it on accounts with large message histories may:**
-> 
+>
 > - **Trigger Telegram's rate limits**
 > - **Cause your account to be temporarily disconnected**
 > - **Require re-authentication on all devices**
@@ -280,7 +311,8 @@ To use direct Telegram message synchronization, you'll need to obtain API creden
    - `api_id`: A numeric value
    - `api_hash`: A 32-character hexadecimal string
 6. Add these values to your `.env` file:
-   ```
+
+   ```bash
    API_ID=your_api_id
    API_HASH=your_api_hash
    ```

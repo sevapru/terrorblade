@@ -1,5 +1,7 @@
 # Database Schema & Architecture
 
+> **⚠️ Code as Source of Truth**: This documentation reflects the actual implementation in the codebase. All schema definitions, types, and constraints are derived from the source code (`terrorblade/data/dtypes.py` and related modules).
+
 Terrorblade uses **DuckDB** as its primary database engine, providing a modern, high-performance analytical database that combines the simplicity of SQLite with the power of columnar storage and vector operations. The system implements a **centralized storage architecture** where each user's data is organized into separate tables using phone numbers as identifiers.
 
 ## 🏗️ Architecture Overview
@@ -23,6 +25,42 @@ Terrorblade leverages DuckDB's advanced features:
 - **ACID Compliance**: Reliable data integrity and transaction support
 - **Zero Configuration**: No server setup required, file-based operation
 
+## 🔧 Technical Implementation Notes
+
+### BIGINT vs INTEGER Decision
+
+All ID fields (`message_id`, `from_id`, `chat_id`, `reply_to_message_id`) use **BIGINT** instead of INTEGER due to:
+
+- **Telegram API Compatibility**: Telegram uses 64-bit integers for all identifiers
+- **Future-proofing**: Prevents overflow issues as Telegram user base grows
+- **Consistency**: Unified type system across the entire codebase
+
+### Composite Primary Keys
+
+All user-specific tables use composite primary keys `(message_id, chat_id)` rather than simple keys:
+
+- **Cross-chat Uniqueness**: Message IDs can repeat across different chats
+- **Data Integrity**: Ensures proper relationships between tables
+- **Query Performance**: Optimized for common query patterns
+
+### Schema Consistency
+
+The database schema is defined in `terrorblade/data/dtypes.py` as the single source of truth:
+
+```python
+TELEGRAM_SCHEMA = {
+    "message_id": {"polars_type": pl.Int64, "db_type": "BIGINT", "description": "..."},
+    "chat_id": {"polars_type": pl.Int64, "db_type": "BIGINT", "description": "..."},
+    # ... other fields
+}
+```
+
+This ensures consistency between:
+- Database table creation
+- Data validation
+- API responses
+- Documentation
+
 ## 📊 Core Tables
 
 ### Users Table
@@ -41,21 +79,25 @@ Primary storage for all message data with standardized schema. Repeated attribut
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `message_id` | INTEGER | Unique Telegram message identifier |
+| `message_id` | BIGINT | Unique Telegram message identifier |
 | `chat_id` | BIGINT | Chat/conversation identifier |
 | `date` | TIMESTAMP | Message timestamp with timezone |
 | `text` | TEXT | Message content (cleaned and processed) |
-| `from_id` | INTEGER | Sender's unique identifier |
-| `reply_to_message_id` | INTEGER | ID of message being replied to |
+| `from_id` | BIGINT | Sender's unique identifier |
+| `reply_to_message_id` | BIGINT | ID of message being replied to |
 | `media_type` | INTEGER | Media type ID (FK → `media_types.media_type_id`) |
 | `forwarded_from_id` | INTEGER | Forwarded source ID (FK → `forwarded_sources.forwarded_from_id`) |
 | `embeddings` | FLOAT[768] | 768-dim embedding vector (optional) |
+
+**Primary Key**: `(message_id, chat_id)`
 
 Notes:
 
 - `chat_name`/`from_name` are moved to per-user mapping tables (see below).
 - `file_name` moved to per-user `files_{phone}` table.
-- `media_type` is stored as INT referring to global `media_types` dictionary.
+- `media_type` is stored as INTEGER referring to global `media_types` dictionary.
+- BIGINT used for ID fields to ensure compatibility with Telegram API large values.
+- Composite primary key `(message_id, chat_id)` allows message IDs to repeat across different chats.
 
 ### Message Clusters Table (`message_clusters_{phone}`)
 
@@ -63,11 +105,15 @@ Groups related messages into conversation clusters:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `message_id` | INTEGER | References message in messages table |
+| `message_id` | BIGINT | References message in messages table |
 | `chat_id` | BIGINT | Chat identifier |
 | `group_id` | INTEGER | Cluster identifier (messages in same cluster) |
 
 **Primary Key**: `(message_id, chat_id)`
+
+Notes:
+- BIGINT used for message_id to match messages table schema.
+- Composite primary key ensures uniqueness across different chats.
 
 ### Chat Embeddings Table (`chat_embeddings_{phone}`)
 
@@ -75,11 +121,15 @@ Vector storage for semantic search capabilities:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `message_id` | INTEGER | References message in messages table |
+| `message_id` | BIGINT | References message in messages table |
 | `chat_id` | BIGINT | Chat identifier |
 | `embeddings` | FLOAT[768] | 768-dimensional embedding vector |
 
 **Primary Key**: `(message_id, chat_id)`
+
+Notes:
+- BIGINT used for message_id to match messages table schema.
+- Composite primary key ensures uniqueness across different chats.
 
 ### Name Mapping Tables (per-user)
 
@@ -92,8 +142,12 @@ To reduce duplication and track historical name changes.
   - `last_seen` TIMESTAMP
   - PK: `(chat_id, chat_name)`
 
+Notes:
+- BIGINT used for chat_id to match messages table schema.
+- Composite primary key `(chat_id, chat_name)` allows tracking name history per chat.
+
 - `user_names_{phone}`
-  - `from_id` INTEGER
+  - `from_id` BIGINT
   - `from_name` TEXT
   - `first_seen` TIMESTAMP
   - `last_seen` TIMESTAMP
@@ -104,10 +158,14 @@ To reduce duplication and track historical name changes.
 Stores file associations for messages.
 
 - `files_{phone}`
-  - `message_id` INTEGER
+  - `message_id` BIGINT
   - `chat_id` BIGINT
   - `file_name` TEXT (path or canonical filename)
   - PK: `(message_id, chat_id)`
+
+Notes:
+- BIGINT used for message_id and chat_id to match messages table schema.
+- Composite primary key ensures uniqueness across different chats.
 
 ### Global Dictionaries
 

@@ -62,11 +62,7 @@ class TestVectorSearch:
             base_vector = np.random.rand(768).astype(np.float32)
             if "programming" in text.lower() or "python" in text.lower():
                 base_vector[0:10] = 0.8  # Programming cluster
-            elif (
-                "machine learning" in text.lower()
-                or "ai" in text.lower()
-                or "neural" in text.lower()
-            ):
+            elif "machine learning" in text.lower() or "ai" in text.lower() or "neural" in text.lower():
                 base_vector[10:20] = 0.8  # ML cluster
             elif "weather" in text.lower() or "walk" in text.lower():
                 base_vector[20:30] = 0.8  # Outdoor cluster
@@ -116,9 +112,7 @@ class TestVectorSearch:
         telegram_database.add_messages(self.__class__.test_phone, sample_messages_df)
 
         # Add embeddings to the embeddings table
-        preprocessor = TelegramPreprocessor(
-            use_duckdb=True, db_path=test_db_path, phone=self.__class__.test_phone
-        )
+        preprocessor = TelegramPreprocessor(use_duckdb=True, db_path=test_db_path, phone=self.__class__.test_phone)
 
         # Add embeddings directly
         embeddings_df = sample_messages_df.select(["message_id", "chat_id", "embeddings"])
@@ -129,30 +123,22 @@ class TestVectorSearch:
         return VectorStore(db_path=test_db_path, phone=self.__class__.test_phone)
 
     @pytest.fixture
-    def empty_vector_store(
-        self, test_db_path: str, telegram_database: TelegramDatabase
-    ) -> VectorStore:
+    def empty_vector_store(self, test_db_path: str, telegram_database: TelegramDatabase) -> VectorStore:
         """Create VectorStore with empty tables."""
         telegram_database.init_user_tables(self.__class__.test_phone)
 
         # Create the embeddings table that VectorStore expects
-        preprocessor = TelegramPreprocessor(
-            use_duckdb=True, db_path=test_db_path, phone=self.__class__.test_phone
-        )
+        preprocessor = TelegramPreprocessor(use_duckdb=True, db_path=test_db_path, phone=self.__class__.test_phone)
         preprocessor.close()
 
         return VectorStore(db_path=test_db_path, phone=self.__class__.test_phone)
 
-    def test_vector_store_init(
-        self, test_db_path: str, telegram_database: TelegramDatabase
-    ) -> None:
+    def test_vector_store_init(self, test_db_path: str, telegram_database: TelegramDatabase) -> None:
         """Test VectorStore initialization."""
         telegram_database.init_user_tables(self.__class__.test_phone)
 
         # Create the embeddings table that VectorStore expects
-        preprocessor = TelegramPreprocessor(
-            use_duckdb=True, db_path=test_db_path, phone=self.__class__.test_phone
-        )
+        preprocessor = TelegramPreprocessor(use_duckdb=True, db_path=test_db_path, phone=self.__class__.test_phone)
         preprocessor.close()
 
         vector_store = VectorStore(db_path=test_db_path, phone=self.__class__.test_phone)
@@ -166,16 +152,12 @@ class TestVectorSearch:
 
         vector_store.close()
 
-    def test_vector_store_init_invalid_phone(
-        self, test_db_path: str, telegram_database: TelegramDatabase
-    ) -> None:
+    def test_vector_store_init_invalid_phone(self, test_db_path: str, telegram_database: TelegramDatabase) -> None:
         """Test VectorStore initialization with phone number formatting."""
         telegram_database.init_user_tables("+987654321")
 
         # Create the embeddings table that VectorStore expects
-        preprocessor = TelegramPreprocessor(
-            use_duckdb=True, db_path=test_db_path, phone="+987654321"
-        )
+        preprocessor = TelegramPreprocessor(use_duckdb=True, db_path=test_db_path, phone="+987654321")
         preprocessor.close()
 
         # Test phone number normalization
@@ -206,9 +188,7 @@ class TestVectorSearch:
         assert result is False  # Should not recreate without force
 
         # Test forced recreation
-        result = vector_store_with_data.create_hnsw_index(
-            index_name=index_name, force_recreate=True
-        )
+        result = vector_store_with_data.create_hnsw_index(index_name=index_name, force_recreate=True)
         assert result is True
 
         vector_store_with_data.close()
@@ -332,12 +312,8 @@ class TestVectorSearch:
         query_vector = self.__class__.sample_embeddings[0]
 
         # Test with specific chat_id
-        results_chat_100 = vector_store_with_data.similarity_search(
-            query_vector, top_k=10, chat_id=100
-        )
-        results_chat_101 = vector_store_with_data.similarity_search(
-            query_vector, top_k=10, chat_id=101
-        )
+        results_chat_100 = vector_store_with_data.similarity_search(query_vector, top_k=10, chat_id=100)
+        results_chat_101 = vector_store_with_data.similarity_search(query_vector, top_k=10, chat_id=101)
 
         # All results should have the specified chat_id
         for result in results_chat_100:
@@ -412,14 +388,10 @@ class TestVectorSearch:
         query_vector = self.__class__.sample_embeddings[0]
 
         # Test with low threshold (should return fewer results)
-        results_low_threshold = vector_store_with_data.distance_search(
-            query_vector, top_k=10, distance_threshold=0.5
-        )
+        results_low_threshold = vector_store_with_data.distance_search(query_vector, top_k=10, distance_threshold=0.5)
 
         # Test with high threshold (should return more results)
-        results_high_threshold = vector_store_with_data.distance_search(
-            query_vector, top_k=10, distance_threshold=1.5
-        )
+        results_high_threshold = vector_store_with_data.distance_search(query_vector, top_k=10, distance_threshold=1.5)
 
         # Low threshold should return fewer or equal results
         assert len(results_low_threshold) <= len(results_high_threshold)
@@ -534,16 +506,12 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_get_similar_messages_with_text_and_chat_filter(
-        self, vector_store_with_data: VectorStore
-    ) -> None:
+    def test_get_similar_messages_with_text_and_chat_filter(self, vector_store_with_data: VectorStore) -> None:
         """Test similarity search with text and chat_id filter."""
         vector_store_with_data.create_hnsw_index()
 
         query_vector = self.__class__.sample_embeddings[0]
-        result_df = vector_store_with_data.get_similar_messages_with_text(
-            query_vector, top_k=10, chat_id=100
-        )
+        result_df = vector_store_with_data.get_similar_messages_with_text(query_vector, top_k=10, chat_id=100)
 
         assert isinstance(result_df, pl.DataFrame)
 
@@ -666,9 +634,7 @@ class TestVectorSearch:
 
         empty_vector_store.close()
 
-    def test_parameter_combinations_similarity_search(
-        self, vector_store_with_data: VectorStore
-    ) -> None:
+    def test_parameter_combinations_similarity_search(self, vector_store_with_data: VectorStore) -> None:
         """Test similarity search with different parameter combinations."""
         vector_store_with_data.create_hnsw_index()
         query_vector = self.__class__.sample_embeddings[0]
@@ -680,25 +646,19 @@ class TestVectorSearch:
 
         # Test different threshold values
         for threshold in [0.0, 0.3, 0.5, 0.8, 0.95]:
-            results = vector_store_with_data.similarity_search(
-                query_vector, top_k=10, similarity_threshold=threshold
-            )
+            results = vector_store_with_data.similarity_search(query_vector, top_k=10, similarity_threshold=threshold)
             for result in results:
                 assert result[2] >= threshold
 
         # Test with both chat_id filter and threshold
-        results = vector_store_with_data.similarity_search(
-            query_vector, top_k=5, chat_id=100, similarity_threshold=0.3
-        )
+        results = vector_store_with_data.similarity_search(query_vector, top_k=5, chat_id=100, similarity_threshold=0.3)
         for result in results:
             assert result[1] == 100  # chat_id filter
             assert result[2] >= 0.3  # threshold
 
         vector_store_with_data.close()
 
-    def test_parameter_combinations_distance_search(
-        self, vector_store_with_data: VectorStore
-    ) -> None:
+    def test_parameter_combinations_distance_search(self, vector_store_with_data: VectorStore) -> None:
         """Test distance search with different parameter combinations."""
         vector_store_with_data.create_hnsw_index()
         query_vector = self.__class__.sample_embeddings[0]
@@ -710,9 +670,7 @@ class TestVectorSearch:
 
         # Test different threshold values
         for threshold in [0.1, 0.5, 1.0, 1.5, 2.0]:
-            results = vector_store_with_data.distance_search(
-                query_vector, top_k=10, distance_threshold=threshold
-            )
+            results = vector_store_with_data.distance_search(query_vector, top_k=10, distance_threshold=threshold)
             for result in results:
                 assert result[2] <= threshold
 
@@ -739,9 +697,7 @@ class TestVectorSearch:
         with pytest.raises((OSError, Exception)):
             VectorStore(db_path=invalid_path, phone=self.__class__.test_phone)
 
-    def test_print_index_stats_functionality(
-        self, vector_store_with_data: VectorStore, capsys
-    ) -> None:
+    def test_print_index_stats_functionality(self, vector_store_with_data: VectorStore, capsys) -> None:
         """Test print_index_stats output (captures stdout)."""
         # Create index first
         vector_store_with_data.create_hnsw_index()

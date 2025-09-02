@@ -1,0 +1,55 @@
+Terrorblade MCP Server llms.txt
+
+Overview
+- Terrorblade is a Telegram data processing and analytics toolkit using DuckDB for storage and sentence-transformers for embeddings.
+- The MCP server exposes tools for semantic vector search and cluster retrieval over a DuckDB database created by Terrorblade.
+
+Usage Context
+- Connect via MCP-capable clients (Cursor, Claude Desktop, FastMCP client).
+- Default transport: stdio (command: `python -m terrorblade.mcp.server`).
+- Requires a DuckDB database with Terrorblade schemas and a phone identifier used in table names (e.g., `messages_<phone>`, `chat_embeddings_<phone>`).
+
+Tools
+- vector_search(db_path, phone, query, top_k=10, chat_id=None, similarity_threshold=0.0, include_cluster_messages=True)
+  - Performs semantic search using embeddings stored in DuckDB
+  - Returns: { results: [ { message_id, chat_id, text, chat_name, from_name, date, similarity, cluster_id, text_preview } ], stats: {...} }
+  - Notes: Builds HNSW index if missing. `text_preview` includes a compact cluster snippet when available.
+
+- cluster_search(db_path, phone, query, top_k=50, max_clusters=10, similarity_threshold=0.0)
+  - Aggregates top vector hits into clusters; returns per-cluster summaries
+  - Output fields: group_id, chat_id, chat_name, best_similarity, hits, snippet
+
+- get_cluster(db_path, phone, chat_id, group_id)
+  - Returns full message rows for a specific cluster (group_id) within a chat
+
+- random_large_cluster(db_path, phone, min_size=10)
+  - Picks a random cluster of at least `min_size` across all chats and returns its messages
+
+Prompts (Interaction Templates)
+- vector_search_template(query)
+  - Instructs the assistant to call `vector_search` and present concise results with chat, author, date, similarity, and snippet.
+- cluster_summary_template(chat_name, snippet)
+  - Guides summarization of a conversation snippet, focusing on topic, participants, and outcome.
+
+Schemas and Tables (per-phone suffix)
+- messages_<phone>: message_id, chat_id, from_id, text, date
+- chat_embeddings_<phone>: message_id, chat_id, embeddings (FLOAT[768])
+- message_clusters_<phone>: message_id, chat_id, group_id
+- chat_names_<phone>: chat_id, chat_name, first_seen, last_seen
+- user_names_<phone>: from_id, from_name, first_seen, last_seen
+
+Best Practices
+- Provide `db_path` and `phone` consistently across calls.
+- Use `similarity_threshold` to filter low-similarity noise.
+- For deeper context, pair `vector_search` results with `get_cluster` and `cluster_summary_template` to summarize.
+
+Example Calls (pseudo)
+- vector_search: { db_path: "telegram_data.db", phone: "+123456789", query: "project deadline", top_k: 20 }
+- cluster_search: { db_path: "telegram_data.db", phone: "+123456789", query: "onboarding", top_k: 100, max_clusters: 5 }
+- get_cluster: { db_path: "telegram_data.db", phone: "+123456789", chat_id: 42, group_id: 3 }
+- random_large_cluster: { db_path: "telegram_data.db", phone: "+123456789", min_size: 10 }
+
+Notes
+- Vector embeddings are produced by sentence-transformers (paraphrase-multilingual-mpnet-base-v2).
+- DuckDB VSS extension is used for similarity and distance operations.
+- The server lazily imports heavy dependencies to minimize startup overhead. 

@@ -243,9 +243,7 @@ def create_message_template() -> dict[str, None]:
     return dict.fromkeys(TELEGRAM_SCHEMA.keys())
 
 
-def map_telethon_message_to_schema(
-    message: Any, chat_id: int, dialog_name: str | None = None
-) -> dict[str, Any]:
+def map_telethon_message_to_schema(message: Any, chat_id: int, dialog_name: str | None = None) -> dict[str, Any]:
     """
     Maps a Telethon message object to our centralized schema format.
 

@@ -151,14 +151,10 @@ def transform_messages(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Transform Telegram messages to animal-themed content"
-    )
+    parser = argparse.ArgumentParser(description="Transform Telegram messages to animal-themed content")
     parser.add_argument("input_file", help="Path to the input JSON file")
     parser.add_argument("output_file", help="Path to the output JSON file")
-    parser.add_argument(
-        "--backup", action="store_true", help="Create a backup of the original file"
-    )
+    parser.add_argument("--backup", action="store_true", help="Create a backup of the original file")
 
     args = parser.parse_args()
     # Check if input file exists

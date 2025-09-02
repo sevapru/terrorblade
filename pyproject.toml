@@ -1,9 +1,9 @@
 [project]
 name = "terrorblade"
-version = "0.2.0"
+version = "0.2.3"
 description = "A Python-based Telegram message parser and analyzer"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
     { name = "Vsevolod Prudius", email = "sevapru@gmail.com" }
@@ -17,7 +17,8 @@ dependencies = [
     "numpy",
     "sentence-transformers",
     "pyarrow",
-    "seaborn",
+    "torch",
+    "fastmcp>=2.10.0",
 ]
 
 [project.optional-dependencies]
@@ -27,6 +28,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-watch",
+    "pytest-asyncio>=0.23.0",
     "black>=24.0.0",
     "isort>=5.12.0",
     "mypy>=1.5.0",
@@ -36,21 +38,9 @@ dev = [
     "wheel",
     "twine",
 ]
-
-cuda = [
-    "cupy-cuda12x",
-    "cudf-cu12==24.10.*",
-    "dask-cudf-cu12==24.10.*",
-    "cuml-cu12==24.10.*",
-    "cugraph-cu12==24.10.*",
-    "nx-cugraph-cu12==24.10.*",
-    "cuspatial-cu12==24.10.*",
-    "cuproj-cu12==24.10.*",
-    "cuxfilter-cu12==24.10.*",
-    "cucim-cu12==24.10.*",
-    "pylibraft-cu12==24.10.*",
-    "raft-dask-cu12==24.10.*",
-    "cuvs-cu12==24.10.*",
+viz = [
+    "seaborn",
+    "matplotlib",
 ]
 
 
@@ -75,7 +65,7 @@ use_parentheses = true
 [tool.black]
 line-length = 100
 target-version = ['py312']
-include = '\.pyi?$'
+include = '\\.pyi?$'
 
 [tool.mypy]
 python_version = "3.12"
@@ -111,6 +101,9 @@ ignore_errors = true
 [tool.setuptools]
 packages = ["terrorblade"]
 
+[project.scripts]
+terrorblade-mcp = "terrorblade.mcp.server:main"
+
 [tool.ruff]
 # Exclude files and directories from linting
 exclude = [
@@ -128,7 +121,7 @@ exclude = [
 ]
 
 # Target Python version
-target-version = "py312"
+target-version = "py313"
 
 # Line length configuration
 line-length = 120
@@ -199,7 +192,7 @@ ignore-paths = [
 persistent = true
 
 # Minimum supported python version
-py-version = "3.12"
+py-version = "3.13"
 
 # Control the amount of potential inferred values when inferring a single
 # object. This can help the performance when dealing with large functions or

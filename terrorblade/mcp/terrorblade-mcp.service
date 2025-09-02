@@ -1,0 +1,19 @@
+[Unit]
+Description=Terrorblade MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=seva
+Group=seva
+WorkingDirectory=/home/seva/code/terrorblade/terrorblade/mcp
+Environment=DB_PATH=/home/seva/data/telegram_data.db
+ExecStart=/home/seva/code/terrorblade/.venv/bin/python server.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=terrorblade-mcp
+
+[Install]
+WantedBy=multi-user.target

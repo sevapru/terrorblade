@@ -75,7 +75,7 @@ jobs:
     - name: Run linting
       run: |
         echo "::group::Ruff linting"
-        ruff check . --output-format=github
+        ruff check --fix . --output-format=github
         echo "::endgroup::"
         
         echo "::group::Pylint code quality"

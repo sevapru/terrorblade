@@ -73,9 +73,7 @@ class TestTelegramWorkflow:
 
             # Filter messages with actual text content
             text_messages = [
-                msg
-                for msg in chat["messages"]
-                if msg.get("text", "").strip() and len(msg.get("text", "").strip()) > 5
+                msg for msg in chat["messages"] if msg.get("text", "").strip() and len(msg.get("text", "").strip()) > 5
             ]
 
             if len(text_messages) >= 5:  # Only include chats with enough text messages
@@ -92,16 +90,12 @@ class TestTelegramWorkflow:
     @pytest.fixture
     def text_preprocessor(self) -> TextPreprocessor:
         """Create a TextPreprocessor instance for testing."""
-        return TextPreprocessor(
-            time_window="5m", cluster_size=2, big_cluster_size=5, batch_size=100
-        )
+        return TextPreprocessor(time_window="5m", cluster_size=2, batch_size=100)
 
     @pytest.fixture
     def telegram_preprocessor(self) -> TelegramPreprocessor:
         """Create a TelegramPreprocessor instance for testing."""
-        return TelegramPreprocessor(
-            use_duckdb=False, time_window="5m", cluster_size=2, big_cluster_size=5
-        )
+        return TelegramPreprocessor(use_duckdb=False, time_window="5m", cluster_size=2)
 
     @pytest.fixture
     def telegram_preprocessor_with_db(self) -> TelegramPreprocessor:
@@ -113,7 +107,6 @@ class TestTelegramWorkflow:
             phone=self.__class__.test_phone,
             time_window="5m",
             cluster_size=2,
-            big_cluster_size=5,
         )
 
     @pytest.fixture
@@ -161,14 +154,11 @@ class TestTelegramWorkflow:
         """Test TextPreprocessor initialization."""
         assert text_preprocessor.time_window == "5m"
         assert text_preprocessor.cluster_size == 2
-        assert text_preprocessor.big_cluster_size == 5
         assert text_preprocessor.batch_size == 100
         assert text_preprocessor.device in ["cuda", "cpu"]
         assert text_preprocessor._embeddings_model is None  # Lazy loaded
 
-    def test_textpreprocessor_embeddings_model_property(
-        self, text_preprocessor: TextPreprocessor
-    ) -> None:
+    def test_textpreprocessor_embeddings_model_property(self, text_preprocessor: TextPreprocessor) -> None:
         """Test that embeddings model is loaded correctly."""
         model = text_preprocessor.embeddings_model
         assert model is not None
@@ -195,9 +185,7 @@ class TestTelegramWorkflow:
         ]
         assert all(col in result.columns for col in expected_columns)
 
-    def test_calculate_embeddings(
-        self, text_preprocessor: TextPreprocessor, sample_messages_df: pl.DataFrame
-    ) -> None:
+    def test_calculate_embeddings(self, text_preprocessor: TextPreprocessor, sample_messages_df: pl.DataFrame) -> None:
         """Test embedding calculation for text messages."""
         result = text_preprocessor.calculate_embeddings(sample_messages_df)
 
@@ -234,9 +222,7 @@ class TestTelegramWorkflow:
 
         # Check diagonal is zero (distance to self) with appropriate tolerance
         diagonal = torch.diag(distances)
-        assert torch.allclose(
-            diagonal, torch.zeros_like(diagonal), atol=1e-6
-        )  # Use absolute tolerance
+        assert torch.allclose(diagonal, torch.zeros_like(diagonal), atol=1e-6)  # Use absolute tolerance
 
     def test_calculate_sliding_distances(self, text_preprocessor: TextPreprocessor) -> None:
         """Test sliding window distance calculation."""
@@ -253,9 +239,7 @@ class TestTelegramWorkflow:
         self, text_preprocessor: TextPreprocessor, sample_messages_df: pl.DataFrame
     ) -> None:
         """Test complete message processing pipeline."""
-        result = text_preprocessor.process_message_groups(
-            sample_messages_df, time_window="5m", cluster_size=2, big_cluster_size=3
-        )
+        result = text_preprocessor.process_message_groups(sample_messages_df, time_window="5m", cluster_size=2)
 
         # Check that result has expected columns
         assert "group_id" in result.columns
@@ -291,9 +275,7 @@ class TestTelegramWorkflow:
         assert telegram_preprocessor.phone is None
         assert hasattr(telegram_preprocessor, "logger")
 
-    def test_telegram_preprocessor_init_with_db(
-        self, telegram_preprocessor_with_db: TelegramPreprocessor
-    ) -> None:
+    def test_telegram_preprocessor_init_with_db(self, telegram_preprocessor_with_db: TelegramPreprocessor) -> None:
         """Test TelegramPreprocessor initialization with database."""
         assert telegram_preprocessor_with_db.use_duckdb is True
         assert telegram_preprocessor_with_db.phone == self.__class__.test_phone
@@ -528,9 +510,7 @@ class TestTelegramWorkflow:
             if integration_db.exists():
                 integration_db.unlink()
 
-    def test_process_file_with_database(
-        self, telegram_preprocessor_with_db: TelegramPreprocessor
-    ) -> None:
+    def test_process_file_with_database(self, telegram_preprocessor_with_db: TelegramPreprocessor) -> None:
         """Test file processing with database storage."""
         try:
             # Manually create the required tables since TelegramPreprocessor only creates cluster tables
@@ -579,9 +559,7 @@ class TestTelegramWorkflow:
         with pytest.raises(ValueError, match="Phone number is required"):
             TelegramPreprocessor(use_duckdb=True, phone=None)
 
-    def test_error_handling_corrupted_json(
-        self, telegram_preprocessor: TelegramPreprocessor
-    ) -> None:
+    def test_error_handling_corrupted_json(self, telegram_preprocessor: TelegramPreprocessor) -> None:
         """Test error handling for corrupted JSON file."""
         # Create corrupted JSON file
         corrupted_file = self.__class__.temp_dir / "corrupted.json"
@@ -616,9 +594,7 @@ class TestTelegramWorkflow:
         assert "group_id" in result.columns
         assert "embeddings" in result.columns
 
-    def test_device_selection(
-        self, text_preprocessor: TextPreprocessor, sample_messages_df: pl.DataFrame
-    ) -> None:
+    def test_device_selection(self, text_preprocessor: TextPreprocessor, sample_messages_df: pl.DataFrame) -> None:
         """Test proper device selection for embeddings."""
         result = text_preprocessor.calculate_embeddings(sample_messages_df)
 
@@ -640,9 +616,7 @@ def test_telegram_preprocessor_close() -> None:
     """Test proper cleanup of resources."""
     temp_db = Path(tempfile.mkdtemp()) / "cleanup_test.db"
     try:
-        preprocessor = TelegramPreprocessor(
-            use_duckdb=True, db_path=str(temp_db), phone="123456789"
-        )
+        preprocessor = TelegramPreprocessor(use_duckdb=True, db_path=str(temp_db), phone="123456789")
         preprocessor.close()
         # Should not raise any exceptions
         assert True
@@ -688,19 +662,16 @@ def test_data_schema_validation() -> None:
 
 
 @pytest.mark.parametrize(
-    "time_window,cluster_size,big_cluster_size",
+    "time_window,cluster_size",
     [
-        ("5m", 2, 5),
-        ("10m", 3, 8),
-        ("30m", 1, 10),
+        ("5m", 2),
+        ("10m", 3),
+        ("30m", 1),
     ],
 )
-def test_parameter_combinations(time_window: str, cluster_size: int, big_cluster_size: int) -> None:
+def test_parameter_combinations(time_window: str, cluster_size: int) -> None:
     """Test different parameter combinations."""
-    preprocessor = TextPreprocessor(
-        time_window=time_window, cluster_size=cluster_size, big_cluster_size=big_cluster_size
-    )
+    preprocessor = TextPreprocessor(time_window=time_window, cluster_size=cluster_size)
 
     assert preprocessor.time_window == time_window
     assert preprocessor.cluster_size == cluster_size
-    assert preprocessor.big_cluster_size == big_cluster_size
