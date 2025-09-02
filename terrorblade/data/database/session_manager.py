@@ -14,14 +14,18 @@ class SessionManager:
     allowing sessions to be reused across runs without storing them as files.
     """
 
-    def __init__(self, db_path: str = "telegram_sessions.db") -> None:
+    def __init__(self, db_path: str = "auto") -> None:
         """
         Initialize the session manager.
 
         Args:
-            db_path (str): Path to the DuckDB database file for storing sessions
+            db_path (str): Path to the DuckDB database file for storing sessions or "auto" to use environment/default
         """
-        self.db_path = db_path
+        # Resolve session database path
+        if db_path == "auto":
+            self.db_path = os.getenv("SESSION_DB_PATH", "telegram_sessions.db")
+        else:
+            self.db_path = db_path
 
         # Initialize logger
         self.logger = Logger(
@@ -68,16 +72,12 @@ class SessionManager:
             Optional[str]: Session string if found, None otherwise
         """
         try:
-            result = self.db.execute(
-                "SELECT session_data FROM sessions WHERE phone = ?", [phone]
-            ).fetchone()
+            result = self.db.execute("SELECT session_data FROM sessions WHERE phone = ?", [phone]).fetchone()
 
             if result:
                 self.logger.info(f"Retrieved existing session for phone {phone}")
                 # Update last used timestamp
-                self.db.execute(
-                    "UPDATE sessions SET last_used = CURRENT_TIMESTAMP WHERE phone = ?", [phone]
-                )
+                self.db.execute("UPDATE sessions SET last_used = CURRENT_TIMESTAMP WHERE phone = ?", [phone])
                 return result[0]
             else:
                 self.logger.info(f"No existing session found for phone {phone}")

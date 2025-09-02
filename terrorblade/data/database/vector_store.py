@@ -73,9 +73,7 @@ class VectorStore:
             self.logger.error(f"Error {operation}: {str(e)}")
             raise
 
-    def _build_chat_filter(
-        self, chat_id: int | None, base_params: list[Any]
-    ) -> tuple[str, list[Any]]:
+    def _build_chat_filter(self, chat_id: int | None, base_params: list[Any]) -> tuple[str, list[Any]]:
         """Build WHERE clause and parameters for chat_id filtering."""
         if chat_id is None:
             return "", base_params
@@ -150,9 +148,7 @@ class VectorStore:
                 stats["indexed_rows"] = count_result[0] if count_result else 0
 
                 vector_size_bytes = 768 * 4
-                estimated_memory_mb = (stats["indexed_rows"] * vector_size_bytes * 1.5) / (
-                    1024 * 1024
-                )
+                estimated_memory_mb = (stats["indexed_rows"] * vector_size_bytes * 1.5) / (1024 * 1024)
                 stats["estimated_memory_mb"] = round(estimated_memory_mb, 2)
 
             return stats
@@ -192,9 +188,7 @@ class VectorStore:
 
         print("=" * 50)
 
-    def create_hnsw_index(
-        self, index_name: str | None = None, force_recreate: bool = False
-    ) -> bool:
+    def create_hnsw_index(self, index_name: str | None = None, force_recreate: bool = False) -> bool:
         """Create HNSW index on embeddings column for fast vector similarity search."""
         if index_name is None:
             index_name = f"idx_embeddings_{self.phone}"
@@ -251,9 +245,7 @@ class VectorStore:
         try:
             results = self._execute_query(query, params, "performing similarity search").fetchall()
             filtered_results = [
-                (msg_id, chat_id, sim)
-                for msg_id, chat_id, sim in results
-                if sim >= similarity_threshold
+                (msg_id, chat_id, sim) for msg_id, chat_id, sim in results if sim >= similarity_threshold
             ]
             return filtered_results
         except Exception:
@@ -283,17 +275,13 @@ class VectorStore:
         try:
             results = self._execute_query(query, params, "performing distance search").fetchall()
             filtered_results = [
-                (msg_id, chat_id, dist)
-                for msg_id, chat_id, dist in results
-                if dist <= distance_threshold
+                (msg_id, chat_id, dist) for msg_id, chat_id, dist in results if dist <= distance_threshold
             ]
             return filtered_results
         except Exception:
             return []
 
-    def get_all_distances(
-        self, query_vector: list[float], chat_id: int | None = None
-    ) -> pl.DataFrame:
+    def get_all_distances(self, query_vector: list[float], chat_id: int | None = None) -> pl.DataFrame:
         """Calculate distances to all messages in the database."""
         where_clause, params = self._build_chat_filter(chat_id, [query_vector, query_vector])
 
@@ -308,9 +296,7 @@ class VectorStore:
 
         try:
             results = self._execute_query(query, params, "calculating all distances").fetchall()
-            return pl.DataFrame(
-                results, schema=["message_id", "chat_id", "distance", "similarity"], orient="row"
-            )
+            return pl.DataFrame(results, schema=["message_id", "chat_id", "distance", "similarity"], orient="row")
         except Exception:
             return pl.DataFrame()
 
@@ -391,9 +377,7 @@ class VectorStore:
             else:
                 params = [query_vector, query_vector, similarity_threshold, top_k]
 
-            results = self._execute_query(
-                query, params, "performing similarity search with text"
-            ).fetchall()
+            results = self._execute_query(query, params, "performing similarity search with text").fetchall()
 
             if not results:
                 return pl.DataFrame(schema=empty_schema)
@@ -415,9 +399,7 @@ class VectorStore:
 
             if include_cluster_messages:
                 text_previews = [
-                    self._get_cluster_context_snippet(
-                        row["message_id"], row["chat_id"], row["cluster_id"], row["text"]
-                    )
+                    self._get_cluster_context_snippet(row["message_id"], row["chat_id"], row["cluster_id"], row["text"])
                     for row in similarity_df.iter_rows(named=True)
                 ]
                 similarity_df = similarity_df.with_columns(pl.Series("text_preview", text_previews))
