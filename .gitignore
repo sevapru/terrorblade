@@ -15,11 +15,20 @@ reports/nemesis*
 *.pyzw
 *.egg-info/
 
+# Docs
+docs-mkdocs/**
+*fix*.md
+*migration*.md
+*optimization*.md
+task*.txt
+task*.md
+
 # Performance logs
 stats/
 
 # Virtual environment
 .venv/
+*.lock
 
 # Environment variables
 .env
@@ -30,11 +39,12 @@ requirements-dev.txt
 requirements-cuda.txt
 requirements-lock.txt
 requirements-dev-lock.txt
+requirements-docs.txt
 
 # Security and audit reports
 exports/
 docs/generated/
-docs/project management/*
+docs/project management/
 docs/reports/
 docs/Cursor-versus-CoPilot/
 reports/*.json
