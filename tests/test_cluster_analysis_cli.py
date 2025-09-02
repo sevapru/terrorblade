@@ -510,7 +510,7 @@ class TestIntegration:
 
         # Use a unique temporary path to avoid conflicts
         db_path = tempfile.mktemp(suffix=".db", prefix="test_terrorblade_")
-        
+
         try:
             # Create a proper database first
             db = TelegramDatabase(db_path=db_path, read_only=False)
