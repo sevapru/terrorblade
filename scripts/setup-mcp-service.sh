@@ -58,12 +58,12 @@ echo -e "${GREEN}claude mcp add-json terrorblade '{
   \"command\": \"$PROJECT_ROOT/.venv/bin/terrorblade-mcp\",
   \"args\": [],
   \"env\": {
-    \"DUCKDB_PATH\": \"$PROJECT_ROOT/telegram_data.db\"
+    \"DB_PATH\": \"$PROJECT_ROOT/telegram_data.db\"
   }
 }'${NC}"
 
 echo ""
-echo -e "${YELLOW}⚠️  Note: Update the DUCKDB_PATH to point to your actual database file!${NC}"
+echo -e "${YELLOW}⚠️  Note: Update the DB_PATH to point to your actual database file!${NC}"
 
 echo ""
 echo -e "${BLUE}📚 Service commands:${NC}"

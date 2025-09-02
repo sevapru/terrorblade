@@ -2,8 +2,9 @@ include make/common.mk
 include make/requirements.mk
 include make/security.mk
 include make/test.mk
+include make/docs.mk
 
-.PHONY: help install test check format requirements security clean show-info setup-mcp
+.PHONY: help install test check format requirements security clean show-info setup-mcp docs-build docs-deploy docs-serve docs-setup docs-clean docs-check docs-help
 
 .DEFAULT_GOAL := help
 
@@ -22,10 +23,20 @@ help:
 	@echo "  clean          Clean build artifacts and cache"
 	@echo "  show-info      Display project information"
 	@echo ""
+	@echo -e "$(YELLOW)Documentation:$(NC)"
+	@echo "  docs-setup     Set up documentation environment"
+	@echo "  docs-build     Build documentation locally"
+	@echo "  docs-serve     Serve documentation locally"
+	@echo "  docs-deploy    Deploy documentation to VPS"
+	@echo "  docs-clean     Clean documentation build"
+	@echo "  docs-check     Check documentation status"
+	@echo "  docs-help      Show documentation help"
+	@echo ""
 	@echo -e "$(YELLOW)Quick Start:$(NC)"
 	@echo "  make install   # Set up everything"
 	@echo "  make test      # Run tests"
 	@echo "  make check     # Check code quality"
+	@echo "  make docs-setup # Set up documentation"
 	@echo ""
 	@echo -e "$(BLUE)For more details: $(CYAN)https://github.com/sevapru/terrorblade$(NC)"
 
@@ -87,6 +98,7 @@ install: setup-venv check-env requirements-compile
 	@echo -e "  $(BLUE)make test$(NC)      # Run tests"
 	@echo -e "  $(BLUE)make check$(NC)     # Check code quality" 
 	@echo -e "  $(BLUE)make security$(NC)  # Run security scans"
+	@echo -e "  $(BLUE)make docs-setup$(NC) # Set up documentation"
 	@echo ""
 	@if [ -z "$$VIRTUAL_ENV" ] && [ -d ".venv" ]; then \
 		echo -e "$(YELLOW)💡 To activate the environment:$(NC) $(GREEN)source .venv/bin/activate$(NC)"; \
