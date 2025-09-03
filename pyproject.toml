@@ -1,6 +1,7 @@
 [project]
 name = "terrorblade"
 version = "0.2.3"
+version = "0.2.3"
 description = "A Python-based Telegram message parser and analyzer"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,7 +18,7 @@ dependencies = [
     "numpy",
     "sentence-transformers",
     "pyarrow",
-    "torch",
+    "seaborn",
     "fastmcp>=2.10.0",
 ]
 
@@ -28,6 +29,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-watch",
+    "pytest-asyncio>=0.23.0",
     "pytest-asyncio>=0.23.0",
     "black>=24.0.0",
     "isort>=5.12.0",
@@ -65,6 +67,7 @@ use_parentheses = true
 [tool.black]
 line-length = 80
 target-version = ['py312']
+include = '\\.pyi?$'
 include = '\\.pyi?$'
 
 [tool.mypy]
