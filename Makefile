@@ -4,7 +4,7 @@ include make/security.mk
 include make/test.mk
 include make/docs.mk
 
-.PHONY: help install test check format requirements security clean show-info setup-mcp docs-build docs-deploy docs-serve docs-setup docs-clean docs-check docs-help
+.PHONY: help install test check format requirements security clean show-info setup-mcp docs-build docs-deploy docs-serve docs-setup docs-clean docs-check docs-help docs-api docs-quality
 
 .DEFAULT_GOAL := help
 
@@ -25,8 +25,10 @@ help:
 	@echo ""
 	@echo -e "$(YELLOW)Documentation:$(NC)"
 	@echo "  docs-setup     Set up documentation environment"
-	@echo "  docs-build     Build documentation locally"
+	@echo "  docs-build     Build documentation with API reference"
 	@echo "  docs-serve     Serve documentation locally"
+	@echo "  docs-api       Generate API documentation from code"
+	@echo "  docs-quality   Check docstring quality and coverage"
 	@echo "  docs-deploy    Deploy documentation to VPS"
 	@echo "  docs-clean     Clean documentation build"
 	@echo "  docs-check     Check documentation status"
