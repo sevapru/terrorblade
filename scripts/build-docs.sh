@@ -37,8 +37,11 @@ else
     uv pip install mkdocs mkdocs-material
 fi
 
-# Собираем документацию
-echo -e "${BLUE}[INFO]${NC} Building documentation..."
+# Делаем скрипт генерации API исполняемым (он находится в родительской директории)
+chmod +x ../scripts/generate-api-docs.py 2>/dev/null || echo "Note: generate-api-docs.py script will be called by mkdocs-gen-files plugin"
+
+# Собираем документацию (API docs будут сгенерированы автоматически)
+echo -e "${BLUE}[INFO]${NC} Building documentation with API reference..."
 cd docs-mkdocs && mkdocs build --clean
 
 if [ $? -eq 0 ]; then

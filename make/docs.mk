@@ -3,7 +3,7 @@ ifndef DOCS_MK_INCLUDED
 DOCS_MK_INCLUDED := 1
 
 # Documentation build and deployment targets
-.PHONY: docs-build docs-serve docs-deploy docs-clean docs-setup docs-check docs-help
+.PHONY: docs-build docs-serve docs-deploy docs-clean docs-setup docs-check docs-help docs-api docs-quality
 
 # Setup documentation environment
 docs-setup:
@@ -29,20 +29,31 @@ docs-clean:
 docs-check:
 	@bash scripts/check-docs.sh
 
+# Generate API documentation
+docs-api:
+	@bash scripts/generate-api-docs.py
+
+# Check docstring quality
+docs-quality:
+	@python scripts/check-docstrings.py
+
 # Help for documentation commands
 docs-help:
 	$(call log_section,📚 Documentation Commands Help)
 	@echo -e "$(YELLOW)Available commands:$(NC)"
 	@echo -e "  $(BLUE)docs-setup$(NC)     - Set up documentation environment"
-	@echo -e "  $(BLUE)docs-build$(NC)     - Build documentation locally"
+	@echo -e "  $(BLUE)docs-build$(NC)     - Build documentation with API reference"
 	@echo -e "  $(BLUE)docs-serve$(NC)     - Serve documentation locally (http://127.0.0.1:8000)"
+	@echo -e "  $(BLUE)docs-api$(NC)       - Generate API documentation from code"
+	@echo -e "  $(BLUE)docs-quality$(NC)   - Check docstring quality and coverage"
 	@echo -e "  $(BLUE)docs-clean$(NC)     - Clean build artifacts"
 	@echo -e "  $(BLUE)docs-check$(NC)     - Check documentation status"
 	@echo -e "  $(BLUE)docs-help$(NC)      - Show this help message"
 	@echo ""
 	@echo -e "$(YELLOW)Quick start:$(NC)"
 	@echo -e "  1. $(BLUE)make docs-setup$(NC)    # Initial setup"
-	@echo -e "  2. $(BLUE)make docs-build$(NC)    # Build documentation"
+	@echo -e "  2. $(BLUE)make docs-build$(NC)    # Build documentation with API"
 	@echo -e "  3. $(BLUE)make docs-serve$(NC)    # Preview locally"
+	@echo -e "  4. $(BLUE)make docs-quality$(NC)  # Check docstring coverage"
 
 endif # DOCS_MK_INCLUDED

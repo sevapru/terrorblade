@@ -22,9 +22,13 @@ else
     exit 1
 fi
 
-# Устанавливаем MkDocs
-echo -e "${BLUE}[INFO]${NC} Installing MkDocs dependencies..."
-uv pip install mkdocs mkdocs-material
+# Устанавливаем MkDocs и зависимости для API документации
+echo -e "${BLUE}[INFO]${NC} Installing MkDocs and API documentation dependencies..."
+if [ -f "../requirements-docs.txt" ]; then
+    uv pip install -r ../requirements-docs.txt
+else
+    uv pip install mkdocs mkdocs-material mkdocstrings mkdocstrings-python mkdocs-gen-files
+fi
 
 # Создаем структуру директорий
 echo -e "${BLUE}[INFO]${NC} Creating documentation structure..."
