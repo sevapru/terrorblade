@@ -37,9 +37,9 @@ load_dotenv()
 # Check for optional dependencies
 try:
     import openai
-
     OPENAI_AVAILABLE = True
 except ImportError:
+    openai = None
     OPENAI_AVAILABLE = False
 
 
