@@ -1,51 +1,54 @@
-# Requirements management with uv
+# Requirements management using pyproject.toml as source of truth
 include make/common.mk
 
-.PHONY: requirements requirements-compile requirements-sync requirements-update
+.PHONY: requirements requirements-install requirements-sync requirements-update
 
-# Main requirements target - compile and install for current platform
-requirements: requirements-compile
-	$(call log_success,Requirements ready for current platform)
+# Main requirements target - install dependencies from pyproject.toml
+requirements: requirements-install
+	$(call log_success,Requirements ready from pyproject.toml)
 
-# Compile requirements for current platform only
-requirements-compile: check-uv
-	$(call log_info,Compiling requirements for current platform...)
-	@uv pip compile scripts/requirements.in --output-file requirements.txt --upgrade --quiet
-	@uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt --upgrade --quiet
-	$(call log_success,Requirements compiled successfully)
+# Install dependencies from pyproject.toml
+requirements-install: check-uv
+	$(call log_info,Installing dependencies from pyproject.toml...)
+	@uv pip install -e ".[dev,security]"
+	$(call log_success,Dependencies installed from pyproject.toml)
 
-# Sync environment with compiled requirements
+# Install with thoth dependencies
+requirements-thoth: check-uv
+	$(call log_info,Installing with thoth dependencies...)
+	@uv pip install -e ".[dev,security,thoth]"
+	$(call log_success,Dependencies with thoth installed from pyproject.toml)
+
+# Sync environment with pyproject.toml
 requirements-sync: check-uv
-	$(call log_info,Syncing environment with requirements...)
-	@if [ -f requirements-dev.txt ]; then \
-		uv pip sync requirements-dev.txt; \
-		$(call log_success,Environment synced with development requirements); \
-	else \
-		$(call log_warning,requirements-dev.txt not found. Run make requirements-compile first); \
-	fi
+	$(call log_info,Syncing environment with pyproject.toml...)
+	@uv pip install -e ".[dev,security]"
+	$(call log_success,Environment synced with pyproject.toml)
 
-# Update all dependencies to latest versions
+# Legacy: Update requirements files (for backwards compatibility)
 requirements-update: check-uv
-	$(call log_info,Updating all dependencies to latest versions...)
-	@uv pip compile scripts/requirements.in --output-file requirements.txt --upgrade
-	@uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt --upgrade
-	@if [ -f scripts/requirements-cuda.in ]; then \
-		uv pip compile scripts/requirements-cuda.in --output-file requirements-cuda.txt --upgrade || true; \
-	fi
-	$(call log_success,All requirements updated to latest versions)
+	$(call log_warning,Legacy requirements files are deprecated. Dependencies are now managed in pyproject.toml)
+	$(call log_info,To update dependencies, edit pyproject.toml directly)
 
 # Show requirements status
 requirements-status:
 	$(call log_section,Requirements Status)
-	@echo -e "$(BLUE)Core requirements:$(NC)"
-	@if [ -f requirements.txt ]; then \
-		echo "  [OK] requirements.txt ($(shell wc -l < requirements.txt) packages)"; \
+	@echo -e "$(BLUE)Dependencies source:$(NC)"
+	@if [ -f pyproject.toml ]; then \
+		echo "  [OK] pyproject.toml (source of truth)"; \
+		echo "  Dependencies sections:"; \
+		echo "    - dependencies (core)"; \
+		echo "    - optional-dependencies.dev (development)"; \
+		echo "    - optional-dependencies.thoth (ML/analysis)"; \
+		echo "    - optional-dependencies.security (security tools)"; \
+		echo "    - optional-dependencies.viz (visualization)"; \
 	else \
-		echo "  [ERROR] requirements.txt missing"; \
+		echo "  [ERROR] pyproject.toml missing"; \
 	fi
-	@echo -e "$(BLUE)Development requirements:$(NC)"
-	@if [ -f requirements-dev.txt ]; then \
-		echo "  [OK] requirements-dev.txt ($(shell wc -l < requirements-dev.txt) packages)"; \
-	else \
-		echo "  [ERROR] requirements-dev.txt missing"; \
+	@echo -e "$(BLUE)Legacy files:$(NC)"
+	@if [ -f scripts/requirements.in ]; then \
+		echo "  [DEPRECATED] scripts/requirements.in (use pyproject.toml instead)"; \
+	fi
+	@if [ -f scripts/requirements-dev.in ]; then \
+		echo "  [DEPRECATED] scripts/requirements-dev.in (use pyproject.toml instead)"; \
 	fi 

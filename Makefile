@@ -3,8 +3,9 @@ include make/requirements.mk
 include make/security.mk
 include make/test.mk
 include make/docs.mk
+include make/cli.mk
 
-.PHONY: help install test check format requirements security clean show-info setup-mcp docs-build docs-deploy docs-serve docs-setup docs-clean docs-check docs-help docs-api docs-quality
+.PHONY: help install test check format requirements security clean show-info setup-mcp docs-build docs-deploy docs-serve docs-setup docs-clean docs-check docs-help docs-api docs-quality cli cli-phone cli-run cli-help install-cli
 
 .DEFAULT_GOAL := help
 
@@ -23,6 +24,13 @@ help:
 	@echo "  clean          Clean build artifacts and cache"
 	@echo "  show-info      Display project information"
 	@echo ""
+	@echo -e "$(YELLOW)CLI Tools:$(NC)"
+	@echo "  cli            Launch interactive message analysis tool"
+	@echo "  cli-phone      Launch CLI for specific phone (make cli-phone PHONE=+1234567890)"
+	@echo "  cli-run        Run analysis in non-interactive mode"
+	@echo "  cli-help       Show CLI help"
+	@echo "  install-cli    Install CLI entry point"
+	@echo ""
 	@echo -e "$(YELLOW)Documentation:$(NC)"
 	@echo "  docs-setup     Set up documentation environment"
 	@echo "  docs-build     Build documentation with API reference"
@@ -38,6 +46,7 @@ help:
 	@echo "  make install   # Set up everything"
 	@echo "  make test      # Run tests"
 	@echo "  make check     # Check code quality"
+	@echo "  make cli       # Launch message analysis tool"
 	@echo "  make docs-setup # Set up documentation"
 	@echo ""
 	@echo -e "$(BLUE)For more details: $(CYAN)https://github.com/sevapru/terrorblade$(NC)"
