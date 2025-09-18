@@ -54,16 +54,15 @@ log "Installing dependencies..."
 uv venv --python python3.13
 source .venv/bin/activate
 
-# Use make if available, otherwise direct installation
+# Use make if available, otherwise direct installation from pyproject.toml
 if command -v make >/dev/null && [[ -f Makefile ]]; then
     make install 2>/dev/null || {
-        log "Make failed, using direct install..."
-        uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt 2>/dev/null || true
-        uv pip install -r requirements-dev.txt 2>/dev/null || uv pip install -e .
+        log "Make failed, using direct install from pyproject.toml..."
+        uv pip install -e ".[dev,security]" 2>/dev/null || uv pip install -e .
     }
 else
-    uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt 2>/dev/null || true
-    uv pip install -r requirements-dev.txt 2>/dev/null || uv pip install -e .
+    log "Installing from pyproject.toml..."
+    uv pip install -e ".[dev,security]" 2>/dev/null || uv pip install -e .
 fi
 
 # Create activation script

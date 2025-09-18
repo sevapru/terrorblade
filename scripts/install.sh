@@ -251,21 +251,14 @@ setup_environment() {
 
 # Direct dependency installation (fallback)
 install_dependencies_direct() {
-    log_info "Compiling and installing requirements directly..."
-    
-    # Compile requirements
-    uv pip compile scripts/requirements.in --output-file requirements.txt
-    uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt
-    
-    # Install compiled requirements
-    uv pip install -r requirements-dev.txt
-    
-    # Install terrorblade in editable mode
-    uv pip install -e .
-    
-    # Try to install thoth if available
+    log_info "Installing dependencies from pyproject.toml..."
+
+    # Install terrorblade in editable mode with dev dependencies
+    uv pip install -e ".[dev,security]"
+
+    # Try to install thoth dependencies if available
     if [[ -d "thoth" ]]; then
-        uv pip install -e thoth || log_warning "Thoth installation failed, continuing without it"
+        uv pip install -e ".[thoth]" || log_warning "Thoth dependencies installation failed, continuing without them"
     fi
 }
 
