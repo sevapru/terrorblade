@@ -34,7 +34,7 @@ class Config:
     """Application configuration constants."""
 
     DEFAULT_MIN_WORDS: int = 10
-    DEFAULT_PHONE: str = "+1234567890"
+    DEFAULT_PHONE: str = "+79992004210"
 
     # Display settings
     MAX_CHAT_NAME_LENGTH: int = 24
@@ -549,10 +549,10 @@ class SentimentAnalyser:
 
             # Execute query and convert to DataFrame
             groups_result = self.db.db.execute(sql).arrow()
-            if groups_result.num_rows == 0:
-                return pl.DataFrame(), pl.DataFrame()
-
             groups_df = pl.from_arrow(groups_result)
+
+            if groups_df.is_empty():
+                return pl.DataFrame(), pl.DataFrame()
             
             # Get detailed messages for each group with overlap
             all_messages_list = []
@@ -619,8 +619,8 @@ class SentimentAnalyser:
                     """
                     
                     messages_result = self.db.db.execute(messages_sql).arrow()
-                    if messages_result.num_rows > 0:
-                        group_messages_df = pl.from_arrow(messages_result)
+                    group_messages_df = pl.from_arrow(messages_result)
+                    if not group_messages_df.is_empty():
                         all_messages_list.append(group_messages_df)
 
             # Combine all messages
@@ -744,7 +744,8 @@ class SentimentAnalyser:
             LIMIT 20
             """
 
-            chats_df = pl.DataFrame(self.db.db.execute(sql).arrow())
+            chats_result = self.db.db.execute(sql).arrow()
+            chats_df = pl.from_arrow(chats_result)
             if chats_df.is_empty():
                 return None
 
@@ -1150,7 +1151,7 @@ def main() -> None:
         help="Phone number (e.g., +1234567890)",
     )
     parser.add_argument(
-        "--interactive", action="store_true", help="Launch interactive mode"
+        "--interactive", default=True, action="store_true", help="Launch interactive mode"
     )
 
     args = parser.parse_args()
