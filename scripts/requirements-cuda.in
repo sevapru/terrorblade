@@ -1,9 +1,7 @@
 # GPU/CUDA dependencies (optional)
-# Only install these if you have NVIDIA GPU support
+# This file is kept for legacy compatibility
+# Use: pip install -e .[thoth] for ML dependencies with CPU torch
+# For CUDA support, install manually: pip install torch[cuda]
 
-# Include main requirements
--r requirements.txt
-
-# Basic CUDA support
-torch[cuda]
-# Note: More advanced CUDA packages can be added per platform as needed 
+# Note: All other dependencies are managed in pyproject.toml
+# This file can be removed once all build processes use pyproject.toml 

@@ -1,32 +1,6 @@
-# Development dependencies for terrorblade project
-# Includes dependencies for optional thoth module (when present)
-# This file is used with `uv pip compile` to generate requirements-dev.txt
+# This file is kept for legacy compatibility
+# All dependencies are now managed in pyproject.toml
+# Use: pip install -e .[dev] for development dependencies
+# Use: pip install -e .[security] for security tools
 
-# Include main requirements
--r ../requirements.txt
-
-# Testing dependencies
-pytest>=7.0.0
-pytest-cov>=4.1.0
-pytest-watch
-coverage
-
-# Code quality tools
-black>=24.0.0
-isort>=5.12.0
-mypy>=1.5.0
-ruff>=0.1.0
-watchdog
-
-# Build and packaging
-build
-wheel
-twine
-tomli
-packaging
-
-# Security scanning tools
-bandit[toml]>=1.7.0
-safety>=2.0.0
-pip-audit>=2.0.0
-semgrep>=1.0.0 
+# Note: This file can be removed once all build processes use pyproject.toml 
