@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-import openai
 import polars as pl
 from dotenv import load_dotenv
 from rich import box
@@ -25,6 +24,15 @@ from rich.panel import Panel
 from rich.table import Table
 
 from terrorblade.data.database.telegram_database import TelegramDatabase
+from terrorblade.examples.prompts.promptinator import Promptinator, analyze_dialogue_with_llm
+from terrorblade.examples.prompts.provider_configs import (
+    PROVIDER_MODEL_COMBINATIONS,
+    get_available_prompts,
+    get_all_provider_model_pairs,
+    format_provider_model_display,
+    validate_provider_model,
+    get_recommended_models
+)
 from terrorblade.utils.config import get_db_path
 
 load_dotenv()
@@ -35,6 +43,9 @@ class Config:
 
     DEFAULT_MIN_WORDS: int = 10
     DEFAULT_PHONE: str = "+79992004210"
+    DEFAULT_PROVIDER: str = "openrouter"
+    DEFAULT_MODEL: str = "google/gemini-2.5-pro"
+    DEFAULT_PROMPT: str = "prompt_1.md"
 
     # Display settings
     MAX_CHAT_NAME_LENGTH: int = 24
@@ -48,7 +59,8 @@ class Config:
         "3": "Word Analysis",
         "4": "Sort Groups",
         "5": "Chat Selection",
-        "6": "Exit",
+        "6": "LLM Configuration",
+        "7": "Exit",
     }
 
     SORT_OPTIONS = {
@@ -69,75 +81,79 @@ class SearchParams:
     chat_id: str | None = None
 
 
-class PromptManager:
-    """Management of system prompts and tasks for models."""
+@dataclass
+class LLMConfig:
+    """LLM configuration structure."""
 
-    @staticmethod
-    def get_system_prompt() -> str:
-        """System prompt for analyzing dialogues."""
-        return "You analyze online conversations of friends. You think and provide response in the language of the conversation."
-
-    @staticmethod
-    def build_analysis_prompt(
-        group: dict[str, Any], messages_text: list[str]
-    ) -> str:
-        """Building a prompt for analyzing a group of messages."""
-        return f"""
-        Analyze this dialogue and create:
-
-        1. **Structured summary** with header and subheaders by discussion parts
-        2. **Extract unique entities** (games/apps/brands/names/places/events/slang/tech) for precise tags
-        3. **One-word tags** for themes and tone
-        4. **Reference examples** with short quotes where key unique entities appear
-
-        ## Language and Style
-        - Use the original chat's language. Preserve conversation tone and vocabulary (direct, no bureaucratic language)
-        - Be concise and to the point; no fluff
-
-        ## Analysis Steps
-
-        ### 1. Conversation Structure:
-        - Identify key topics and ideas
-        - Form header and subheaders by discussion logic
-        - Note cause-effect relationships and conflict points
-
-        ### 2. Extract Unique Entities (UniqueTags):
-        - Only what's explicitly present in text
-        - Categories: Games, Apps/Services, Brands/Objects, People, Places, Events, Slang/Memes, Tech/Household
-        - Selection criteria: proper/named entities, narrow/rare terms, brands/models/games/toponyms
-        - Normalization: token (lowercase, spaces→hyphens), display_name (exact form from chat)
-        - Include metadata: category, frequency, salience (1-5), first_seen_index, references (1-3 short quotes)
-        - Exclude generic words like "work", "relationships" - those go to ThemeTags
-        - Rank by salience then frequency
-        - Limit: up to 15 items
-
-        ### 3. Thematic and Tonal Tags:
-        - ThemeTags: 5-10 key themes, one word, lowercase
-        - ToneTags: 3-7 tonal tags
-        - All tags as single-word tokens (lowercase, spaces→hyphens)
+    provider: str = Config.DEFAULT_PROVIDER
+    model: str = Config.DEFAULT_MODEL
+    prompt_file: str = Config.DEFAULT_PROMPT
+    temperature: float = 0.7
 
 
-        ## Output Format
-        1. Header
-        2. Subheaders + brief points by parts
-        3. One-word tags:
-        - UniqueTags: [tokens...]
-        - ThemeTags: [tokens...]
-        - ToneTags: [tokens...]
-        5. Brief conclusions (2-4 lines)
+class LLMManager:
+    """Management of LLM providers and prompts for dialogue analysis."""
 
-        ## Conversation Data:
-        Chat: {group['chat_name']}
-        Messages: {group['message_count']}
-        Words: {group['total_words']:,}
-        Participants: {group['participants']}
-        Avg: {group['avg_words_per_message']:.1f} words/msg
+    def __init__(self, config: LLMConfig):
+        self.config = config
+        self.promptinator: Promptinator | None = None
+        self._initialize_llm()
 
-        ## Messages:
-        {chr(10).join(messages_text)}
+    def _initialize_llm(self) -> None:
+        """Initialize LLM provider with current configuration."""
+        try:
+            self.promptinator = Promptinator(
+                provider=self.config.provider,
+                model=self.config.model
+            )
+        except Exception as e:
+            print(f"Warning: Failed to initialize {self.config.provider}: {e}")
+            self.promptinator = None
 
-        Analyze maintaining the original language and tone. If no unique entities found, return empty UniqueTags list.
-        """
+    def update_config(self, provider: str | None = None, model: str | None = None,
+                     prompt_file: str | None = None, temperature: float | None = None) -> bool:
+        """Update LLM configuration and reinitialize if needed."""
+        config_changed = False
+
+        if provider and provider != self.config.provider:
+            self.config.provider = provider
+            config_changed = True
+        if model and model != self.config.model:
+            self.config.model = model
+            config_changed = True
+        if prompt_file:
+            self.config.prompt_file = prompt_file
+        if temperature is not None:
+            self.config.temperature = temperature
+
+        if config_changed:
+            self._initialize_llm()
+
+        return self.promptinator is not None
+
+    def analyze_dialogue(self, group: dict[str, Any], messages_text: list[str]) -> str:
+        """Analyze dialogue using configured LLM and prompt."""
+        if not self.promptinator:
+            return "Error: LLM not properly initialized. Check your API keys and configuration."
+
+        try:
+            return analyze_dialogue_with_llm(
+                group_data=group,
+                messages_text=messages_text,
+                promptinator=self.promptinator,
+                prompt_file=self.config.prompt_file
+            )
+        except Exception as e:
+            return f"Error analyzing dialogue: {e}"
+
+    def get_provider_info(self) -> str:
+        """Get current provider information for display."""
+        if not self.promptinator:
+            return f"❌ {self.config.provider}:{self.config.model} (Not connected)"
+
+        info = self.promptinator.get_provider_info()
+        status = "✅" if info["available"] else "❌"
+        return f"{status} {info['provider']}:{info['model']} | Prompt: {self.config.prompt_file}"
 
 
 class SentimentAnalyser:
@@ -148,7 +164,9 @@ class SentimentAnalyser:
         self.messages_table = f"messages_{self.phone}"
         self.chat_names_table = f"chat_names_{self.phone}"
         self.user_names_table = f"user_names_{self.phone}"
-        self.prompt_manager = PromptManager()
+        # Initialize with default LLM configuration
+        self.llm_config = LLMConfig()
+        self.llm_manager = LLMManager(self.llm_config)
         self.config = Config()
 
         # Initialize with default SearchParams
@@ -220,7 +238,7 @@ class SentimentAnalyser:
         while True:
             self.display_groups(groups_df, all_messages_df=all_messages_df)
             self.show_menu()
-            choice = self._get_user_choice(6)
+            choice = self._get_user_choice(7)
 
             if choice == "1":
                 self._handle_cluster_analysis(groups_df, all_messages_df)
@@ -237,6 +255,8 @@ class SentimentAnalyser:
                     groups_df, all_messages_df, params
                 )
             elif choice == "6":
+                self._handle_llm_configuration()
+            elif choice == "7":
                 break
 
     def analyze_word_quantiles(
@@ -689,33 +709,17 @@ class SentimentAnalyser:
             max_rows=self.config.DEFAULT_MAX_ROWS,
         )
 
-    def generate_summary(self, group: dict[str, Any], api_key: str) -> str:
+    def generate_summary(self, group: dict[str, Any]) -> str:
+        """Generate summary using configured LLM provider."""
         try:
-            client = openai.OpenAI(api_key=api_key)
             messages_text = []
             for row in group["group_messages"].iter_rows(named=True):
                 timestamp = row["date"].strftime("%H:%M") if hasattr(row["date"], "strftime") else str(row["date"])
                 messages_text.append(f"[{timestamp}] ({row['word_count']}w): {row['text']}")
 
-            prompt = self.prompt_manager.build_analysis_prompt(group, messages_text)
-            self.console.print("🤖 Sending request to OpenAI...", style="dim")
+            self.console.print(f"🤖 Analyzing with {self.llm_manager.get_provider_info()}...", style="dim")
 
-            response = client.chat.completions.create(
-                model="gpt-4.1-nano",
-                messages=[
-                    {"role": "system", "content": self.prompt_manager.get_system_prompt()},
-                    {"role": "user", "content": prompt},
-                ],
-            )
-
-            if hasattr(response, "usage") and response.usage:
-                total_tokens = response.usage.total_tokens
-                cost = (total_tokens / 1_000_000) * 0.05
-                self.console.print(f"✅ Response received | Tokens: {total_tokens:,} | Cost: ${cost:.4f}", style="dim green")
-            else:
-                self.console.print("✅ Response received", style="dim green")
-
-            return response.choices[0].message.content or "Summary unavailable"
+            return self.llm_manager.analyze_dialogue(group, messages_text)
         except Exception as e:
             return f"Error: {e}"
 
@@ -862,10 +866,10 @@ class SentimentAnalyser:
                     self.console.print("❌ Analysis cancelled", style="dim")
                     return
 
-                api_key = os.getenv("OPENAI_API_KEY")
-                if not api_key:
+                # Check if LLM is properly configured
+                if not self.llm_manager.promptinator:
                     self.console.print(
-                        "❌ OpenAI API key not found", style="red"
+                        "❌ LLM not configured. Please check your API keys and go to LLM Configuration.", style="red"
                     )
                     return
 
@@ -880,8 +884,8 @@ class SentimentAnalyser:
                     "group_messages": group_messages,
                 }
 
-                self.console.print("🤖 Sending to OpenAI...", style="bold cyan")
-                summary = self.generate_summary(group_dict, api_key)
+                self.console.print(f"🤖 Analyzing with {self.llm_manager.config.provider}...", style="bold cyan")
+                summary = self.generate_summary(group_dict)
                 self.console.print(
                     Panel(
                         summary, title="🤖 AI Analysis", border_style="blue"
@@ -1035,6 +1039,154 @@ class SentimentAnalyser:
         
         return groups_df, all_messages_df, params
 
+    def _handle_llm_configuration(self) -> None:
+        """Handle LLM provider and model configuration."""
+        self.console.print("\n🤖 LLM Configuration", style="bold cyan")
+        self.console.print(f"Current: {self.llm_manager.get_provider_info()}")
+
+        while True:
+            self.console.print("\nConfiguration Options:", style="bold blue")
+            self.console.print("  1) Change Provider & Model")
+            self.console.print("  2) Change Prompt File")
+            self.console.print("  3) View Available Prompts")
+            self.console.print("  4) View Recommended Models")
+            self.console.print("  5) Test Current Configuration")
+            self.console.print("  6) Back to Main Menu")
+
+            choice = self._get_user_choice(6)
+
+            if choice == "1":
+                self._configure_provider_model()
+            elif choice == "2":
+                self._configure_prompt_file()
+            elif choice == "3":
+                self._show_available_prompts()
+            elif choice == "4":
+                self._show_recommended_models()
+            elif choice == "5":
+                self._test_llm_configuration()
+            elif choice == "6":
+                break
+
+    def _configure_provider_model(self) -> None:
+        """Configure LLM provider and model."""
+        self.console.print("\n📋 Available Providers:", style="bold blue")
+
+        providers = list(PROVIDER_MODEL_COMBINATIONS.keys())
+        for i, provider in enumerate(providers, 1):
+            config = PROVIDER_MODEL_COMBINATIONS[provider]
+            self.console.print(f"  {i}) {config['display_name']} ({provider})")
+
+        choice = input(f"\nSelect provider (1-{len(providers)}): ").strip()
+
+        if not choice.isdigit() or not (1 <= int(choice) <= len(providers)):
+            self.console.print("❌ Invalid choice", style="red")
+            return
+
+        selected_provider = providers[int(choice) - 1]
+        provider_config = PROVIDER_MODEL_COMBINATIONS[selected_provider]
+
+        self.console.print(f"\n📋 Available models for {provider_config['display_name']}:", style="bold blue")
+        models = provider_config["models"]
+        for i, model in enumerate(models, 1):
+            self.console.print(f"  {i}) {model}")
+
+        model_choice = input(f"\nSelect model (1-{len(models)}): ").strip()
+
+        if not model_choice.isdigit() or not (1 <= int(model_choice) <= len(models)):
+            self.console.print("❌ Invalid choice", style="red")
+            return
+
+        selected_model = models[int(model_choice) - 1]
+
+        # Try to initialize with new configuration
+        success = self.llm_manager.update_config(
+            provider=selected_provider,
+            model=selected_model
+        )
+
+        if success:
+            self.console.print(f"✅ Successfully configured: {selected_provider}:{selected_model}", style="green")
+        else:
+            self.console.print(f"❌ Failed to configure {selected_provider}:{selected_model}. Check your API key: {provider_config['env_key']}", style="red")
+
+    def _configure_prompt_file(self) -> None:
+        """Configure prompt file."""
+        available_prompts = get_available_prompts()
+
+        if not available_prompts:
+            self.console.print("❌ No prompt files found in prompts directory", style="red")
+            return
+
+        self.console.print("\n📋 Available Prompts:", style="bold blue")
+        for i, prompt in enumerate(available_prompts, 1):
+            self.console.print(f"  {i}) {prompt}")
+
+        choice = input(f"\nSelect prompt (1-{len(available_prompts)}): ").strip()
+
+        if not choice.isdigit() or not (1 <= int(choice) <= len(available_prompts)):
+            self.console.print("❌ Invalid choice", style="red")
+            return
+
+        selected_prompt = available_prompts[int(choice) - 1]
+        self.llm_manager.update_config(prompt_file=selected_prompt)
+        self.console.print(f"✅ Prompt file changed to: {selected_prompt}", style="green")
+
+    def _show_available_prompts(self) -> None:
+        """Show available prompt files with previews."""
+        available_prompts = get_available_prompts()
+
+        if not available_prompts:
+            self.console.print("❌ No prompt files found", style="red")
+            return
+
+        self.console.print("\n📋 Available Prompt Files:", style="bold blue")
+
+        for prompt in available_prompts:
+            try:
+                from pathlib import Path
+                prompt_path = Path(__file__).parent / "prompts" / prompt
+                content = prompt_path.read_text(encoding='utf-8')
+                preview = content[:100].replace('\n', ' ') + "..." if len(content) > 100 else content
+                self.console.print(f"  • {prompt}: {preview}", style="dim")
+            except Exception:
+                self.console.print(f"  • {prompt}: (Unable to read)", style="dim")
+
+    def _show_recommended_models(self) -> None:
+        """Show recommended models for different use cases."""
+        recommendations = get_recommended_models()
+
+        self.console.print("\n💡 Recommended Models:", style="bold magenta")
+        for use_case, model in recommendations.items():
+            self.console.print(f"  • {use_case.replace('_', ' ').title()}: {model}")
+
+    def _test_llm_configuration(self) -> None:
+        """Test current LLM configuration with a simple query."""
+        if not self.llm_manager.promptinator:
+            self.console.print("❌ LLM not configured", style="red")
+            return
+
+        self.console.print(f"\n🧪 Testing {self.llm_manager.get_provider_info()}...", style="yellow")
+
+        try:
+            test_response = self.llm_manager.promptinator.query(
+                "Respond with exactly: 'Configuration test successful!'",
+                temperature=0.1
+            )
+
+            if test_response.error:
+                self.console.print(f"❌ Test failed: {test_response.error}", style="red")
+            else:
+                self.console.print(f"✅ Test successful!", style="green")
+                self.console.print(f"Response: {test_response.content[:100]}...", style="dim")
+                if test_response.tokens_used:
+                    if test_response.input_tokens and test_response.output_tokens:
+                        self.console.print(f"Tokens: {test_response.input_tokens:,}/{test_response.output_tokens:,} (in/out)", style="dim")
+                    else:
+                        self.console.print(f"Tokens used: {test_response.tokens_used}", style="dim")
+        except Exception as e:
+            self.console.print(f"❌ Test failed: {e}", style="red")
+
     def _update_visualisation(self, messages_df: pl.DataFrame) -> None:
         """Update all three charts: quantiles, activity and threshold."""
         if messages_df is None or len(messages_df) == 0:
@@ -1142,8 +1294,9 @@ class SentimentAnalyser:
 def main() -> None:
     config = Config()
     parser = argparse.ArgumentParser(
-        description="Long Message Analysis Tool for Telegram chats",
-        epilog=f"Example: python analyze_shitposts.py --phone {config.DEFAULT_PHONE}",
+        description="Long Message Analysis Tool for Telegram chats with LLM integration",
+        epilog=f"Example: python analyze_dialogues.py --phone {config.DEFAULT_PHONE} --provider openrouter --model google/gemini-2.5-pro",
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
         "--phone",
@@ -1154,8 +1307,93 @@ def main() -> None:
         "--interactive", default=True, action="store_true", help="Launch interactive mode"
     )
 
+    # LLM Configuration arguments
+    llm_group = parser.add_argument_group("LLM Configuration")
+    llm_group.add_argument(
+        "--provider",
+        default=config.DEFAULT_PROVIDER,
+        choices=list(PROVIDER_MODEL_COMBINATIONS.keys()),
+        help=f"LLM provider (default: {config.DEFAULT_PROVIDER})"
+    )
+    llm_group.add_argument(
+        "--model",
+        help="LLM model (if not specified, uses provider default)"
+    )
+    llm_group.add_argument(
+        "--prompt",
+        default=config.DEFAULT_PROMPT,
+        help=f"Prompt file to use (default: {config.DEFAULT_PROMPT})"
+    )
+    llm_group.add_argument(
+        "--temperature",
+        type=float,
+        default=0.7,
+        help="LLM temperature (default: 0.7)"
+    )
+    llm_group.add_argument(
+        "--list-providers",
+        action="store_true",
+        help="List available providers and models"
+    )
+    llm_group.add_argument(
+        "--list-prompts",
+        action="store_true",
+        help="List available prompt files"
+    )
+
     args = parser.parse_args()
+
+    # Handle list commands
+    if args.list_providers:
+        console = Console()
+        console.print("🤖 Available LLM Providers and Models:", style="bold cyan")
+        for provider, config in PROVIDER_MODEL_COMBINATIONS.items():
+            console.print(f"\n{config['display_name']} ({provider}):", style="bold blue")
+            console.print(f"  Environment key: {config['env_key']}")
+            console.print(f"  Default model: {config.get('default_model', 'N/A')}")
+            console.print("  Available models:")
+            for model in config['models']:
+                console.print(f"    • {model}")
+        return
+
+    if args.list_prompts:
+        console = Console()
+        prompts = get_available_prompts()
+        console.print("📋 Available Prompt Files:", style="bold cyan")
+        if not prompts:
+            console.print("❌ No prompt files found", style="red")
+        else:
+            for prompt in prompts:
+                console.print(f"  • {prompt}")
+        return
+
+    # Initialize analyzer
     analyzer = SentimentAnalyser(args.phone)
+
+    # Configure LLM based on CLI arguments
+    model = args.model
+    if not model and args.provider in PROVIDER_MODEL_COMBINATIONS:
+        model = PROVIDER_MODEL_COMBINATIONS[args.provider].get("default_model")
+
+    # Validate model if specified
+    if model and not validate_provider_model(args.provider, model):
+        analyzer.console.print(f"❌ Invalid model '{model}' for provider '{args.provider}'", style="red")
+        analyzer.console.print("Use --list-providers to see available combinations", style="dim")
+        return
+
+    # Update LLM configuration
+    success = analyzer.llm_manager.update_config(
+        provider=args.provider,
+        model=model,
+        prompt_file=args.prompt,
+        temperature=args.temperature
+    )
+
+    if not success:
+        analyzer.console.print(f"❌ Failed to initialize {args.provider}. Check your API key.", style="red")
+        analyzer.console.print(f"Required environment variable: {PROVIDER_MODEL_COMBINATIONS[args.provider]['env_key']}", style="dim")
+
+    analyzer.console.print(f"🤖 LLM Configuration: {analyzer.llm_manager.get_provider_info()}", style="dim green")
 
     try:
         _, quantiles = analyzer.analyze_word_quantiles()
