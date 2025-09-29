@@ -36,9 +36,6 @@ The installer will:
 - Python 3.12+
 - DuckDB CLI (for database operations)
 
-- Python 3.12+
-- DuckDB CLI (for database operations)
-
 #### Optional
 
 - Telegram API credentials (API ID and API Hash)  
