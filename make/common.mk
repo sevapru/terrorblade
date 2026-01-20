@@ -34,13 +34,13 @@ endef
 
 # Common utility functions
 define check_command
-	@command -v $(1) >/dev/null || { $(call log_error,$(1) not found. Please install $(1) first); exit 1; }
+	@command -v $(1) >/dev/null || { echo -e "$(RED)[ERROR]$(NC) $(1) not found. Please install $(1) first"; exit 1; }
 endef
 
 # Environment checks
 check-env:
 	@if [ ! -f .env ]; then \
-		$(call log_warning,.env file not found. You may want to create one based on .env.example); \
+		echo -e "$(YELLOW)[⚠]$(NC) .env file not found. You may want to create one based on .env.example"; \
 	fi
 
 check-uv:
@@ -49,18 +49,8 @@ check-uv:
 check-python:
 	$(call check_command,python3)
 	$(call log_info,Checking Python version compatibility...)
-	@python3 -c '\
-	import sys, re; \
-	required = re.search(r"requires-python = \"(.+?)\"", open("pyproject.toml").read()).group(1); \
-	current = f"{sys.version_info.major}.{sys.version_info.minor}"; \
-	from packaging import specifiers; \
-	spec = specifiers.SpecifierSet(required); \
-	is_compatible = spec.contains(current); \
-	print(f"  Required: {required}"); \
-	print(f"  Current:  {current}"); \
-	print(f"""  Status:   {"[OK] Compatible" if is_compatible else "[ERROR] Incompatible"}"""); \
-	exit(0 if is_compatible else 1);' \
-	|| { $(call log_error,Python version incompatible with project requirements); exit 1; }
+	@python3 -c 'import sys, re; required = re.search(r"requires-python = \"(.+?)\"", open("pyproject.toml").read()).group(1); current = (sys.version_info.major, sys.version_info.minor); current_str = f"{current[0]}.{current[1]}"; match = re.match(r">=(\d+)\.(\d+)", required); min_ver = (int(match.group(1)), int(match.group(2))) if match else (0, 0); is_compatible = current >= min_ver; print(f"  Required: {required}"); print(f"  Current:  {current_str}"); print(f"  Status:   " + ("[OK] Compatible" if is_compatible else "[ERROR] Incompatible")); exit(0 if is_compatible else 1)' \
+	|| { echo -e "$(RED)[ERROR]$(NC) Python version incompatible with project requirements"; exit 1; }
 
 # Smart virtual environment setup
 setup-venv: check-uv check-python

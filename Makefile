@@ -52,27 +52,18 @@ help:
 	@echo -e "$(BLUE)For more details: $(CYAN)https://github.com/sevapru/terrorblade$(NC)"
 
 # Main installation target - unified dev environment
-install: setup-venv check-env requirements-compile
+install: setup-venv check-env
 	$(call log_section,🚀 Installing Terrorblade)
-	$(call log_info,Installing development dependencies...)
+	$(call log_info,Installing development dependencies from pyproject.toml...)
 	@if [ -n "$$VIRTUAL_ENV" ]; then \
 		echo -e "$(GREEN)[✓]$(NC) Using active environment: $$VIRTUAL_ENV"; \
-		uv pip install -r requirements-dev.txt; \
+		uv pip install -e ".[dev,security]"; \
 	elif [ -d ".venv" ]; then \
 		echo -e "$(BLUE)[INFO]$(NC) Using .venv environment"; \
-		uv pip install -r requirements-dev.txt --python .venv/bin/python; \
+		uv pip install -e ".[dev,security]" --python .venv/bin/python; \
 	else \
 		echo -e "$(BLUE)[INFO]$(NC) Installing in current Python environment"; \
-		uv pip install -r requirements-dev.txt; \
-	fi
-	
-	$(call log_info,Installing terrorblade in editable mode...)
-	@if [ -n "$$VIRTUAL_ENV" ]; then \
-		uv pip install -e .; \
-	elif [ -d ".venv" ]; then \
-		uv pip install -e . --python .venv/bin/python; \
-	else \
-		uv pip install -e .; \
+		uv pip install -e ".[dev,security]"; \
 	fi
 	
 	@if [ -d "thoth" ]; then \
