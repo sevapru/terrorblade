@@ -49,7 +49,7 @@ check-uv:
 check-python:
 	$(call check_command,python3)
 	$(call log_info,Checking Python version compatibility...)
-	@python3 -c 'import sys, re; required = re.search(r"requires-python = \"(.+?)\"", open("pyproject.toml").read()).group(1); current = (sys.version_info.major, sys.version_info.minor); current_str = f"{current[0]}.{current[1]}"; match = re.match(r">=(\d+)\.(\d+)", required); min_ver = (int(match.group(1)), int(match.group(2))) if match else (0, 0); is_compatible = current >= min_ver; print(f"  Required: {required}"); print(f"  Current:  {current_str}"); print(f"  Status:   " + ("[OK] Compatible" if is_compatible else "[ERROR] Incompatible")); exit(0 if is_compatible else 1)' \
+	@python3 -c 'import sys, re; req = re.search(r"requires-python = \"(.+?)\"", open("pyproject.toml").read()).group(1); cur = (sys.version_info.major, sys.version_info.minor); m = re.search(r"(\d+)\.(\d+)", req); min_v = (int(m.group(1)), int(m.group(2))) if m else (0, 0); ok = cur >= min_v; s = "[OK] Compatible" if ok else "[ERROR] Incompatible"; print(f"  Required: {req}\n  Current:  {cur[0]}.{cur[1]}\n  Status:   {s}"); exit(0 if ok else 1)' \
 	|| { echo -e "$(RED)[ERROR]$(NC) Python version incompatible with project requirements"; exit 1; }
 
 # Smart virtual environment setup

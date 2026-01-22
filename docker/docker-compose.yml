@@ -1,0 +1,133 @@
+services:
+  # MCP Server with SSE transport - accessible over HTTP
+  # Connect via http://localhost:8787/sse
+  mcp:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: terrorblade-mcp
+    ports:
+      - "${MCP_PORT:-8787}:8787"
+    volumes:
+      # Mount your database file (optional if using remote DB)
+      - ${DB_PATH:-./data/telegram_data.db}:/data/telegram_data.db:ro
+      # Persist logs
+      - ./logs:/app/logs
+    environment:
+      # Local database path (used if DUCKDB_REMOTE_URL is not set)
+      DB_PATH: /data/telegram_data.db
+      # Remote DuckDB connection (MotherDuck, S3, HTTP)
+      DUCKDB_REMOTE_URL: ${DUCKDB_REMOTE_URL:-}
+      MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:-}
+      # AWS credentials for S3 access
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      # OpenAI API key for AI features
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # SSE port
+      MCP_SSE_PORT: "8787"
+    restart: unless-stopped
+    command: ["mcp-sse"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8787/sse', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # MCP Server - stdio mode (for direct connection)
+  mcp-stdio:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: terrorblade-mcp-stdio
+    profiles:
+      - stdio
+    volumes:
+      - ${DB_PATH:-./data/telegram_data.db}:/data/telegram_data.db:ro
+      - ./logs:/app/logs
+    environment:
+      DB_PATH: /data/telegram_data.db
+      DUCKDB_REMOTE_URL: ${DUCKDB_REMOTE_URL:-}
+      MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    command: ["mcp"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import duckdb; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # MCP Server with Remote DuckDB only (no local volume mount)не
+  mcp-remote:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: terrorblade-mcp-remote
+    profiles:
+      - remote
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      # Remote DuckDB connection (required for this service)
+      DUCKDB_REMOTE_URL: ${DUCKDB_REMOTE_URL:-}
+      MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    command: ["mcp"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import duckdb; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # CLI Tool - Interactive analysis
+  cli:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: terrorblade-cli
+    profiles:
+      - cli
+    volumes:
+      - ${DB_PATH:-./data/telegram_data.db}:/data/telegram_data.db:ro
+      - ./logs:/app/logs
+    environment:
+      DB_PATH: /data/telegram_data.db
+      DUCKDB_REMOTE_URL: ${DUCKDB_REMOTE_URL:-}
+      MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PHONE: ${PHONE:-+79992004210}
+    stdin_open: true
+    tty: true
+    command: ["cli", "--interactive"]
+
+  # Data Check - Verify database integrity
+  check:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: terrorblade-check
+    profiles:
+      - tools
+    volumes:
+      - ${DB_PATH:-./data/telegram_data.db}:/data/telegram_data.db:ro
+    environment:
+      DB_PATH: /data/telegram_data.db
+      DUCKDB_REMOTE_URL: ${DUCKDB_REMOTE_URL:-}
+      MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:-}
+    command: ["check"]
