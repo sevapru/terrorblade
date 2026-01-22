@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 class ChatSelector:
     """Handles chat selection and filtering operations."""
 
-    def __init__(self, analyzer: Any, on_chat_selected: Callable[[dict[str, Any]], None]) -> None:
+    def __init__(
+        self, analyzer: Any, on_chat_selected: Callable[[dict[str, Any]], None]
+    ) -> None:
         self.analyzer = analyzer
         self.on_chat_selected = on_chat_selected
         self.chats_data: list[dict[str, Any]] = []
@@ -32,7 +34,9 @@ class ChatSelector:
             Container(classes="button-bar"),
         ]
 
-    def load_chats(self, callback: Callable[[list[dict[str, Any]]], None]) -> None:
+    def load_chats(
+        self, callback: Callable[[list[dict[str, Any]]], None]
+    ) -> None:
         """Load chats from database - to be called from main thread."""
         if not self.analyzer:
             logger.error("Analyzer not initialized")
@@ -71,7 +75,10 @@ class ChatSelector:
                 chat_name = chat.get("chat_name", "").lower()
                 chat_id = str(chat.get("chat_id", "")).lower()
 
-                if search_term.lower() in chat_name or search_term.lower() in chat_id:
+                if (
+                    search_term.lower() in chat_name
+                    or search_term.lower() in chat_id
+                ):
                     self.filtered_chats.append(chat)
 
         logger.info(f"Filtered to {len(self.filtered_chats)} chats")
@@ -79,7 +86,9 @@ class ChatSelector:
     def update_chat_list_display(self, chat_list: ListView) -> None:
         """Update the chat list display with current filtered chats."""
         try:
-            logger.info(f"Updating chat list with {len(self.filtered_chats)} chats")
+            logger.info(
+                f"Updating chat list with {len(self.filtered_chats)} chats"
+            )
             chat_list.clear()
 
             for _i, chat in enumerate(self.filtered_chats):
@@ -88,14 +97,20 @@ class ChatSelector:
                 participant_count = chat.get("participant_count", 0)
 
                 # Add indicator for currently selected chat
-                if self.current_chat and chat.get("chat_id") == self.current_chat.get("chat_id"):
+                if self.current_chat and chat.get(
+                    "chat_id"
+                ) == self.current_chat.get("chat_id"):
                     display_text = f"🔸 {chat_name} ({message_count:,} msgs, {participant_count} users)"
                 else:
                     display_text = f"{chat_name} ({message_count:,} msgs, {participant_count} users)"
 
-                chat_list.append(ListItem(Label(display_text, classes="chat-item")))
+                chat_list.append(
+                    ListItem(Label(display_text, classes="chat-item"))
+                )
 
-            logger.info(f"Successfully added {len(self.filtered_chats)} items to chat list")
+            logger.info(
+                f"Successfully added {len(self.filtered_chats)} items to chat list"
+            )
         except Exception as e:
             logger.error(f"Error updating chat list: {e}")
 
@@ -103,10 +118,14 @@ class ChatSelector:
         """Select a chat by list index."""
         if index is not None and index < len(self.filtered_chats):
             self.current_chat = self.filtered_chats[index]
-            logger.info(f"Chat selected via index: {self.current_chat.get('chat_name', 'Unknown')} (index: {index})")
+            logger.info(
+                f"Chat selected via index: {self.current_chat.get('chat_name', 'Unknown')} (index: {index})"
+            )
             return self.current_chat
         else:
-            logger.warning(f"Invalid chat selection - index: {index}, filtered count: {len(self.filtered_chats)}")
+            logger.warning(
+                f"Invalid chat selection - index: {index}, filtered count: {len(self.filtered_chats)}"
+            )
             return None
 
     def get_current_chat(self) -> dict[str, Any] | None:

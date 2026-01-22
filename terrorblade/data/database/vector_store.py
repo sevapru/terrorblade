@@ -11,7 +11,9 @@ from terrorblade import Logger
 class VectorStore:
     """Vector store class for managing embeddings and performing semantic search using DuckDB VSS extension."""
 
-    def __init__(self, db_path: str, phone: str, read_only: bool = False) -> None:
+    def __init__(
+        self, db_path: str, phone: str, read_only: bool = False
+    ) -> None:
         """Initialize the vector store with DuckDB connection.
 
         Args:
@@ -41,7 +43,9 @@ class VectorStore:
             self._install_vss_extension()
             self._verify_embeddings_table()
         except Exception as e:
-            self.logger.error(f"Error connecting to vector store database: {str(e)}")
+            self.logger.error(
+                f"Error connecting to vector store database: {str(e)}"
+            )
             raise
 
     def _install_vss_extension(self) -> None:
@@ -63,19 +67,27 @@ class VectorStore:
             table_names = [table[0] for table in tables]
 
             if self.embeddings_table not in table_names:
-                raise ValueError(f"Embeddings table {self.embeddings_table} does not exist")
-            schema = self.db.execute(f"DESCRIBE {self.embeddings_table}").fetchall()
+                raise ValueError(
+                    f"Embeddings table {self.embeddings_table} does not exist"
+                )
+            schema = self.db.execute(
+                f"DESCRIBE {self.embeddings_table}"
+            ).fetchall()
             expected_columns = {"message_id", "chat_id", "embeddings"}
             actual_columns = {col[0] for col in schema}
 
             if not expected_columns.issubset(actual_columns):
                 missing = expected_columns - actual_columns
-                raise ValueError(f"Missing columns in {self.embeddings_table}: {missing}")
+                raise ValueError(
+                    f"Missing columns in {self.embeddings_table}: {missing}"
+                )
         except Exception as e:
             self.logger.error(f"Error verifying embeddings table: {str(e)}")
             raise
 
-    def _execute_query(self, query: str, params: list[Any], operation: str) -> Any:
+    def _execute_query(
+        self, query: str, params: list[Any], operation: str
+    ) -> Any:
         """Execute database query with unified error handling."""
         try:
             return self.db.execute(query, params)
@@ -83,22 +95,33 @@ class VectorStore:
             self.logger.error(f"Error {operation}: {str(e)}")
             raise
 
-    def _build_chat_filter(self, chat_id: int | None, base_params: list[Any]) -> tuple[str, list[Any]]:
+    def _build_chat_filter(
+        self, chat_id: int | None, base_params: list[Any]
+    ) -> tuple[str, list[Any]]:
         """Build WHERE clause and parameters for chat_id filtering."""
         if chat_id is None:
             return "", base_params
 
         params = base_params.copy()
         params.append(chat_id)
-        return "WHERE chat_id = ?" if "WHERE" not in str(base_params) else "AND chat_id = ?", params
+        return (
+            "WHERE chat_id = ?"
+            if "WHERE" not in str(base_params)
+            else "AND chat_id = ?"
+        ), params
 
     def _vector_operation(
-        self, operation: str, vector1: list[float], vector2: list[float], default_value: float
+        self,
+        operation: str,
+        vector1: list[float],
+        vector2: list[float],
+        default_value: float,
     ) -> float:
         """Generic vector operation (similarity/distance) calculation."""
         try:
             result = self.db.execute(
-                f"SELECT array_cosine_{operation}(?::FLOAT[768], ?::FLOAT[768])", [vector1, vector2]
+                f"SELECT array_cosine_{operation}(?::FLOAT[768], ?::FLOAT[768])",
+                [vector1, vector2],
             ).fetchone()
             return result[0] if result else default_value
         except Exception as e:
@@ -108,7 +131,9 @@ class VectorStore:
     def _trigger_lazy_index_loading(self) -> None:
         """Trigger lazy loading of persisted HNSW index by accessing the table."""
         try:
-            self.db.execute(f"SELECT COUNT(*) FROM {self.embeddings_table} LIMIT 1").fetchone()
+            self.db.execute(
+                f"SELECT COUNT(*) FROM {self.embeddings_table} LIMIT 1"
+            ).fetchone()
         except Exception as e:
             self.logger.error(f"Error triggering lazy index loading: {str(e)}")
 
@@ -153,12 +178,16 @@ class VectorStore:
                 )
 
                 count_result = self._execute_query(
-                    f"SELECT COUNT(*) FROM {self.embeddings_table}", [], "getting row count"
+                    f"SELECT COUNT(*) FROM {self.embeddings_table}",
+                    [],
+                    "getting row count",
                 ).fetchone()
                 stats["indexed_rows"] = count_result[0] if count_result else 0
 
                 vector_size_bytes = 768 * 4
-                estimated_memory_mb = (stats["indexed_rows"] * vector_size_bytes * 1.5) / (1024 * 1024)
+                estimated_memory_mb = (
+                    stats["indexed_rows"] * vector_size_bytes * 1.5
+                ) / (1024 * 1024)
                 stats["estimated_memory_mb"] = round(estimated_memory_mb, 2)
 
             return stats
@@ -198,7 +227,9 @@ class VectorStore:
 
         print("=" * 50)
 
-    def create_hnsw_index(self, index_name: str | None = None, force_recreate: bool = False) -> bool:
+    def create_hnsw_index(
+        self, index_name: str | None = None, force_recreate: bool = False
+    ) -> bool:
         """Create HNSW index on embeddings column for fast vector similarity search.
 
         Note: This method requires write access. In read-only mode, it will return False
@@ -231,11 +262,15 @@ class VectorStore:
             self.logger.error(f"Error creating HNSW index: {str(e)}")
             raise
 
-    def cosine_similarity(self, vector1: list[float], vector2: list[float]) -> float:
+    def cosine_similarity(
+        self, vector1: list[float], vector2: list[float]
+    ) -> float:
         """Calculate cosine similarity between two vectors."""
         return self._vector_operation("similarity", vector1, vector2, 0.0)
 
-    def cosine_distance(self, vector1: list[float], vector2: list[float]) -> float:
+    def cosine_distance(
+        self, vector1: list[float], vector2: list[float]
+    ) -> float:
         """Calculate cosine distance between two vectors."""
         return self._vector_operation("distance", vector1, vector2, 2.0)
 
@@ -247,7 +282,9 @@ class VectorStore:
         similarity_threshold: float = 0.0,
     ) -> list[tuple[int, int, float]]:
         """Perform similarity search using HNSW index."""
-        where_clause, params = self._build_chat_filter(chat_id, [query_vector, top_k])
+        where_clause, params = self._build_chat_filter(
+            chat_id, [query_vector, top_k]
+        )
 
         if chat_id is not None:
             params = [query_vector, chat_id, top_k]
@@ -261,9 +298,13 @@ class VectorStore:
         """
 
         try:
-            results = self._execute_query(query, params, "performing similarity search").fetchall()
+            results = self._execute_query(
+                query, params, "performing similarity search"
+            ).fetchall()
             filtered_results = [
-                (msg_id, chat_id, sim) for msg_id, chat_id, sim in results if sim >= similarity_threshold
+                (msg_id, chat_id, sim)
+                for msg_id, chat_id, sim in results
+                if sim >= similarity_threshold
             ]
             return filtered_results
         except Exception:
@@ -277,7 +318,9 @@ class VectorStore:
         distance_threshold: float = 2.0,
     ) -> list[tuple[int, int, float]]:
         """Perform distance-based search using cosine distance."""
-        where_clause, params = self._build_chat_filter(chat_id, [query_vector, top_k])
+        where_clause, params = self._build_chat_filter(
+            chat_id, [query_vector, top_k]
+        )
 
         if chat_id is not None:
             params = [query_vector, chat_id, top_k]
@@ -291,17 +334,25 @@ class VectorStore:
         """
 
         try:
-            results = self._execute_query(query, params, "performing distance search").fetchall()
+            results = self._execute_query(
+                query, params, "performing distance search"
+            ).fetchall()
             filtered_results = [
-                (msg_id, chat_id, dist) for msg_id, chat_id, dist in results if dist <= distance_threshold
+                (msg_id, chat_id, dist)
+                for msg_id, chat_id, dist in results
+                if dist <= distance_threshold
             ]
             return filtered_results
         except Exception:
             return []
 
-    def get_all_distances(self, query_vector: list[float], chat_id: int | None = None) -> pl.DataFrame:
+    def get_all_distances(
+        self, query_vector: list[float], chat_id: int | None = None
+    ) -> pl.DataFrame:
         """Calculate distances to all messages in the database."""
-        where_clause, params = self._build_chat_filter(chat_id, [query_vector, query_vector])
+        where_clause, params = self._build_chat_filter(
+            chat_id, [query_vector, query_vector]
+        )
 
         query = f"""
             SELECT message_id, chat_id,
@@ -313,12 +364,20 @@ class VectorStore:
         """
 
         try:
-            results = self._execute_query(query, params, "calculating all distances").fetchall()
-            return pl.DataFrame(results, schema=["message_id", "chat_id", "distance", "similarity"], orient="row")
+            results = self._execute_query(
+                query, params, "calculating all distances"
+            ).fetchall()
+            return pl.DataFrame(
+                results,
+                schema=["message_id", "chat_id", "distance", "similarity"],
+                orient="row",
+            )
         except Exception:
             return pl.DataFrame()
 
-    def get_embedding(self, message_id: int, chat_id: int) -> list[float] | None:
+    def get_embedding(
+        self, message_id: int, chat_id: int
+    ) -> list[float] | None:
         """Retrieve embedding for a specific message."""
         try:
             result = self._execute_query(
@@ -391,11 +450,24 @@ class VectorStore:
 
             # Insert similarity_threshold before LIMIT param; order already correct
             if chat_id is not None:
-                params = [query_vector, query_vector, similarity_threshold, chat_id, top_k]
+                params = [
+                    query_vector,
+                    query_vector,
+                    similarity_threshold,
+                    chat_id,
+                    top_k,
+                ]
             else:
-                params = [query_vector, query_vector, similarity_threshold, top_k]
+                params = [
+                    query_vector,
+                    query_vector,
+                    similarity_threshold,
+                    top_k,
+                ]
 
-            results = self._execute_query(query, params, "performing similarity search with text").fetchall()
+            results = self._execute_query(
+                query, params, "performing similarity search with text"
+            ).fetchall()
 
             if not results:
                 return pl.DataFrame(schema=empty_schema)
@@ -417,13 +489,23 @@ class VectorStore:
 
             if include_cluster_messages:
                 text_previews = [
-                    self._get_cluster_context_snippet(row["message_id"], row["chat_id"], row["cluster_id"], row["text"])
+                    self._get_cluster_context_snippet(
+                        row["message_id"],
+                        row["chat_id"],
+                        row["cluster_id"],
+                        row["text"],
+                    )
                     for row in similarity_df.iter_rows(named=True)
                 ]
-                similarity_df = similarity_df.with_columns(pl.Series("text_preview", text_previews))
+                similarity_df = similarity_df.with_columns(
+                    pl.Series("text_preview", text_previews)
+                )
             else:
                 similarity_df = similarity_df.with_columns(
-                    pl.col("text").str.slice(0, 100).str.replace("\n", " ").alias("text_preview")
+                    pl.col("text")
+                    .str.slice(0, 100)
+                    .str.replace("\n", " ")
+                    .alias("text_preview")
                 )
 
             return similarity_df
@@ -465,7 +547,11 @@ class VectorStore:
                 return (original_text or "")[:100].replace("\n", " ")
 
             target_position = next(
-                (i for i, (msg_id, _, _, _) in enumerate(cluster_messages) if msg_id == message_id),
+                (
+                    i
+                    for i, (msg_id, _, _, _) in enumerate(cluster_messages)
+                    if msg_id == message_id
+                ),
                 None,
             )
 
@@ -473,7 +559,9 @@ class VectorStore:
                 return (original_text or "")[:100].replace("\n", " ")
 
             start_idx = max(0, target_position - context_size)
-            end_idx = min(len(cluster_messages), target_position + context_size + 1)
+            end_idx = min(
+                len(cluster_messages), target_position + context_size + 1
+            )
             context_messages = cluster_messages[start_idx:end_idx]
 
             snippet_parts = []
@@ -502,7 +590,9 @@ class VectorStore:
             stats: dict[str, Any] = {}
 
             count_result = self._execute_query(
-                f"SELECT COUNT(*) FROM {self.embeddings_table}", [], "getting table count"
+                f"SELECT COUNT(*) FROM {self.embeddings_table}",
+                [],
+                "getting table count",
             ).fetchone()
             stats["total_embeddings"] = count_result[0] if count_result else 0
 
@@ -529,4 +619,6 @@ class VectorStore:
         try:
             self.db.close()
         except Exception as e:
-            self.logger.error(f"Error closing vector store connection: {str(e)}")
+            self.logger.error(
+                f"Error closing vector store connection: {str(e)}"
+            )

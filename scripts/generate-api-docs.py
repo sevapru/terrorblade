@@ -25,7 +25,7 @@ def get_module_structure(base_path: Path) -> dict[str, list[str]]:
         "User Interfaces": [],
         "Utilities": [],
         "Examples": [],
-        "MCP Server": []
+        "MCP Server": [],
     }
 
     # Define category mappings based on directory structure
@@ -36,7 +36,7 @@ def get_module_structure(base_path: Path) -> dict[str, list[str]]:
         "tui": "User Interfaces",
         "examples": "Examples",
         "mcp": "MCP Server",
-        "utils": "Utilities"
+        "utils": "Utilities",
     }
 
     terrorblade_path = base_path / "terrorblade"
@@ -68,7 +68,7 @@ def get_module_structure(base_path: Path) -> dict[str, list[str]]:
 def generate_module_doc(module_path: str, nav_path: str) -> None:
     """Generate documentation for a single module."""
 
-    module_name = module_path.split('.')[-1]
+    module_name = module_path.split(".")[-1]
 
     # Create enhanced markdown content
     content = f"""# {module_name}
@@ -115,7 +115,7 @@ def get_category_for_module(module_path: str) -> str:
         "tui": "User Interfaces",
         "examples": "Examples",
         "mcp": "MCP Server",
-        "utils": "Utilities"
+        "utils": "Utilities",
     }
 
     for pattern, category in category_mappings.items():
@@ -137,7 +137,7 @@ This section contains the {category.lower()} modules of Terrorblade.
 """
 
     for module in modules:
-        module_name = module.split('.')[-1]
+        module_name = module.split(".")[-1]
         module_file = f"{module.replace('.', '/')}.md"
         content += f"- [{module_name}]({module_file})\n"
 
@@ -153,20 +153,24 @@ def main():
     print("🔍 Scanning Terrorblade module structure...")
     structure = get_module_structure(project_root)
 
-    print(f"📁 Found {sum(len(modules) for modules in structure.values())} modules in {len(structure)} categories")
+    print(
+        f"📁 Found {sum(len(modules) for modules in structure.values())} modules in {len(structure)} categories"
+    )
 
     # Generate navigation structure
     nav_items = []
 
     for category, modules in structure.items():
-        print(f"📝 Generating documentation for {category} ({len(modules)} modules)")
+        print(
+            f"📝 Generating documentation for {category} ({len(modules)} modules)"
+        )
 
         # Create category directory
         category_dir = f"api/{category.lower().replace(' ', '-')}"
 
         # Generate individual module docs
         for module_path in modules:
-            module_name = module_path.split('.')[-1]
+            module_name = module_path.split(".")[-1]
             nav_path = f"{category_dir}/{module_name}.md"
 
             generate_module_doc(module_path, nav_path)
@@ -181,8 +185,10 @@ def main():
 
         # Add individual modules to nav
         for module_path in modules:
-            module_name = module_path.split('.')[-1]
-            nav_items.append(f"    - {module_name}: {category_dir}/{module_name}.md")
+            module_name = module_path.split(".")[-1]
+            nav_items.append(
+                f"    - {module_name}: {category_dir}/{module_name}.md"
+            )
 
     # Generate main API index
     api_index_content = """# API Reference
@@ -195,7 +201,9 @@ Welcome to the Terrorblade API reference. This documentation is automatically ge
 
     for category, modules in structure.items():
         category_link = f"api/{category.lower().replace(' ', '-')}/index.md"
-        api_index_content += f"- [{category}]({category_link}) - {len(modules)} modules\n"
+        api_index_content += (
+            f"- [{category}]({category_link}) - {len(modules)} modules\n"
+        )
 
     api_index_content += """
 ## Navigation
@@ -223,7 +231,9 @@ Most modules include usage examples in their docstrings. For more comprehensive 
     with mkdocs_gen_files.open("api_nav.md", "w") as f:
         f.write(nav_content)
 
-    print(f"✅ Generated API documentation for {sum(len(modules) for modules in structure.values())} modules")
+    print(
+        f"✅ Generated API documentation for {sum(len(modules) for modules in structure.values())} modules"
+    )
     print("📋 Navigation structure saved to api_nav.md")
 
 

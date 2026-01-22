@@ -37,6 +37,7 @@ load_dotenv()
 # Check for optional dependencies
 try:
     import openai
+
     OPENAI_AVAILABLE = True
 except ImportError:
     openai = None
@@ -70,12 +71,19 @@ class ClusterAnalyzer:
         """Check if required tables exist for this user."""
         try:
             # Check if the main tables exist by trying to query them
-            tables_to_check = [self.messages_table, self.clusters_table, self.chat_names_table, self.user_names_table]
+            tables_to_check = [
+                self.messages_table,
+                self.clusters_table,
+                self.chat_names_table,
+                self.user_names_table,
+            ]
 
             for table in tables_to_check:
                 try:
                     # Try to query the table - if it exists, this will work
-                    self.db.db.execute(f"SELECT COUNT(*) FROM {table} LIMIT 1").fetchone()
+                    self.db.db.execute(
+                        f"SELECT COUNT(*) FROM {table} LIMIT 1"
+                    ).fetchone()
                 except Exception:
                     # If any table doesn't exist or can't be queried, return False
                     return False
@@ -164,7 +172,9 @@ class ClusterAnalyzer:
         except Exception:
             return None
 
-    def get_large_clusters(self, chat_id: int | None = None, min_size: int = 10) -> pl.DataFrame | pl.Series:
+    def get_large_clusters(
+        self, chat_id: int | None = None, min_size: int = 10
+    ) -> pl.DataFrame | pl.Series:
         """Get all large clusters for a specific chat or all chats."""
         if not self._check_tables_exist():
             print(f"❌ No data found for phone {self.phone}")
@@ -218,8 +228,12 @@ class ClusterAnalyzer:
             if len(df) > 0:
                 df = df.with_columns(
                     [
-                        pl.col("start_time").dt.strftime("%Y-%m-%d %H:%M").alias("start_time_str"),
-                        pl.col("end_time").dt.strftime("%Y-%m-%d %H:%M").alias("end_time_str"),
+                        pl.col("start_time")
+                        .dt.strftime("%Y-%m-%d %H:%M")
+                        .alias("start_time_str"),
+                        pl.col("end_time")
+                        .dt.strftime("%Y-%m-%d %H:%M")
+                        .alias("end_time_str"),
                         pl.when(pl.col("messages_per_hour") >= 20)
                         .then(pl.lit("🔥 Very High"))
                         .when(pl.col("messages_per_hour") >= 10)
@@ -237,7 +251,9 @@ class ClusterAnalyzer:
             print(f"Error getting large clusters: {e}")
             return pl.DataFrame()
 
-    def analyze_cluster_details(self, chat_id: int, group_id: int) -> dict[str, Any]:
+    def analyze_cluster_details(
+        self, chat_id: int, group_id: int
+    ) -> dict[str, Any]:
         """Get detailed analysis of a specific cluster."""
         try:
             # Get cluster messages with user names
@@ -295,7 +311,9 @@ class ClusterAnalyzer:
             duration = stats["end_time"] - stats["start_time"]
             duration_hours = duration.total_seconds() / 3600.0
             stats["duration_hours"] = duration_hours
-            stats["messages_per_hour"] = stats["message_count"] / max(duration_hours, 0.1)
+            stats["messages_per_hour"] = stats["message_count"] / max(
+                duration_hours, 0.1
+            )
 
             # Participant breakdown
             participant_stats = (
@@ -303,7 +321,10 @@ class ClusterAnalyzer:
                 .agg(
                     [
                         pl.len().alias("message_count"),
-                        pl.col("text").str.len_chars().mean().alias("avg_message_length"),
+                        pl.col("text")
+                        .str.len_chars()
+                        .mean()
+                        .alias("avg_message_length"),
                     ]
                 )
                 .sort("message_count", descending=True)
@@ -313,17 +334,27 @@ class ClusterAnalyzer:
             # Time-based analysis (messages per hour)
             time_analysis = (
                 messages_df.with_columns(
-                    [pl.col("date").dt.hour().alias("hour"), pl.col("date").dt.date().alias("date_only")]
+                    [
+                        pl.col("date").dt.hour().alias("hour"),
+                        pl.col("date").dt.date().alias("date_only"),
+                    ]
                 )
                 .group_by(["date_only", "hour"])
-                .agg([pl.len().alias("messages"), pl.col("from_id").n_unique().alias("active_users")])
+                .agg(
+                    [
+                        pl.len().alias("messages"),
+                        pl.col("from_id").n_unique().alias("active_users"),
+                    ]
+                )
                 .sort(["date_only", "hour"])
             )
             stats["time_analysis"] = time_analysis
 
             # Find most intense period (1-hour window with most messages)
             if len(time_analysis) > 0:
-                max_hour = time_analysis.sort("messages", descending=True).head(1)
+                max_hour = time_analysis.sort("messages", descending=True).head(
+                    1
+                )
                 stats["peak_hour"] = {
                     "date": max_hour["date_only"][0],
                     "hour": max_hour["hour"][0],
@@ -368,7 +399,9 @@ class ClusterAnalyzer:
                 from_name = row["from_name"]
                 text = (row["text"] or "").strip()
                 if text:
-                    formatted_messages.append(f"[{timestamp}] {from_name}: {text}")
+                    formatted_messages.append(
+                        f"[{timestamp}] {from_name}: {text}"
+                    )
 
             return "\n".join(formatted_messages)
 
@@ -414,7 +447,9 @@ def summarize_cluster_with_openai(cluster_text: str, api_key: str) -> str:
         return f"Error generating summary: {e}"
 
 
-def extract_story_from_cluster(cluster_text: str, api_key: str, perspective: str = "third_person") -> str:
+def extract_story_from_cluster(
+    cluster_text: str, api_key: str, perspective: str = "third_person"
+) -> str:
     """Extract a narrative story from cluster using OpenAI API."""
     if not OPENAI_AVAILABLE:
         return "OpenAI library not available. Please install with: pip install openai"
@@ -494,7 +529,8 @@ def save_story_to_db(
         # Get associated message IDs
         clusters_table = f"message_clusters_{phone_clean}"
         result = db.db.execute(
-            f"SELECT message_id FROM {clusters_table} WHERE group_id = ? AND chat_id = ?", [group_id, chat_id]
+            f"SELECT message_id FROM {clusters_table} WHERE group_id = ? AND chat_id = ?",
+            [group_id, chat_id],
         ).fetchall()
 
         message_ids = ",".join([str(row[0]) for row in result])
@@ -507,7 +543,16 @@ def save_story_to_db(
             (chat_id, cluster_group_id, associated_message_ids, story_text, tags, start_time, end_time, participants)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-            [chat_id, group_id, message_ids, story_text, tags, start_time, end_time, participants_str],
+            [
+                chat_id,
+                group_id,
+                message_ids,
+                story_text,
+                tags,
+                start_time,
+                end_time,
+                participants_str,
+            ],
         )
 
         return True
@@ -527,7 +572,14 @@ def display_chats_table(df: pl.DataFrame) -> None:
     print("=" * 100)
 
     display_df = df.select(
-        ["chat_id", "chat_name", "message_count", "participant_count", "cluster_count", "max_cluster_size"]
+        [
+            "chat_id",
+            "chat_name",
+            "message_count",
+            "participant_count",
+            "cluster_count",
+            "max_cluster_size",
+        ]
     ).with_columns(
         [
             pl.col("chat_name").str.slice(0, 30).alias("chat_name_short"),
@@ -576,7 +628,9 @@ def display_cluster_analysis(stats: dict[str, Any]) -> None:
         print(f"❌ {stats['error']}")
         return
 
-    print(f"\n📊 Cluster Analysis - Group {stats['cluster_id']} in {stats['chat_name']}")
+    print(
+        f"\n📊 Cluster Analysis - Group {stats['cluster_id']} in {stats['chat_name']}"
+    )
     print("=" * 80)
 
     print(f"📝 Messages: {stats['message_count']}")
@@ -587,22 +641,37 @@ def display_cluster_analysis(stats: dict[str, Any]) -> None:
 
     if "peak_hour" in stats:
         peak = stats["peak_hour"]
-        print(f"🔥 Peak hour: {peak['date']} at {peak['hour']:02d}:00 ({peak['messages']} messages)")
+        print(
+            f"🔥 Peak hour: {peak['date']} at {peak['hour']:02d}:00 ({peak['messages']} messages)"
+        )
 
     print("\n👥 Participant Breakdown:")
     print(stats["participants"].to_pandas().to_string(index=False))
 
     if len(stats["time_analysis"]) > 0:
         print("\n⏰ Hourly Activity (showing top 10):")
-        top_hours = stats["time_analysis"].sort("messages", descending=True).head(10)
+        top_hours = (
+            stats["time_analysis"].sort("messages", descending=True).head(10)
+        )
         print(top_hours.to_pandas().to_string(index=False))
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Terrorblade Cluster Analysis CLI")
-    parser.add_argument("--phone", required=True, help="Phone number (e.g., +1234567890)")
-    parser.add_argument("--db-path", default="auto", help="Database path (default: auto)")
-    parser.add_argument("--min-size", type=int, default=10, help="Minimum cluster size (default: 10)")
+    parser = argparse.ArgumentParser(
+        description="Terrorblade Cluster Analysis CLI"
+    )
+    parser.add_argument(
+        "--phone", required=True, help="Phone number (e.g., +1234567890)"
+    )
+    parser.add_argument(
+        "--db-path", default="auto", help="Database path (default: auto)"
+    )
+    parser.add_argument(
+        "--min-size",
+        type=int,
+        default=10,
+        help="Minimum cluster size (default: 10)",
+    )
 
     args = parser.parse_args()
 
@@ -628,21 +697,27 @@ def main() -> None:
                 display_chats_table(chats_df)
 
             elif choice == "2":
-                clusters_df = analyzer.get_large_clusters(min_size=args.min_size)
+                clusters_df = analyzer.get_large_clusters(
+                    min_size=args.min_size
+                )
                 display_clusters_table(pl.DataFrame(clusters_df))
 
             elif choice == "3":
-                chat_input = input("Enter chat name (partial) or chat ID: ").strip()
+                chat_input = input(
+                    "Enter chat name (partial) or chat ID: "
+                ).strip()
 
                 try:
                     chat_id = int(chat_input)
                 except ValueError:
-                    chat_id = analyzer.find_chat_by_name(chat_input) # type: ignore
+                    chat_id = analyzer.find_chat_by_name(chat_input)  # type: ignore
                     if not chat_id:
                         print(f"❌ No chat found matching '{chat_input}'")
                         continue
 
-                clusters_df = analyzer.get_large_clusters(chat_id=chat_id, min_size=args.min_size)
+                clusters_df = analyzer.get_large_clusters(
+                    chat_id=chat_id, min_size=args.min_size
+                )
                 display_clusters_table(pl.DataFrame(clusters_df))
 
             elif choice == "4":
@@ -658,12 +733,16 @@ def main() -> None:
 
             elif choice == "5":
                 if not OPENAI_AVAILABLE:
-                    print("❌ OpenAI library not installed. Please install with: pip install openai")
+                    print(
+                        "❌ OpenAI library not installed. Please install with: pip install openai"
+                    )
                     continue
 
                 api_key = os.getenv("OPENAI_API_KEY")
                 if not api_key:
-                    print("❌ OPENAI_API_KEY not found in environment variables")
+                    print(
+                        "❌ OPENAI_API_KEY not found in environment variables"
+                    )
                     continue
 
                 try:
@@ -671,8 +750,12 @@ def main() -> None:
                     group_id = int(input("Enter cluster group ID: ").strip())
 
                     print("🤖 Generating AI summary...")
-                    cluster_text = analyzer.get_cluster_summary_data(chat_id, group_id)
-                    summary = summarize_cluster_with_openai(cluster_text, api_key)
+                    cluster_text = analyzer.get_cluster_summary_data(
+                        chat_id, group_id
+                    )
+                    summary = summarize_cluster_with_openai(
+                        cluster_text, api_key
+                    )
 
                     print("\n📄 AI Summary:")
                     print("=" * 60)
@@ -681,7 +764,9 @@ def main() -> None:
                     print("\n💾 Saving summary to database...")
                     stats = analyzer.analyze_cluster_details(chat_id, group_id)
                     if "error" not in stats:
-                        participants = stats["participants"]["from_name"].to_list()
+                        participants = stats["participants"][
+                            "from_name"
+                        ].to_list()
                         tags = "ai_summary,cluster_analysis"
 
                         success = save_story_to_db(
@@ -698,50 +783,72 @@ def main() -> None:
 
                         if success:
                             print("✅ Summary saved to database successfully!")
-                            print(f"📋 Details: {len(summary)} chars, {len(participants)} participants, tags: {tags}")
+                            print(
+                                f"📋 Details: {len(summary)} chars, {len(participants)} participants, tags: {tags}"
+                            )
                         else:
                             print("❌ Failed to save summary to database")
                     else:
-                        print("⚠️  Could not get cluster stats for database logging")
+                        print(
+                            "⚠️  Could not get cluster stats for database logging"
+                        )
 
                 except ValueError:
                     print("❌ Please enter valid numeric IDs")
 
             elif choice == "6":
                 if not OPENAI_AVAILABLE:
-                    print("❌ OpenAI library not installed. Please install with: pip install openai")
+                    print(
+                        "❌ OpenAI library not installed. Please install with: pip install openai"
+                    )
                     continue
 
                 api_key = os.getenv("OPENAI_API_KEY")
                 if not api_key:
-                    print("❌ OPENAI_API_KEY not found in environment variables")
+                    print(
+                        "❌ OPENAI_API_KEY not found in environment variables"
+                    )
                     continue
 
                 try:
                     chat_id = int(input("Enter chat ID: ").strip())
                     group_id = int(input("Enter cluster group ID: ").strip())
 
-                    perspective = input("Story perspective (first_person/third_person) [third_person]: ").strip()
+                    perspective = input(
+                        "Story perspective (first_person/third_person) [third_person]: "
+                    ).strip()
                     if not perspective:
                         perspective = "third_person"
 
                     print("📖 Generating story...")
-                    cluster_text = analyzer.get_cluster_summary_data(chat_id, group_id)
-                    story = extract_story_from_cluster(cluster_text, api_key, perspective)
+                    cluster_text = analyzer.get_cluster_summary_data(
+                        chat_id, group_id
+                    )
+                    story = extract_story_from_cluster(
+                        cluster_text, api_key, perspective
+                    )
 
                     print(f"\n📚 Generated Story ({perspective}):")
                     print("=" * 60)
                     print(story)
 
                     # Option to save to database
-                    save_choice = input("\nSave story to database? (y/n): ").strip().lower()
+                    save_choice = (
+                        input("\nSave story to database? (y/n): ")
+                        .strip()
+                        .lower()
+                    )
                     if save_choice == "y":
                         tags = input("Enter tags (comma-separated): ").strip()
 
                         # Get cluster details for metadata
-                        stats = analyzer.analyze_cluster_details(chat_id, group_id)
+                        stats = analyzer.analyze_cluster_details(
+                            chat_id, group_id
+                        )
                         if "error" not in stats:
-                            participants = stats["participants"]["from_name"].to_list()
+                            participants = stats["participants"][
+                                "from_name"
+                            ].to_list()
                             success = save_story_to_db(
                                 analyzer.db,
                                 args.phone,

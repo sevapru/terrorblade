@@ -113,8 +113,12 @@ class TelegramPreprocessor(TextPreprocessor):
 
         if use_duckdb:
             if not phone:
-                raise ValueError("Phone number is required when use_duckdb is True")
-            self.logger.info(f"Initializing DuckDB connection with database: {db_path}")
+                raise ValueError(
+                    "Phone number is required when use_duckdb is True"
+                )
+            self.logger.info(
+                f"Initializing DuckDB connection with database: {db_path}"
+            )
             self.db = duckdb.connect(db_path)
             self._init_cluster_tables()
 
@@ -150,75 +154,78 @@ class TelegramPreprocessor(TextPreprocessor):
         user_names_table = f"user_names_{phone_clean}"
         files_table = f"files_{phone_clean}"
 
-        self.db.execute(
-            f"""
+        self.db.execute(f"""
             CREATE TABLE IF NOT EXISTS {clusters_table} (
                 message_id BIGINT,
                 chat_id BIGINT,
                 group_id INTEGER,
                 PRIMARY KEY (message_id, chat_id)
             )
-        """
-        )
+        """)
 
-        self.db.execute(
-            f"""
+        self.db.execute(f"""
             CREATE TABLE IF NOT EXISTS {embeddings_table} (
                 message_id BIGINT,
                 chat_id BIGINT,
                 embeddings FLOAT[768],
                 PRIMARY KEY (message_id, chat_id)
             )
-        """
-        )
+        """)
 
         # Global media types dictionary
-        self.db.execute(
-            """
+        self.db.execute("""
             CREATE TABLE IF NOT EXISTS media_types (
                 media_type_id INTEGER,
                 name TEXT,
                 PRIMARY KEY (media_type_id)
             )
-            """
-        )
-        self.db.execute(
-            """
+            """)
+        self.db.execute("""
             CREATE UNIQUE INDEX IF NOT EXISTS idx_media_types_name ON media_types(name)
-            """
-        )
+            """)
 
         # Name mapping tables (per-user)
-        chat_cols = ", ".join([f'"{field}" {info["db_type"]}' for field, info in CHAT_NAMES_SCHEMA.items()])
-        user_cols = ", ".join([f'"{field}" {info["db_type"]}' for field, info in USER_NAMES_SCHEMA.items()])
-        files_cols = ", ".join([f'"{field}" {info["db_type"]}' for field, info in FILES_SCHEMA.items()])
+        chat_cols = ", ".join(
+            [
+                f'"{field}" {info["db_type"]}'
+                for field, info in CHAT_NAMES_SCHEMA.items()
+            ]
+        )
+        user_cols = ", ".join(
+            [
+                f'"{field}" {info["db_type"]}'
+                for field, info in USER_NAMES_SCHEMA.items()
+            ]
+        )
+        files_cols = ", ".join(
+            [
+                f'"{field}" {info["db_type"]}'
+                for field, info in FILES_SCHEMA.items()
+            ]
+        )
 
-        self.db.execute(
-            f"""
+        self.db.execute(f"""
             CREATE TABLE IF NOT EXISTS {chat_names_table} (
                 {chat_cols},
                 PRIMARY KEY (chat_id, chat_name)
             )
-            """
-        )
-        self.db.execute(
-            f"""
+            """)
+        self.db.execute(f"""
             CREATE TABLE IF NOT EXISTS {user_names_table} (
                 {user_cols},
                 PRIMARY KEY (from_id, from_name)
             )
-            """
-        )
-        self.db.execute(
-            f"""
+            """)
+        self.db.execute(f"""
             CREATE TABLE IF NOT EXISTS {files_table} (
                 {files_cols},
                 PRIMARY KEY (message_id, chat_id)
             )
-            """
-        )
+            """)
 
-    def _get_messages_from_db(self, phone: str | None = None, chat_id: int | None = None) -> pl.DataFrame:
+    def _get_messages_from_db(
+        self, phone: str | None = None, chat_id: int | None = None
+    ) -> pl.DataFrame:
         """
         Retrieve messages for a specific user from DuckDB.
 
@@ -252,7 +259,10 @@ class TelegramPreprocessor(TextPreprocessor):
 
         query += " ORDER BY date"
 
-        self.logger.info(f"Retrieving messages for phone {phone}" + (f" and chat {chat_id}" if chat_id else ""))
+        self.logger.info(
+            f"Retrieving messages for phone {phone}"
+            + (f" and chat {chat_id}" if chat_id else "")
+        )
         try:
             result = self.db.execute(query).arrow()
             df = pl.from_arrow(result)
@@ -262,7 +272,9 @@ class TelegramPreprocessor(TextPreprocessor):
             self.logger.info(f"Retrieved {len(df)} messages")
             return df
         except Exception as e:
-            self.logger.error(f"Error retrieving messages from database: {str(e)}")
+            self.logger.error(
+                f"Error retrieving messages from database: {str(e)}"
+            )
             raise
 
     def _update_clusters_in_db(self, clusters_df: pl.DataFrame) -> None:
@@ -291,14 +303,12 @@ class TelegramPreprocessor(TextPreprocessor):
         try:
             # The register + INSERT approach (0.0114s) is 65x faster than executemany(.rows()) (0.7483s)
             self.db.register("clusters_df", clusters_df)
-            self.db.execute(
-                f"""
+            self.db.execute(f"""
                 INSERT OR IGNORE INTO {clusters_table}
                 (message_id, chat_id, group_id)
                 SELECT message_id, chat_id, group_id
                 FROM clusters_df
-                """
-            )
+                """)
             self.logger.nice(f"Updated {len(clusters_df)} cluster records in table {clusters_table} ✓")  # type: ignore
         except Exception as e:
             self.logger.error(f"Error updating clusters in database: {str(e)}")
@@ -341,24 +351,29 @@ class TelegramPreprocessor(TextPreprocessor):
 
         # Validate embeddings are F32 arrays with correct shape
         embeddings_dtype = embeddings_df["embeddings"].dtype
-        if not isinstance(embeddings_dtype, pl.Array) or embeddings_dtype.inner != pl.Float32:
-            raise ValueError(f"Embeddings must be Array(Float32, shape=768), got {embeddings_dtype}")
+        if (
+            not isinstance(embeddings_dtype, pl.Array)
+            or embeddings_dtype.inner != pl.Float32
+        ):
+            raise ValueError(
+                f"Embeddings must be Array(Float32, shape=768), got {embeddings_dtype}"
+            )
 
         try:
             # The register + INSERT approach (0.0114s) is 65x faster than executemany(.rows()) (0.7483s)
             self.db.register("embeddings_df", embeddings_df)
-            self.db.execute(
-                f"""
+            self.db.execute(f"""
                 INSERT OR IGNORE INTO {embeddings_table}
                 (message_id, chat_id, embeddings)
                 SELECT message_id, chat_id, embeddings
                 FROM embeddings_df
-                """
-            )
+                """)
             self.logger.nice(f"Updated {len(embeddings_df)} embeddings ✓")  # type: ignore
 
         except Exception as e:
-            self.logger.error(f"Error batch updating embeddings in database: {str(e)}")
+            self.logger.error(
+                f"Error batch updating embeddings in database: {str(e)}"
+            )
             raise
 
     def _get_embeddings_from_db(self, chat_id: int) -> dict:
@@ -398,10 +413,14 @@ class TelegramPreprocessor(TextPreprocessor):
             """
             result = self.db.execute(query, [chat_id]).fetchall()
             embeddings_dict = {row[0]: row[1] for row in result}
-            self.logger.info(f"Retrieved {len(embeddings_dict)} embeddings for chat {chat_id}")
+            self.logger.info(
+                f"Retrieved {len(embeddings_dict)} embeddings for chat {chat_id}"
+            )
             return embeddings_dict
         except Exception as e:
-            self.logger.error(f"Error retrieving embeddings from database: {str(e)}")
+            self.logger.error(
+                f"Error retrieving embeddings from database: {str(e)}"
+            )
             raise
 
     def _get_messages_with_embeddings(self, chat_id: int | None = None) -> set:
@@ -426,7 +445,10 @@ class TelegramPreprocessor(TextPreprocessor):
         """
         phone_clean = self.phone.replace("+", "") if self.phone else "default"
         embeddings_table = f"chat_embeddings_{phone_clean}"
-        self.logger.info("Retrieving message IDs with embeddings" + (f" for chat {chat_id}" if chat_id else ""))
+        self.logger.info(
+            "Retrieving message IDs with embeddings"
+            + (f" for chat {chat_id}" if chat_id else "")
+        )
 
         try:
             query = f"SELECT message_id FROM {embeddings_table}"
@@ -435,13 +457,19 @@ class TelegramPreprocessor(TextPreprocessor):
 
             result = self.db.execute(query).fetchall()
             message_ids = {row[0] for row in result}
-            self.logger.info(f"Found {len(message_ids)} messages with existing embeddings")
+            self.logger.info(
+                f"Found {len(message_ids)} messages with existing embeddings"
+            )
             return message_ids
         except Exception as e:
-            self.logger.error(f"Error retrieving message IDs with embeddings: {str(e)}")
+            self.logger.error(
+                f"Error retrieving message IDs with embeddings: {str(e)}"
+            )
             return set()
 
-    def load_json(self, file_path: str, min_messages: int = 3) -> dict[int, pl.DataFrame]:
+    def load_json(
+        self, file_path: str, min_messages: int = 3
+    ) -> dict[int, pl.DataFrame]:
         """
         Load and minimally normalize a Telegram Desktop JSON export.
 
@@ -486,7 +514,10 @@ class TelegramPreprocessor(TextPreprocessor):
                             if "text_entities" in message:
                                 texts = []
                                 for entity in message["text_entities"]:
-                                    if isinstance(entity, dict) and "text" in entity:
+                                    if (
+                                        isinstance(entity, dict)
+                                        and "text" in entity
+                                    ):
                                         texts.append(entity["text"])
                                 if texts:
                                     message["text"] = " ".join(texts)
@@ -496,14 +527,21 @@ class TelegramPreprocessor(TextPreprocessor):
 
                         filtered_messages = [
                             {
-                                field: (str(message.get(field, "")) if field == "text" else message.get(field))
+                                field: (
+                                    str(message.get(field, ""))
+                                    if field == "text"
+                                    else message.get(field)
+                                )
                                 for field in telegram_import_schema_short
                                 if field in message or field == "from_name"
                             }
                             for message in chat["messages"]
                         ]
 
-                        messages_df = pl.DataFrame(filtered_messages, schema=telegram_import_schema_short)
+                        messages_df = pl.DataFrame(
+                            filtered_messages,
+                            schema=telegram_import_schema_short,
+                        )
 
                         messages_df = messages_df.with_columns(
                             [
@@ -547,12 +585,27 @@ class TelegramPreprocessor(TextPreprocessor):
 
         def extract_text(val: Any) -> Any:
             if isinstance(val, list):
-                if len(val) == 1 and isinstance(val[0], dict) and "type" in val[0] and "text" in val[0]:
+                if (
+                    len(val) == 1
+                    and isinstance(val[0], dict)
+                    and "type" in val[0]
+                    and "text" in val[0]
+                ):
                     return val[0]["text"]
-                return " ".join(item.get("text", "") for item in val if isinstance(item, dict) and "text" in item)
+                return " ".join(
+                    item.get("text", "")
+                    for item in val
+                    if isinstance(item, dict) and "text" in item
+                )
             return val
 
-        return chat_df.with_columns([pl.col("text").map_elements(extract_text, return_dtype=pl.Utf8).alias("text")])
+        return chat_df.with_columns(
+            [
+                pl.col("text")
+                .map_elements(extract_text, return_dtype=pl.Utf8)
+                .alias("text")
+            ]
+        )
 
     def parse_members(self, chat_df: pl.DataFrame) -> pl.DataFrame:
         """
@@ -581,7 +634,9 @@ class TelegramPreprocessor(TextPreprocessor):
                 [
                     pl.col("members")
                     .map_elements(
-                        lambda x: str(list(set(x))) if isinstance(x, list) else x,
+                        lambda x: (
+                            str(list(set(x))) if isinstance(x, list) else x
+                        ),
                         return_dtype=pl.self_dtype(),
                     )
                     .alias("members")
@@ -614,7 +669,11 @@ class TelegramPreprocessor(TextPreprocessor):
                 [
                     pl.col("reactions")
                     .map_elements(
-                        lambda x: (x[0]["emoji"] if isinstance(x, list | pl.Series) and len(x) > 0 else None),
+                        lambda x: (
+                            x[0]["emoji"]
+                            if isinstance(x, list | pl.Series) and len(x) > 0
+                            else None
+                        ),
                         return_dtype=pl.Utf8,
                     )
                     .alias("reactions")
@@ -648,9 +707,16 @@ class TelegramPreprocessor(TextPreprocessor):
                 chat_df = chat_df.with_columns(pl.lit(None).alias(col))
 
         # Cast columns to expected types
-        return chat_df.select([pl.col(col).cast(dtype) for col, dtype in telegram_import_schema_short.items()])
+        return chat_df.select(
+            [
+                pl.col(col).cast(dtype)
+                for col, dtype in telegram_import_schema_short.items()
+            ]
+        )
 
-    def parse_timestamp(self, df: pl.DataFrame, date_col: str = "date") -> pl.DataFrame:
+    def parse_timestamp(
+        self, df: pl.DataFrame, date_col: str = "date"
+    ) -> pl.DataFrame:
         """
         Parse the `date` column into Polars `Datetime`.
 
@@ -672,9 +738,13 @@ class TelegramPreprocessor(TextPreprocessor):
             assert out.schema["date"].dtype == pl.Datetime
             ```
         """
-        return df.with_columns(pl.col(date_col).str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S"))
+        return df.with_columns(
+            pl.col(date_col).str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S")
+        )
 
-    def create_recipient_column(self, df: pl.DataFrame, author_col: str) -> pl.DataFrame:
+    def create_recipient_column(
+        self, df: pl.DataFrame, author_col: str
+    ) -> pl.DataFrame:
         """
         Create a `recipients` column listing all unique authors except the current row's author.
 
@@ -696,9 +766,13 @@ class TelegramPreprocessor(TextPreprocessor):
             assert "alice" in out[1, "recipients"] and "bob" not in out[1, "recipients"]
             ```
         """
-        unique_authors = df.select(pl.col(author_col)).unique().to_series().to_list()
+        unique_authors = (
+            df.select(pl.col(author_col)).unique().to_series().to_list()
+        )
         recipients_str = [
-            ", ".join([author for author in unique_authors if author != author_name])
+            ", ".join(
+                [author for author in unique_authors if author != author_name]
+            )
             for author_name in df[author_col].to_list()
         ]
         return df.with_columns(pl.Series("recipients", recipients_str))
@@ -741,7 +815,9 @@ class TelegramPreprocessor(TextPreprocessor):
         # Video file filter
         chat_pl = chat_pl.with_columns(
             pl.when(pl.col("media_type") == "video_file")
-            .then(pl.format("{} [video]({})", pl.col("text"), pl.col("file_name")))
+            .then(
+                pl.format("{} [video]({})", pl.col("text"), pl.col("file_name"))
+            )
             .otherwise(pl.col("text"))
             .alias("text")
         )
@@ -755,14 +831,24 @@ class TelegramPreprocessor(TextPreprocessor):
         # Audio file filter
         chat_pl = chat_pl.with_columns(
             pl.when(pl.col("media_type") == "audio_file")
-            .then(pl.format("[audio]({}-{})", pl.col("title"), pl.col("performer").fill_null("")))
+            .then(
+                pl.format(
+                    "[audio]({}-{})",
+                    pl.col("title"),
+                    pl.col("performer").fill_null(""),
+                )
+            )
             .otherwise(pl.col("text"))
             .alias("text")
         )
         # Animation filter
         chat_pl = chat_pl.with_columns(
             pl.when(pl.col("media_type") == "animation")
-            .then(pl.format("{} [animation]({})", pl.col("text"), pl.col("file_name")))
+            .then(
+                pl.format(
+                    "{} [animation]({})", pl.col("text"), pl.col("file_name")
+                )
+            )
             .otherwise(pl.col("text"))
             .alias("text")
         )
@@ -839,11 +925,17 @@ class TelegramPreprocessor(TextPreprocessor):
         """
         return chat_pl.with_columns(
             [
-                pl.when((pl.col("type") == "service") & (pl.col("discard_reason").is_not_null()))
+                pl.when(
+                    (pl.col("type") == "service")
+                    & (pl.col("discard_reason").is_not_null())
+                )
                 .then(pl.format("[phone_call]({})", pl.col("discard_reason")))
                 .otherwise(pl.col("text"))
                 .alias("text"),
-                pl.when(pl.col("type") == "service").then(pl.col("actor")).otherwise(pl.col("from")).alias("from"),
+                pl.when(pl.col("type") == "service")
+                .then(pl.col("actor"))
+                .otherwise(pl.col("from"))
+                .alias("from"),
                 pl.when(pl.col("type") == "service")
                 .then(pl.col("actor_id"))
                 .otherwise(pl.col("from_id"))
@@ -916,7 +1008,10 @@ class TelegramPreprocessor(TextPreprocessor):
             ```
         """
         return chat_pl.with_columns(
-            pl.when((pl.col("media_type").is_null()) & (pl.col("file").is_not_null()))
+            pl.when(
+                (pl.col("media_type").is_null())
+                & (pl.col("file").is_not_null())
+            )
             .then(pl.format("[file]({})", pl.col("file_name")))
             .otherwise(pl.col("text"))
             .alias("text")
@@ -945,7 +1040,13 @@ class TelegramPreprocessor(TextPreprocessor):
         """
         return chat_pl.with_columns(
             pl.when(pl.col("photo").is_not_null())
-            .then(pl.format("{} [photo]({})", pl.col("text"), pl.col("file_name").fill_null("")))
+            .then(
+                pl.format(
+                    "{} [photo]({})",
+                    pl.col("text"),
+                    pl.col("file_name").fill_null(""),
+                )
+            )
             .otherwise(pl.col("text"))
             .alias("text")
         )
@@ -1025,7 +1126,10 @@ class TelegramPreprocessor(TextPreprocessor):
             ```
         """
         return chat_pl.with_columns(
-            pl.when(pl.col(pl.String).str.len_chars() == 0).then(None).otherwise(pl.col(pl.String)).name.keep()
+            pl.when(pl.col(pl.String).str.len_chars() == 0)
+            .then(None)
+            .otherwise(pl.col(pl.String))
+            .name.keep()
         ).filter(pl.col("text").is_not_null())
 
     def prepare_data(self, file_path: str) -> dict[int, pl.DataFrame]:
@@ -1071,16 +1175,30 @@ class TelegramPreprocessor(TextPreprocessor):
             # chat_df = self.delete_empty_messages(chat_df) well, it's not empty messages, it's messages with no text.
 
             chat_df = chat_df.with_columns(
-                [pl.col("from_id").str.replace("^user", "").str.replace("^channel", "").cast(pl.Int64).alias("from_id")]
+                [
+                    pl.col("from_id")
+                    .str.replace("^user", "")
+                    .str.replace("^channel", "")
+                    .cast(pl.Int64)
+                    .alias("from_id")
+                ]
             )
             process_schema = get_process_schema()
-            chat_df = chat_df.select([pl.col(k).cast(v) for k, v in process_schema.items() if k in chat_df.columns])
+            chat_df = chat_df.select(
+                [
+                    pl.col(k).cast(v)
+                    for k, v in process_schema.items()
+                    if k in chat_df.columns
+                ]
+            )
 
             chats_dict[key] = chat_df
 
         return chats_dict
 
-    def _add_messages_to_db(self, messages_df: pl.DataFrame, phone: str | None = None) -> None:
+    def _add_messages_to_db(
+        self, messages_df: pl.DataFrame, phone: str | None = None
+    ) -> None:
         """
         Persist messages into per-user DuckDB tables.
 
@@ -1108,11 +1226,15 @@ class TelegramPreprocessor(TextPreprocessor):
             # Delegate to TelegramDatabase to avoid duplicating logic
             phone_use = phone if phone is not None else self.phone
             if phone_use is None:
-                raise ValueError("Phone number is required to add messages to DB")
+                raise ValueError(
+                    "Phone number is required to add messages to DB"
+                )
             tdb = TelegramDatabase(db_path=self.db_path)
             try:
                 tdb.add_messages(phone_use, messages_df)
-                self.logger.info(f"Successfully added messages for user {phone_use}")
+                self.logger.info(
+                    f"Successfully added messages for user {phone_use}"
+                )
             finally:
                 tdb.close()
         except Exception as e:
@@ -1156,7 +1278,9 @@ class TelegramPreprocessor(TextPreprocessor):
             result = tp.process_file("/exports/result.json", time_window="10m")
             ```
         """
-        self.logger.info(f"Processing file {file_path} with {time_window} time window")
+        self.logger.info(
+            f"Processing file {file_path} with {time_window} time window"
+        )
         chats_dict = self.prepare_data(file_path)
 
         total_messages = sum(len(chat_df) for chat_df in chats_dict.values())
@@ -1164,7 +1288,9 @@ class TelegramPreprocessor(TextPreprocessor):
         for _, chat_df in chats_dict.items():
             self._add_messages_to_db(chat_df)
 
-        existing_message_ids = self._get_messages_with_embeddings() if self.use_duckdb else set()
+        existing_message_ids = (
+            self._get_messages_with_embeddings() if self.use_duckdb else set()
+        )
 
         table = f"""
             {"Message Processing Summary":^50}
@@ -1194,21 +1320,31 @@ class TelegramPreprocessor(TextPreprocessor):
                 chats_dict[chat_id] = chat_df
                 continue
 
-            processed_df = self.process_message_groups(chat_df, time_window, cluster_size)
-            embeddings_data = processed_df.select(["message_id", "chat_id", "embeddings"])
+            processed_df = self.process_message_groups(
+                chat_df, time_window, cluster_size
+            )
+            embeddings_data = processed_df.select(
+                ["message_id", "chat_id", "embeddings"]
+            )
 
             self._update_embeddings_in_db(embeddings_data)
 
             if "group_id" in processed_df.columns:
-                clusters_df = processed_df.select(["message_id", "chat_id", "group_id"])
+                clusters_df = processed_df.select(
+                    ["message_id", "chat_id", "group_id"]
+                )
                 self._update_clusters_in_db(clusters_df)
 
             chats_dict[chat_id] = processed_df
 
         # Log final summary
         if self.use_duckdb:
-            total_embeddings_updated = sum(len(df) for df in chats_dict.values() if len(df) > 0)
-            processed_chats = sum(1 for df in chats_dict.values() if len(df) > 0)
+            total_embeddings_updated = sum(
+                len(df) for df in chats_dict.values() if len(df) > 0
+            )
+            processed_chats = sum(
+                1 for df in chats_dict.values() if len(df) > 0
+            )
             if total_embeddings_updated > 0:
                 self.logger.nice(  # type: ignore
                     f"✅ File processing complete: updated {total_embeddings_updated} embeddings across {processed_chats} chats"
@@ -1256,7 +1392,9 @@ class TelegramPreprocessor(TextPreprocessor):
         self.logger.info(f"Processing messages with {time_window} time window")
 
         if not self.use_duckdb:
-            self.logger.warning("DuckDB is not enabled - embeddings and clusters will not be saved")
+            self.logger.warning(
+                "DuckDB is not enabled - embeddings and clusters will not be saved"
+            )
 
         messages_df = self._get_messages_from_db(phone=phone, chat_id=chat_id)
         if messages_df.height == 0:
@@ -1272,27 +1410,39 @@ class TelegramPreprocessor(TextPreprocessor):
             missing_message_ids = all_message_ids - existing_message_ids
 
             if missing_message_ids:
-                self.logger.info(f"Found {len(missing_message_ids)} messages without embeddings to process")
+                self.logger.info(
+                    f"Found {len(missing_message_ids)} messages without embeddings to process"
+                )
                 # Filter messages that need embeddings
-                messages_to_process = messages_df.filter(pl.col("message_id").is_in(list(missing_message_ids)))
+                messages_to_process = messages_df.filter(
+                    pl.col("message_id").is_in(list(missing_message_ids))
+                )
 
                 # Calculate embeddings for these messages
-                messages_to_process = self.calculate_embeddings(messages_to_process)
+                messages_to_process = self.calculate_embeddings(
+                    messages_to_process
+                )
 
                 # Batch update all embeddings at once
                 if len(messages_to_process) > 0:
-                    embeddings_data = messages_to_process.select(["message_id", "chat_id", "embeddings"])
+                    embeddings_data = messages_to_process.select(
+                        ["message_id", "chat_id", "embeddings"]
+                    )
 
                     self._update_embeddings_in_db(embeddings_data)
 
                 # Return all messages with processing completed
-                return self.process_message_groups(messages_df, time_window, cluster_size)
+                return self.process_message_groups(
+                    messages_df, time_window, cluster_size
+                )
             else:
                 self.logger.info("All messages already have embeddings")
                 return messages_df
         else:
             # If not using database, just process everything at once
-            return self.process_message_groups(messages_df, time_window, cluster_size)
+            return self.process_message_groups(
+                messages_df, time_window, cluster_size
+            )
 
     def reprocess_clusters_only(
         self,
@@ -1338,9 +1488,13 @@ class TelegramPreprocessor(TextPreprocessor):
             ```
         """
         if not self.use_duckdb:
-            raise ValueError("reprocess_clusters_only requires DuckDB to be enabled")
+            raise ValueError(
+                "reprocess_clusters_only requires DuckDB to be enabled"
+            )
 
-        self.logger.info(f"🚀 Starting FAST cluster reprocessing with {time_window} time window")
+        self.logger.info(
+            f"🚀 Starting FAST cluster reprocessing with {time_window} time window"
+        )
 
         # Get messages with existing embeddings
         messages_df = self._get_messages_from_db(phone=phone, chat_id=chat_id)
@@ -1361,30 +1515,45 @@ class TelegramPreprocessor(TextPreprocessor):
 
         # Filter messages that have embeddings - use Polars operations instead of converting to list
         message_ids_with_embeddings = set(all_embeddings.keys())
-        df_with_embeddings = messages_df.filter(pl.col("message_id").is_in(list(message_ids_with_embeddings)))
+        df_with_embeddings = messages_df.filter(
+            pl.col("message_id").is_in(list(message_ids_with_embeddings))
+        )
 
         missing_embeddings_count = len(messages_df) - len(df_with_embeddings)
         if missing_embeddings_count > 0:
-            self.logger.warning(f"⚠️  {missing_embeddings_count} messages missing embeddings - they will be skipped")
+            self.logger.warning(
+                f"⚠️  {missing_embeddings_count} messages missing embeddings - they will be skipped"
+            )
 
         if len(df_with_embeddings) == 0:
             self.logger.error("❌ No messages with embeddings found")
             return pl.DataFrame()
 
         # Attach embeddings as a column using map operation
-        embedding_list = [all_embeddings[mid] for mid in df_with_embeddings["message_id"].to_list()]
-        df_with_embeddings = df_with_embeddings.with_columns(pl.Series("embeddings", embedding_list))
+        embedding_list = [
+            all_embeddings[mid]
+            for mid in df_with_embeddings["message_id"].to_list()
+        ]
+        df_with_embeddings = df_with_embeddings.with_columns(
+            pl.Series("embeddings", embedding_list)
+        )
 
-        self.logger.info(f"✅ Loaded {len(df_with_embeddings)} messages with existing embeddings")
+        self.logger.info(
+            f"✅ Loaded {len(df_with_embeddings)} messages with existing embeddings"
+        )
 
         # Fast reprocessing: only clusters and groups (skip embedding calculation)
         # Process in batches if dataset is very large to manage GPU memory efficiently
         if len(df_with_embeddings) > self.batch_size * 2:
-            self.logger.info(f"🔄 Processing {len(df_with_embeddings)} messages in batches for optimal GPU usage...")
+            self.logger.info(
+                f"🔄 Processing {len(df_with_embeddings)} messages in batches for optimal GPU usage..."
+            )
 
             processed_segments = []
             for i in range(0, len(df_with_embeddings), self.batch_size):
-                batch_df = df_with_embeddings.slice(i, min(self.batch_size, len(df_with_embeddings) - i))
+                batch_df = df_with_embeddings.slice(
+                    i, min(self.batch_size, len(df_with_embeddings) - i)
+                )
 
                 self.logger.info(
                     f"   Processing batch {i // self.batch_size + 1}/{(len(df_with_embeddings) + self.batch_size - 1) // self.batch_size}: semantic segments..."
@@ -1403,7 +1572,9 @@ class TelegramPreprocessor(TextPreprocessor):
             df_with_segments = self.calculate_segments(df_with_embeddings)
 
         self.logger.info("🔄 Recalculating temporal clusters...")
-        df_with_clusters = self.create_clusters(df_with_segments, time_window, cluster_size)
+        df_with_clusters = self.create_clusters(
+            df_with_segments, time_window, cluster_size
+        )
 
         self.logger.info("🔄 Recalculating groups...")
         final_df = self.calculate_groups(df_with_clusters)

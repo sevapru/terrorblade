@@ -15,7 +15,9 @@ import pytest
 
 from terrorblade.data.database.telegram_database import TelegramDatabase
 from terrorblade.data.database.vector_store import VectorStore
-from terrorblade.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
+from terrorblade.data.preprocessing.TelegramPreprocessor import (
+    TelegramPreprocessor,
+)
 
 
 class TestVectorSearch:
@@ -62,7 +64,11 @@ class TestVectorSearch:
             base_vector = np.random.rand(768).astype(np.float32)
             if "programming" in text.lower() or "python" in text.lower():
                 base_vector[0:10] = 0.8  # Programming cluster
-            elif "machine learning" in text.lower() or "ai" in text.lower() or "neural" in text.lower():
+            elif (
+                "machine learning" in text.lower()
+                or "ai" in text.lower()
+                or "neural" in text.lower()
+            ):
                 base_vector[10:20] = 0.8  # ML cluster
             elif "weather" in text.lower() or "walk" in text.lower():
                 base_vector[20:30] = 0.8  # Outdoor cluster
@@ -72,7 +78,10 @@ class TestVectorSearch:
     @pytest.fixture
     def test_db_path(self) -> str:
         """Create a unique database path for each test."""
-        return str(self.__class__.temp_dir / f"test_vector_{datetime.now().timestamp()}.db")
+        return str(
+            self.__class__.temp_dir
+            / f"test_vector_{datetime.now().timestamp()}.db"
+        )
 
     @pytest.fixture
     def telegram_database(self, test_db_path: str) -> TelegramDatabase:
@@ -86,18 +95,27 @@ class TestVectorSearch:
             {
                 "text": self.__class__.sample_texts,
                 "from_id": [i % 3 + 1 for i in range(10)],
-                "date": [datetime.now() - timedelta(minutes=i * 5) for i in range(10)],
-                "chat_id": [100 + (i % 2) for i in range(10)],  # Two different chats
+                "date": [
+                    datetime.now() - timedelta(minutes=i * 5) for i in range(10)
+                ],
+                "chat_id": [
+                    100 + (i % 2) for i in range(10)
+                ],  # Two different chats
                 "message_id": list(range(1, 11)),
                 "from_name": [f"User{i % 3 + 1}" for i in range(10)],
-                "chat_name": ["Test Chat 1" if i % 2 == 0 else "Test Chat 2" for i in range(10)],
+                "chat_name": [
+                    "Test Chat 1" if i % 2 == 0 else "Test Chat 2"
+                    for i in range(10)
+                ],
                 "reply_to_message_id": [None] * 10,
                 "forwarded_from": [None] * 10,
                 "media_type": [None] * 10,
                 "file_name": [None] * 10,
                 "embeddings": self.__class__.sample_embeddings,
             }
-        ).with_columns(pl.col("embeddings").cast(pl.Array(pl.Float32, shape=768)))
+        ).with_columns(
+            pl.col("embeddings").cast(pl.Array(pl.Float32, shape=768))
+        )
 
     @pytest.fixture
     def vector_store_with_data(
@@ -109,55 +127,94 @@ class TestVectorSearch:
         """Create VectorStore with sample data populated."""
         # Initialize user tables and add data
         telegram_database.init_user_tables(self.__class__.test_phone)
-        telegram_database.add_messages(self.__class__.test_phone, sample_messages_df)
+        telegram_database.add_messages(
+            self.__class__.test_phone, sample_messages_df
+        )
 
         # Add embeddings to the embeddings table
-        preprocessor = TelegramPreprocessor(use_duckdb=True, db_path=test_db_path, phone=self.__class__.test_phone)
+        preprocessor = TelegramPreprocessor(
+            use_duckdb=True,
+            db_path=test_db_path,
+            phone=self.__class__.test_phone,
+        )
 
         # Add embeddings directly
-        embeddings_df = sample_messages_df.select(["message_id", "chat_id", "embeddings"])
+        embeddings_df = sample_messages_df.select(
+            ["message_id", "chat_id", "embeddings"]
+        )
         preprocessor._update_embeddings_in_db(embeddings_df)
         preprocessor.close()
 
         # Create and return VectorStore
-        return VectorStore(db_path=test_db_path, phone=self.__class__.test_phone)
+        return VectorStore(
+            db_path=test_db_path, phone=self.__class__.test_phone
+        )
 
     @pytest.fixture
-    def empty_vector_store(self, test_db_path: str, telegram_database: TelegramDatabase) -> VectorStore:
+    def empty_vector_store(
+        self, test_db_path: str, telegram_database: TelegramDatabase
+    ) -> VectorStore:
         """Create VectorStore with empty tables."""
         telegram_database.init_user_tables(self.__class__.test_phone)
 
         # Create the embeddings table that VectorStore expects
-        preprocessor = TelegramPreprocessor(use_duckdb=True, db_path=test_db_path, phone=self.__class__.test_phone)
+        preprocessor = TelegramPreprocessor(
+            use_duckdb=True,
+            db_path=test_db_path,
+            phone=self.__class__.test_phone,
+        )
         preprocessor.close()
 
-        return VectorStore(db_path=test_db_path, phone=self.__class__.test_phone)
+        return VectorStore(
+            db_path=test_db_path, phone=self.__class__.test_phone
+        )
 
-    def test_vector_store_init(self, test_db_path: str, telegram_database: TelegramDatabase) -> None:
+    def test_vector_store_init(
+        self, test_db_path: str, telegram_database: TelegramDatabase
+    ) -> None:
         """Test VectorStore initialization."""
         telegram_database.init_user_tables(self.__class__.test_phone)
 
         # Create the embeddings table that VectorStore expects
-        preprocessor = TelegramPreprocessor(use_duckdb=True, db_path=test_db_path, phone=self.__class__.test_phone)
+        preprocessor = TelegramPreprocessor(
+            use_duckdb=True,
+            db_path=test_db_path,
+            phone=self.__class__.test_phone,
+        )
         preprocessor.close()
 
-        vector_store = VectorStore(db_path=test_db_path, phone=self.__class__.test_phone)
+        vector_store = VectorStore(
+            db_path=test_db_path, phone=self.__class__.test_phone
+        )
 
         assert vector_store.db_path == test_db_path
         assert vector_store.phone == self.__class__.phone_clean
-        assert vector_store.embeddings_table == f"chat_embeddings_{self.__class__.phone_clean}"
-        assert vector_store.messages_table == f"messages_{self.__class__.phone_clean}"
-        assert vector_store.clusters_table == f"message_clusters_{self.__class__.phone_clean}"
+        assert (
+            vector_store.embeddings_table
+            == f"chat_embeddings_{self.__class__.phone_clean}"
+        )
+        assert (
+            vector_store.messages_table
+            == f"messages_{self.__class__.phone_clean}"
+        )
+        assert (
+            vector_store.clusters_table
+            == f"message_clusters_{self.__class__.phone_clean}"
+        )
         assert vector_store.db is not None
 
         vector_store.close()
 
-    def test_vector_store_init_invalid_phone(self, test_db_path: str, telegram_database: TelegramDatabase) -> None:
+    def test_vector_store_init_invalid_phone(
+        self, test_db_path: str, telegram_database: TelegramDatabase
+    ) -> None:
         """Test VectorStore initialization with phone number formatting."""
         telegram_database.init_user_tables("+987654321")
 
         # Create the embeddings table that VectorStore expects
-        preprocessor = TelegramPreprocessor(use_duckdb=True, db_path=test_db_path, phone="+987654321")
+        preprocessor = TelegramPreprocessor(
+            use_duckdb=True, db_path=test_db_path, phone="+987654321"
+        )
         preprocessor.close()
 
         # Test phone number normalization
@@ -166,13 +223,17 @@ class TestVectorSearch:
 
         vector_store.close()
 
-    def test_vector_store_init_nonexistent_table(self, test_db_path: str) -> None:
+    def test_vector_store_init_nonexistent_table(
+        self, test_db_path: str
+    ) -> None:
         """Test VectorStore initialization with non-existent embeddings table."""
         # Don't create tables first - should fail gracefully
         with pytest.raises((ValueError, Exception)):
             VectorStore(db_path=test_db_path, phone=self.__class__.test_phone)
 
-    def test_create_hnsw_index(self, vector_store_with_data: VectorStore) -> None:
+    def test_create_hnsw_index(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test HNSW index creation."""
         index_name = f"test_idx_embeddings_{self.__class__.phone_clean}"
 
@@ -188,12 +249,16 @@ class TestVectorSearch:
         assert result is False  # Should not recreate without force
 
         # Test forced recreation
-        result = vector_store_with_data.create_hnsw_index(index_name=index_name, force_recreate=True)
+        result = vector_store_with_data.create_hnsw_index(
+            index_name=index_name, force_recreate=True
+        )
         assert result is True
 
         vector_store_with_data.close()
 
-    def test_create_hnsw_index_default_name(self, vector_store_with_data: VectorStore) -> None:
+    def test_create_hnsw_index_default_name(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test HNSW index creation with default name."""
         result = vector_store_with_data.create_hnsw_index()
         assert result is True
@@ -214,7 +279,10 @@ class TestVectorSearch:
         stats = vector_store_with_data.get_index_stats(index_name)
         assert isinstance(stats, dict)
         assert stats["index_name"] == index_name
-        assert stats["table_name"] == f"chat_embeddings_{self.__class__.phone_clean}"
+        assert (
+            stats["table_name"]
+            == f"chat_embeddings_{self.__class__.phone_clean}"
+        )
         assert stats["index_type"] == "HNSW"
         assert stats["indexed_rows"] == 10  # We have 10 sample messages
         assert "estimated_memory_mb" in stats
@@ -222,7 +290,9 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_check_index_exists(self, vector_store_with_data: VectorStore) -> None:
+    def test_check_index_exists(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test index existence checking."""
         index_name = f"test_idx_embeddings_{self.__class__.phone_clean}"
 
@@ -236,29 +306,39 @@ class TestVectorSearch:
         assert vector_store_with_data.check_index_exists(index_name)
 
         # Test with non-existent index
-        assert not vector_store_with_data.check_index_exists("non_existent_index")
+        assert not vector_store_with_data.check_index_exists(
+            "non_existent_index"
+        )
 
         vector_store_with_data.close()
 
-    def test_cosine_similarity(self, vector_store_with_data: VectorStore) -> None:
+    def test_cosine_similarity(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test cosine similarity calculation."""
         # Test identical vectors
         vector1 = [1.0] * 768
         vector2 = [1.0] * 768
         similarity = vector_store_with_data.cosine_similarity(vector1, vector2)
-        assert abs(similarity - 1.0) < 0.001  # Should be 1.0 for identical vectors
+        assert (
+            abs(similarity - 1.0) < 0.001
+        )  # Should be 1.0 for identical vectors
 
         # Test orthogonal vectors
         vector1 = [1.0] + [0.0] * 767
         vector2 = [0.0] + [1.0] + [0.0] * 766
         similarity = vector_store_with_data.cosine_similarity(vector1, vector2)
-        assert abs(similarity - 0.0) < 0.001  # Should be 0.0 for orthogonal vectors
+        assert (
+            abs(similarity - 0.0) < 0.001
+        )  # Should be 0.0 for orthogonal vectors
 
         # Test opposite vectors
         vector1 = [1.0] * 768
         vector2 = [-1.0] * 768
         similarity = vector_store_with_data.cosine_similarity(vector1, vector2)
-        assert abs(similarity - (-1.0)) < 0.001  # Should be -1.0 for opposite vectors
+        assert (
+            abs(similarity - (-1.0)) < 0.001
+        )  # Should be -1.0 for opposite vectors
 
         vector_store_with_data.close()
 
@@ -278,14 +358,18 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_similarity_search(self, vector_store_with_data: VectorStore) -> None:
+    def test_similarity_search(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test similarity search functionality."""
         # Create index for efficient search
         vector_store_with_data.create_hnsw_index()
 
         # Test search with sample embedding (should find similar vectors)
         query_vector = self.__class__.sample_embeddings[0]  # First embedding
-        results = vector_store_with_data.similarity_search(query_vector, top_k=5)
+        results = vector_store_with_data.similarity_search(
+            query_vector, top_k=5
+        )
 
         assert isinstance(results, list)
         assert len(results) <= 5
@@ -305,15 +389,21 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_similarity_search_with_chat_filter(self, vector_store_with_data: VectorStore) -> None:
+    def test_similarity_search_with_chat_filter(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test similarity search with chat_id filtering."""
         vector_store_with_data.create_hnsw_index()
 
         query_vector = self.__class__.sample_embeddings[0]
 
         # Test with specific chat_id
-        results_chat_100 = vector_store_with_data.similarity_search(query_vector, top_k=10, chat_id=100)
-        results_chat_101 = vector_store_with_data.similarity_search(query_vector, top_k=10, chat_id=101)
+        results_chat_100 = vector_store_with_data.similarity_search(
+            query_vector, top_k=10, chat_id=100
+        )
+        results_chat_101 = vector_store_with_data.similarity_search(
+            query_vector, top_k=10, chat_id=101
+        )
 
         # All results should have the specified chat_id
         for result in results_chat_100:
@@ -328,7 +418,9 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_similarity_search_with_threshold(self, vector_store_with_data: VectorStore) -> None:
+    def test_similarity_search_with_threshold(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test similarity search with similarity threshold."""
         vector_store_with_data.create_hnsw_index()
 
@@ -381,17 +473,23 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_distance_search_with_threshold(self, vector_store_with_data: VectorStore) -> None:
+    def test_distance_search_with_threshold(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test distance search with distance threshold."""
         vector_store_with_data.create_hnsw_index()
 
         query_vector = self.__class__.sample_embeddings[0]
 
         # Test with low threshold (should return fewer results)
-        results_low_threshold = vector_store_with_data.distance_search(query_vector, top_k=10, distance_threshold=0.5)
+        results_low_threshold = vector_store_with_data.distance_search(
+            query_vector, top_k=10, distance_threshold=0.5
+        )
 
         # Test with high threshold (should return more results)
-        results_high_threshold = vector_store_with_data.distance_search(query_vector, top_k=10, distance_threshold=1.5)
+        results_high_threshold = vector_store_with_data.distance_search(
+            query_vector, top_k=10, distance_threshold=1.5
+        )
 
         # Low threshold should return fewer or equal results
         assert len(results_low_threshold) <= len(results_high_threshold)
@@ -405,14 +503,21 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_get_all_distances(self, vector_store_with_data: VectorStore) -> None:
+    def test_get_all_distances(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test getting distances to all messages."""
         query_vector = self.__class__.sample_embeddings[0]
         result_df = vector_store_with_data.get_all_distances(query_vector)
 
         assert isinstance(result_df, pl.DataFrame)
         assert not result_df.is_empty()
-        assert set(result_df.columns) == {"message_id", "chat_id", "distance", "similarity"}
+        assert set(result_df.columns) == {
+            "message_id",
+            "chat_id",
+            "distance",
+            "similarity",
+        }
 
         # Should have results for all messages
         assert len(result_df) == 10  # We have 10 sample messages
@@ -432,12 +537,16 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_get_all_distances_with_chat_filter(self, vector_store_with_data: VectorStore) -> None:
+    def test_get_all_distances_with_chat_filter(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test getting distances with chat_id filter."""
         query_vector = self.__class__.sample_embeddings[0]
 
         # Test with specific chat_id
-        result_df = vector_store_with_data.get_all_distances(query_vector, chat_id=100)
+        result_df = vector_store_with_data.get_all_distances(
+            query_vector, chat_id=100
+        )
 
         assert isinstance(result_df, pl.DataFrame)
         assert not result_df.is_empty()
@@ -453,7 +562,9 @@ class TestVectorSearch:
     def test_get_embedding(self, vector_store_with_data: VectorStore) -> None:
         """Test retrieving specific embeddings."""
         # Test retrieving existing embedding
-        embedding = vector_store_with_data.get_embedding(message_id=1, chat_id=100)
+        embedding = vector_store_with_data.get_embedding(
+            message_id=1, chat_id=100
+        )
 
         assert embedding is not None
         assert isinstance(embedding, list | tuple)  # DuckDB might return tuple
@@ -461,21 +572,29 @@ class TestVectorSearch:
         assert all(isinstance(x, float) for x in embedding)
 
         # Test retrieving non-existent embedding
-        embedding = vector_store_with_data.get_embedding(message_id=999, chat_id=100)
+        embedding = vector_store_with_data.get_embedding(
+            message_id=999, chat_id=100
+        )
         assert embedding is None
 
         # Test with non-existent chat_id
-        embedding = vector_store_with_data.get_embedding(message_id=1, chat_id=999)
+        embedding = vector_store_with_data.get_embedding(
+            message_id=1, chat_id=999
+        )
         assert embedding is None
 
         vector_store_with_data.close()
 
-    def test_get_similar_messages_with_text(self, vector_store_with_data: VectorStore) -> None:
+    def test_get_similar_messages_with_text(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test similarity search with text and metadata."""
         vector_store_with_data.create_hnsw_index()
 
         query_vector = self.__class__.sample_embeddings[0]
-        result_df = vector_store_with_data.get_similar_messages_with_text(query_vector, top_k=5)
+        result_df = vector_store_with_data.get_similar_messages_with_text(
+            query_vector, top_k=5
+        )
 
         assert isinstance(result_df, pl.DataFrame)
         assert not result_df.is_empty()
@@ -506,12 +625,16 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_get_similar_messages_with_text_and_chat_filter(self, vector_store_with_data: VectorStore) -> None:
+    def test_get_similar_messages_with_text_and_chat_filter(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test similarity search with text and chat_id filter."""
         vector_store_with_data.create_hnsw_index()
 
         query_vector = self.__class__.sample_embeddings[0]
-        result_df = vector_store_with_data.get_similar_messages_with_text(query_vector, top_k=10, chat_id=100)
+        result_df = vector_store_with_data.get_similar_messages_with_text(
+            query_vector, top_k=10, chat_id=100
+        )
 
         assert isinstance(result_df, pl.DataFrame)
 
@@ -521,7 +644,9 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_get_similar_messages_with_threshold(self, vector_store_with_data: VectorStore) -> None:
+    def test_get_similar_messages_with_threshold(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test similarity search with similarity threshold."""
         vector_store_with_data.create_hnsw_index()
 
@@ -559,7 +684,9 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_empty_table_operations(self, empty_vector_store: VectorStore) -> None:
+    def test_empty_table_operations(
+        self, empty_vector_store: VectorStore
+    ) -> None:
         """Test operations on empty tables."""
         # Test search on empty table
         query_vector = [0.1] * 768
@@ -575,7 +702,9 @@ class TestVectorSearch:
         assert result_df.is_empty()
 
         # Test get similar messages with text on empty table
-        result_df = empty_vector_store.get_similar_messages_with_text(query_vector, top_k=5)
+        result_df = empty_vector_store.get_similar_messages_with_text(
+            query_vector, top_k=5
+        )
         assert result_df.is_empty()
 
         # Test table stats on empty table
@@ -586,42 +715,58 @@ class TestVectorSearch:
 
         empty_vector_store.close()
 
-    def test_invalid_vector_dimensions(self, vector_store_with_data: VectorStore) -> None:
+    def test_invalid_vector_dimensions(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test error handling for invalid vector dimensions."""
         # Test with wrong dimension vector
         invalid_vector = [0.1] * 100  # Should be 768
 
         # These should handle errors gracefully
-        results = vector_store_with_data.similarity_search(invalid_vector, top_k=5)
+        results = vector_store_with_data.similarity_search(
+            invalid_vector, top_k=5
+        )
         assert results == []  # Should return empty list on error
 
-        results = vector_store_with_data.distance_search(invalid_vector, top_k=5)
+        results = vector_store_with_data.distance_search(
+            invalid_vector, top_k=5
+        )
         assert results == []
 
         result_df = vector_store_with_data.get_all_distances(invalid_vector)
         assert result_df.is_empty()
 
-        result_df = vector_store_with_data.get_similar_messages_with_text(invalid_vector, top_k=5)
+        result_df = vector_store_with_data.get_similar_messages_with_text(
+            invalid_vector, top_k=5
+        )
         assert result_df.is_empty()
 
         vector_store_with_data.close()
 
-    def test_vector_operations_edge_cases(self, vector_store_with_data: VectorStore) -> None:
+    def test_vector_operations_edge_cases(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test vector operations with edge cases."""
         # Test with zero vector
         zero_vector = [0.0] * 768
-        similarity = vector_store_with_data.cosine_similarity(zero_vector, zero_vector)
+        similarity = vector_store_with_data.cosine_similarity(
+            zero_vector, zero_vector
+        )
         # Zero vector similarity with itself may return -1.0 or NaN in DuckDB
         assert similarity in [0.0, -1.0] or str(similarity) == "nan"
 
         # Test with empty vectors (should handle gracefully)
         empty_vector = []
-        similarity = vector_store_with_data.cosine_similarity(empty_vector, empty_vector)
+        similarity = vector_store_with_data.cosine_similarity(
+            empty_vector, empty_vector
+        )
         assert similarity == 0.0  # Should return default value
 
         vector_store_with_data.close()
 
-    def test_index_operations_edge_cases(self, empty_vector_store: VectorStore) -> None:
+    def test_index_operations_edge_cases(
+        self, empty_vector_store: VectorStore
+    ) -> None:
         """Test index operations on empty tables."""
         # Test creating index on empty table (should work)
         result = empty_vector_store.create_hnsw_index()
@@ -634,49 +779,65 @@ class TestVectorSearch:
 
         empty_vector_store.close()
 
-    def test_parameter_combinations_similarity_search(self, vector_store_with_data: VectorStore) -> None:
+    def test_parameter_combinations_similarity_search(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test similarity search with different parameter combinations."""
         vector_store_with_data.create_hnsw_index()
         query_vector = self.__class__.sample_embeddings[0]
 
         # Test different top_k values
         for top_k in [1, 3, 5, 10]:
-            results = vector_store_with_data.similarity_search(query_vector, top_k=top_k)
+            results = vector_store_with_data.similarity_search(
+                query_vector, top_k=top_k
+            )
             assert len(results) <= top_k
 
         # Test different threshold values
         for threshold in [0.0, 0.3, 0.5, 0.8, 0.95]:
-            results = vector_store_with_data.similarity_search(query_vector, top_k=10, similarity_threshold=threshold)
+            results = vector_store_with_data.similarity_search(
+                query_vector, top_k=10, similarity_threshold=threshold
+            )
             for result in results:
                 assert result[2] >= threshold
 
         # Test with both chat_id filter and threshold
-        results = vector_store_with_data.similarity_search(query_vector, top_k=5, chat_id=100, similarity_threshold=0.3)
+        results = vector_store_with_data.similarity_search(
+            query_vector, top_k=5, chat_id=100, similarity_threshold=0.3
+        )
         for result in results:
             assert result[1] == 100  # chat_id filter
             assert result[2] >= 0.3  # threshold
 
         vector_store_with_data.close()
 
-    def test_parameter_combinations_distance_search(self, vector_store_with_data: VectorStore) -> None:
+    def test_parameter_combinations_distance_search(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test distance search with different parameter combinations."""
         vector_store_with_data.create_hnsw_index()
         query_vector = self.__class__.sample_embeddings[0]
 
         # Test different top_k values
         for top_k in [1, 3, 5, 10]:
-            results = vector_store_with_data.distance_search(query_vector, top_k=top_k)
+            results = vector_store_with_data.distance_search(
+                query_vector, top_k=top_k
+            )
             assert len(results) <= top_k
 
         # Test different threshold values
         for threshold in [0.1, 0.5, 1.0, 1.5, 2.0]:
-            results = vector_store_with_data.distance_search(query_vector, top_k=10, distance_threshold=threshold)
+            results = vector_store_with_data.distance_search(
+                query_vector, top_k=10, distance_threshold=threshold
+            )
             for result in results:
                 assert result[2] <= threshold
 
         vector_store_with_data.close()
 
-    def test_close_operations(self, vector_store_with_data: VectorStore) -> None:
+    def test_close_operations(
+        self, vector_store_with_data: VectorStore
+    ) -> None:
         """Test database connection closing."""
         # Ensure vector store is functional before closing
         stats = vector_store_with_data.get_table_stats()
@@ -697,7 +858,9 @@ class TestVectorSearch:
         with pytest.raises((OSError, Exception)):
             VectorStore(db_path=invalid_path, phone=self.__class__.test_phone)
 
-    def test_print_index_stats_functionality(self, vector_store_with_data: VectorStore, capsys) -> None:
+    def test_print_index_stats_functionality(
+        self, vector_store_with_data: VectorStore, capsys
+    ) -> None:
         """Test print_index_stats output (captures stdout)."""
         # Create index first
         vector_store_with_data.create_hnsw_index()
@@ -716,7 +879,9 @@ class TestVectorSearch:
 
         vector_store_with_data.close()
 
-    def test_print_index_stats_no_index(self, empty_vector_store: VectorStore, capsys) -> None:
+    def test_print_index_stats_no_index(
+        self, empty_vector_store: VectorStore, capsys
+    ) -> None:
         """Test print_index_stats when no index exists."""
         # Call print function without creating index
         empty_vector_store.print_index_stats()

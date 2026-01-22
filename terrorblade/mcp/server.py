@@ -36,7 +36,9 @@ def _setup_logging() -> logging.Logger:
     log_file = logs_dir / "mcp_server.log"
 
     # Rotating file handler
-    file_handler = RotatingFileHandler(log_file, maxBytes=10 * 1024 * 1024, backupCount=5)
+    file_handler = RotatingFileHandler(
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5
+    )
     file_handler.setLevel(logging.INFO)
     file_formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -74,7 +76,10 @@ def _encode_query(text: str) -> list[float]:
 
     preproc = TextPreprocessor()
     embedding = preproc.embeddings_model.encode(
-        [text], convert_to_tensor=True, normalize_embeddings=True, device=preproc.device
+        [text],
+        convert_to_tensor=True,
+        normalize_embeddings=True,
+        device=preproc.device,
     )
     return embedding.cpu().tolist()[0]
 
@@ -83,7 +88,13 @@ def _df_to_rows(df: pl.DataFrame) -> list[dict[str, Any]]:
     if df.is_empty():
         return []
     # Ensure datetimes are ISO strings for JSON serialization
-    df = df.with_columns(*[pl.col(col).dt.to_string() for col in df.columns if df.schema[col] == pl.Datetime])
+    df = df.with_columns(
+        *[
+            pl.col(col).dt.to_string()
+            for col in df.columns
+            if df.schema[col] == pl.Datetime
+        ]
+    )
     return df.to_dicts()
 
 
@@ -147,7 +158,10 @@ def vector_search(
 
     real_db_path = _resolve_db_path(db_path)
     if not Path(real_db_path).exists():
-        LOGGER.warning("DuckDB not found at %s; proceeding (it may be created by downstream code)", real_db_path)
+        LOGGER.warning(
+            "DuckDB not found at %s; proceeding (it may be created by downstream code)",
+            real_db_path,
+        )
 
     LOGGER.info(
         "vector_search: phone=%s top_k=%d chat_id=%s threshold=%.3f include_cluster_messages=%s db_path=%s",
@@ -203,7 +217,10 @@ def cluster_search(
 
     real_db_path = _resolve_db_path(db_path)
     if not Path(real_db_path).exists():
-        LOGGER.warning("DuckDB not found at %s; proceeding (it may be created by downstream code)", real_db_path)
+        LOGGER.warning(
+            "DuckDB not found at %s; proceeding (it may be created by downstream code)",
+            real_db_path,
+        )
 
     LOGGER.info(
         "cluster_search: phone=%s top_k=%d max_clusters=%d threshold=%.3f db_path=%s",
@@ -259,9 +276,17 @@ def cluster_search(
         clusters[key] = current
 
     # Sort by best similarity, then hits
-    ordered = sorted(clusters.values(), key=lambda x: (x["best_similarity"], x["hits"]), reverse=True)
+    ordered = sorted(
+        clusters.values(),
+        key=lambda x: (x["best_similarity"], x["hits"]),
+        reverse=True,
+    )
 
-    LOGGER.info("cluster_search: formed %d clusters from %d rows", len(ordered), len(rows))
+    LOGGER.info(
+        "cluster_search: formed %d clusters from %d rows",
+        len(ordered),
+        len(rows),
+    )
 
     with contextlib.suppress(Exception):
         vs.close()
@@ -270,7 +295,9 @@ def cluster_search(
 
 
 @mcp.tool(name="get_cluster")
-def get_cluster(phone: str, chat_id: int, group_id: int, db_path: str = "auto") -> list[dict[str, Any]]:
+def get_cluster(
+    phone: str, chat_id: int, group_id: int, db_path: str = "auto"
+) -> list[dict[str, Any]]:
     """
     Retrieve all messages for a specific cluster (group_id) within a chat.
 
@@ -309,7 +336,9 @@ def get_cluster(phone: str, chat_id: int, group_id: int, db_path: str = "auto") 
     try:
         con = duckdb.connect(real_db_path, read_only=True)
     except Exception:
-        LOGGER.exception("Failed to open DuckDB in read-only mode at %s", real_db_path)
+        LOGGER.exception(
+            "Failed to open DuckDB in read-only mode at %s", real_db_path
+        )
         raise
 
     try:
@@ -321,7 +350,9 @@ def get_cluster(phone: str, chat_id: int, group_id: int, db_path: str = "auto") 
 
 
 @mcp.tool(name="random_large_cluster")
-def random_large_cluster(phone: str, min_size: int = 10, db_path: str = "auto") -> list[dict[str, Any]]:
+def random_large_cluster(
+    phone: str, min_size: int = 10, db_path: str = "auto"
+) -> list[dict[str, Any]]:
     """
     Retrieve a random large cluster (size >= min_size) across all chats for a user.
     Returns the full set of messages for that cluster.

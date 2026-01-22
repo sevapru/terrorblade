@@ -3,7 +3,9 @@
 import argparse
 
 from terrorblade.data.database.telegram_database import TelegramDatabase
-from terrorblade.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
+from terrorblade.data.preprocessing.TelegramPreprocessor import (
+    TelegramPreprocessor,
+)
 from terrorblade.utils.config import get_db_path
 
 
@@ -37,14 +39,18 @@ def create_db_from_telegram_json(
     db = TelegramDatabase(db_path=db_path)
     db.init_user_tables(phone)
 
-    preprocessor = TelegramPreprocessor(use_duckdb=True, phone=phone, db_path=db_path)
+    preprocessor = TelegramPreprocessor(
+        use_duckdb=True, phone=phone, db_path=db_path
+    )
 
     try:
         print(f"Processing JSON file: {json_file_path}")
         if skip_embeddings:
             chats = preprocessor.prepare_data(json_file_path)
             for _, chat_df in chats.items():
-                preprocessor._add_messages_to_db(chat_df, phone=phone)  # noqa: SLF001 (intended internal use)
+                preprocessor._add_messages_to_db(
+                    chat_df, phone=phone
+                )  # noqa: SLF001 (intended internal use)
         else:
             preprocessor.process_file(json_file_path)
         db.print_user_summary(phone)
@@ -55,9 +61,13 @@ def create_db_from_telegram_json(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create a database from Telegram JSON export file")
+    parser = argparse.ArgumentParser(
+        description="Create a database from Telegram JSON export file"
+    )
     parser.add_argument("phone", help="Phone number (e.g., '31627866359')")
-    parser.add_argument("json_file_path", help="Path to the Telegram JSON export file")
+    parser.add_argument(
+        "json_file_path", help="Path to the Telegram JSON export file"
+    )
     parser.add_argument(
         "-d",
         "--db-path",

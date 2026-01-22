@@ -46,16 +46,14 @@ class SessionManager:
     def _init_database(self) -> None:
         """Initialize the sessions table if it doesn't exist"""
         try:
-            self.db.execute(
-                """
+            self.db.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     phone VARCHAR PRIMARY KEY,
                     session_data TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """
-            )
+            """)
             self.logger.info("Session database initialized")
         except Exception as e:
             self.logger.error(f"Error initializing session database: {str(e)}")
@@ -72,12 +70,19 @@ class SessionManager:
             Optional[str]: Session string if found, None otherwise
         """
         try:
-            result = self.db.execute("SELECT session_data FROM sessions WHERE phone = ?", [phone]).fetchone()
+            result = self.db.execute(
+                "SELECT session_data FROM sessions WHERE phone = ?", [phone]
+            ).fetchone()
 
             if result:
-                self.logger.info(f"Retrieved existing session for phone {phone}")
+                self.logger.info(
+                    f"Retrieved existing session for phone {phone}"
+                )
                 # Update last used timestamp
-                self.db.execute("UPDATE sessions SET last_used = CURRENT_TIMESTAMP WHERE phone = ?", [phone])
+                self.db.execute(
+                    "UPDATE sessions SET last_used = CURRENT_TIMESTAMP WHERE phone = ?",
+                    [phone],
+                )
                 return result[0]
             else:
                 self.logger.info(f"No existing session found for phone {phone}")
@@ -138,13 +143,11 @@ class SessionManager:
             list: List of tuples (phone, created_at, last_used)
         """
         try:
-            result = self.db.execute(
-                """
+            result = self.db.execute("""
                 SELECT phone, created_at, last_used
                 FROM sessions
                 ORDER BY last_used DESC
-            """
-            ).fetchall()
+            """).fetchall()
             return result
         except Exception as e:
             self.logger.error(f"Error listing sessions: {str(e)}")

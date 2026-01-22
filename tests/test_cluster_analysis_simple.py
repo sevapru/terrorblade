@@ -43,7 +43,9 @@ class TestBasicFunctionality:
         assert "chat_name" in sample_data.columns
         assert sample_data["message_count"].sum() == 4439
 
-    def test_display_functions_with_empty_data(self, capsys: pytest.CaptureFixture) -> None:
+    def test_display_functions_with_empty_data(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test display functions with empty data."""
         empty_df = pl.DataFrame()
 
@@ -55,7 +57,9 @@ class TestBasicFunctionality:
         captured = capsys.readouterr()
         assert "No large clusters found." in captured.out
 
-    def test_display_chats_table_with_data(self, capsys: pytest.CaptureFixture) -> None:
+    def test_display_chats_table_with_data(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test displaying chats table with sample data."""
         sample_data = pl.DataFrame(
             {
@@ -75,7 +79,9 @@ class TestBasicFunctionality:
         assert "Test Family Group" in captured.out
         assert "Work Team" in captured.out
 
-    def test_display_clusters_table_with_data(self, capsys: pytest.CaptureFixture) -> None:
+    def test_display_clusters_table_with_data(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test displaying clusters table with sample data."""
         sample_data = pl.DataFrame(
             {
@@ -97,7 +103,9 @@ class TestBasicFunctionality:
         assert "🔥 Very High" in captured.out
         assert "🔴 High" in captured.out
 
-    def test_display_cluster_analysis_with_data(self, capsys: pytest.CaptureFixture) -> None:
+    def test_display_cluster_analysis_with_data(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test displaying cluster analysis with sample data."""
         stats = {
             "cluster_id": 15,
@@ -108,7 +116,12 @@ class TestBasicFunctionality:
             "messages_per_hour": 30.2,
             "start_time": datetime(2024, 1, 15, 9, 30),
             "end_time": datetime(2024, 1, 15, 13, 42),
-            "peak_hour": {"date": datetime(2024, 1, 15).date(), "hour": 11, "messages": 45, "active_users": 4},
+            "peak_hour": {
+                "date": datetime(2024, 1, 15).date(),
+                "hour": 11,
+                "messages": 45,
+                "active_users": 4,
+            },
             "participants": pl.DataFrame(
                 {
                     "from_id": [123, 456, 789],
@@ -118,7 +131,12 @@ class TestBasicFunctionality:
                 }
             ),
             "time_analysis": pl.DataFrame(
-                {"date_only": [datetime(2024, 1, 15).date()], "hour": [11], "messages": [45], "active_users": [4]}
+                {
+                    "date_only": [datetime(2024, 1, 15).date()],
+                    "hour": [11],
+                    "messages": [45],
+                    "active_users": [4],
+                }
             ),
         }
 
@@ -132,7 +150,9 @@ class TestBasicFunctionality:
         assert "👥 Participants: 6" in captured.out
         assert "Alice" in captured.out
 
-    def test_display_cluster_analysis_with_error(self, capsys: pytest.CaptureFixture) -> None:
+    def test_display_cluster_analysis_with_error(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test displaying cluster analysis with error."""
         stats = {"error": "Test error message"}
         display_cluster_analysis(stats)
@@ -146,12 +166,16 @@ class TestAIFunctions:
 
     @patch("terrorblade.examples.cluster_analysis_cli.OPENAI_AVAILABLE", True)
     @patch("terrorblade.examples.cluster_analysis_cli.openai")
-    def test_summarize_cluster_with_openai_success(self, mock_openai: Mock) -> None:
+    def test_summarize_cluster_with_openai_success(
+        self, mock_openai: Mock
+    ) -> None:
         """Test successful cluster summarization."""
         # Mock the OpenAI response
         mock_response = Mock()
         mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = "This is a test summary of the cluster discussion."
+        mock_response.choices[0].message.content = (
+            "This is a test summary of the cluster discussion."
+        )
 
         mock_client = Mock()
         mock_client.chat.completions.create.return_value = mock_response
@@ -185,7 +209,9 @@ class TestAIFunctions:
         """Test story extraction in third person."""
         mock_response = Mock()
         mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = "Once upon a time, Alice and Bob had a conversation..."
+        mock_response.choices[0].message.content = (
+            "Once upon a time, Alice and Bob had a conversation..."
+        )
 
         mock_client = Mock()
         mock_client.chat.completions.create.return_value = mock_response
@@ -194,7 +220,9 @@ class TestAIFunctions:
         cluster_text = "[2024-01-15 09:30:00] Alice: Hello everyone!"
         api_key = "test-api-key"
 
-        result = extract_story_from_cluster(cluster_text, api_key, "third_person")
+        result = extract_story_from_cluster(
+            cluster_text, api_key, "third_person"
+        )
         assert result == "Once upon a time, Alice and Bob had a conversation..."
 
         # Check that it mentions third-person in the prompt
@@ -208,7 +236,9 @@ class TestAIFunctions:
         """Test story extraction in first person."""
         mock_response = Mock()
         mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = "I remember when Alice and I had a conversation..."
+        mock_response.choices[0].message.content = (
+            "I remember when Alice and I had a conversation..."
+        )
 
         mock_client = Mock()
         mock_client.chat.completions.create.return_value = mock_response
@@ -217,7 +247,9 @@ class TestAIFunctions:
         cluster_text = "[2024-01-15 09:30:00] Alice: Hello everyone!"
         api_key = "test-api-key"
 
-        result = extract_story_from_cluster(cluster_text, api_key, "first_person")
+        result = extract_story_from_cluster(
+            cluster_text, api_key, "first_person"
+        )
         assert result == "I remember when Alice and I had a conversation..."
 
         # Check that it mentions first-person in the prompt
@@ -263,7 +295,9 @@ class TestClusterAnalyzerMocked:
 
     @patch("terrorblade.examples.cluster_analysis_cli.TelegramDatabase")
     @patch("terrorblade.examples.cluster_analysis_cli.get_db_path")
-    def test_cluster_analyzer_init_mocked(self, mock_get_db_path: Mock, mock_db_class: Mock) -> None:
+    def test_cluster_analyzer_init_mocked(
+        self, mock_get_db_path: Mock, mock_db_class: Mock
+    ) -> None:
         """Test ClusterAnalyzer initialization with mocked database."""
         from terrorblade.examples.cluster_analysis_cli import ClusterAnalyzer
 
@@ -287,11 +321,15 @@ class TestClusterAnalyzerMocked:
         mock_get_db_path.assert_called_once_with("test.db")
 
         # Verify database was initialized correctly with the resolved path
-        mock_db_class.assert_called_once_with(db_path="/tmp/test.db", read_only=True)
+        mock_db_class.assert_called_once_with(
+            db_path="/tmp/test.db", read_only=True
+        )
 
     @patch("terrorblade.examples.cluster_analysis_cli.TelegramDatabase")
     @patch("terrorblade.examples.cluster_analysis_cli.get_db_path")
-    def test_find_chat_by_name_mocked(self, mock_get_db_path: Mock, mock_db_class: Mock) -> None:
+    def test_find_chat_by_name_mocked(
+        self, mock_get_db_path: Mock, mock_db_class: Mock
+    ) -> None:
         """Test finding chat by name with mocked database."""
         from terrorblade.examples.cluster_analysis_cli import ClusterAnalyzer
 
@@ -319,7 +357,9 @@ class TestClusterAnalyzerMocked:
 
     @patch("terrorblade.examples.cluster_analysis_cli.TelegramDatabase")
     @patch("terrorblade.examples.cluster_analysis_cli.get_db_path")
-    def test_get_cluster_summary_data_mocked(self, mock_get_db_path: Mock, mock_db_class: Mock) -> None:
+    def test_get_cluster_summary_data_mocked(
+        self, mock_get_db_path: Mock, mock_db_class: Mock
+    ) -> None:
         """Test getting cluster summary data with mocked database."""
         from terrorblade.examples.cluster_analysis_cli import ClusterAnalyzer
 
@@ -333,7 +373,10 @@ class TestClusterAnalyzerMocked:
         # Create sample messages data
         sample_messages = pl.DataFrame(
             {
-                "date": [datetime(2024, 1, 15, 9, 30), datetime(2024, 1, 15, 9, 35)],
+                "date": [
+                    datetime(2024, 1, 15, 9, 30),
+                    datetime(2024, 1, 15, 9, 35),
+                ],
                 "from_name": ["Alice", "Bob"],
                 "text": ["Hello everyone!", "How are you?"],
             }
@@ -345,17 +388,26 @@ class TestClusterAnalyzerMocked:
         mock_db_instance.db.execute.return_value = mock_result
 
         analyzer = ClusterAnalyzer(phone="+1234567890", db_path="test.db")
-        result = analyzer.get_cluster_summary_data(chat_id=-1001234567890, group_id=15)
+        result = analyzer.get_cluster_summary_data(
+            chat_id=-1001234567890, group_id=15
+        )
 
         assert isinstance(result, str)
         assert "Alice: Hello everyone!" in result
         assert "Bob: How are you?" in result
         assert "2024-01-15" in result
 
+
 def test_polars_functionality() -> None:
     """Test that polars operations work as expected."""
     # Test DataFrame creation and manipulation
-    df = pl.DataFrame({"id": [1, 2, 3], "name": ["Alice", "Bob", "Charlie"], "count": [10, 20, 30]})
+    df = pl.DataFrame(
+        {
+            "id": [1, 2, 3],
+            "name": ["Alice", "Bob", "Charlie"],
+            "count": [10, 20, 30],
+        }
+    )
 
     assert len(df) == 3
     assert "name" in df.columns
@@ -366,9 +418,19 @@ def test_polars_functionality() -> None:
     assert len(filtered) == 2
 
     # Test with datetime
-    df_time = pl.DataFrame({"timestamp": [datetime(2024, 1, 15, 9, 30), datetime(2024, 1, 15, 10, 0)], "value": [1, 2]})
+    df_time = pl.DataFrame(
+        {
+            "timestamp": [
+                datetime(2024, 1, 15, 9, 30),
+                datetime(2024, 1, 15, 10, 0),
+            ],
+            "value": [1, 2],
+        }
+    )
 
-    formatted = df_time.with_columns([pl.col("timestamp").dt.strftime("%Y-%m-%d %H:%M").alias("time_str")])
+    formatted = df_time.with_columns(
+        [pl.col("timestamp").dt.strftime("%Y-%m-%d %H:%M").alias("time_str")]
+    )
 
     assert "time_str" in formatted.columns
     assert "2024-01-15" in formatted["time_str"][0]

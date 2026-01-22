@@ -139,10 +139,15 @@ def transform_messages(data: dict[str, Any]) -> dict[str, Any]:
 
                     # Transform text content
                     if "text" in message and message["text"]:
-                        message["text"] = transform_message_text(message["text"])
+                        message["text"] = transform_message_text(
+                            message["text"]
+                        )
 
                         # Update text_entities if they exist
-                        if "text_entities" in message and message["text_entities"]:
+                        if (
+                            "text_entities" in message
+                            and message["text_entities"]
+                        ):
                             for entity in message["text_entities"]:
                                 if entity.get("type") == "plain":
                                     entity["text"] = message["text"]
@@ -151,10 +156,16 @@ def transform_messages(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Transform Telegram messages to animal-themed content")
+    parser = argparse.ArgumentParser(
+        description="Transform Telegram messages to animal-themed content"
+    )
     parser.add_argument("input_file", help="Path to the input JSON file")
     parser.add_argument("output_file", help="Path to the output JSON file")
-    parser.add_argument("--backup", action="store_true", help="Create a backup of the original file")
+    parser.add_argument(
+        "--backup",
+        action="store_true",
+        help="Create a backup of the original file",
+    )
 
     args = parser.parse_args()
     # Check if input file exists
@@ -201,7 +212,9 @@ def main() -> None:
                             authors.add(message["from"])
                     author_count += len(authors)
 
-        print(f"Transformed {message_count} messages with {author_count} unique animal authors")
+        print(
+            f"Transformed {message_count} messages with {author_count} unique animal authors"
+        )
 
     except json.JSONDecodeError as e:
         print(f"Error: Invalid JSON in input file: {e}")

@@ -11,7 +11,6 @@ Usage:
 """
 
 import os
-import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -26,6 +25,7 @@ load_dotenv()
 
 class LLMProvider(Enum):
     """Available LLM providers."""
+
     OPENAI = "openai"
     OPENROUTER = "openrouter"
     DEEPINFRA = "deepinfra"
@@ -35,6 +35,7 @@ class LLMProvider(Enum):
 @dataclass
 class ProviderConfig:
     """Configuration for each LLM provider."""
+
     name: str
     base_url: str
     api_key_env: str
@@ -47,6 +48,7 @@ class ProviderConfig:
 @dataclass
 class LLMResponse:
     """Standardized response from LLM providers."""
+
     content: str
     provider: str
     model: str
@@ -68,7 +70,7 @@ class Promptinator:
             api_key_env="OPENAI_API_KEY",
             default_model="gpt-4o-mini",
             chat_model="gpt-4o-mini",
-            ping_endpoint="https://api.openai.com/v1/models"
+            ping_endpoint="https://api.openai.com/v1/models",
         ),
         LLMProvider.OPENROUTER: ProviderConfig(
             name="OpenRouter",
@@ -77,7 +79,10 @@ class Promptinator:
             default_model="anthropic/claude-3.5-sonnet",
             chat_model="anthropic/claude-3.5-sonnet",
             ping_endpoint="https://openrouter.ai/api/v1/models",
-            headers={"HTTP-Referer": "https://github.com/terrorblade", "X-Title": "Terrorblade"}
+            headers={
+                "HTTP-Referer": "https://github.com/terrorblade",
+                "X-Title": "Terrorblade",
+            },
         ),
         LLMProvider.DEEPINFRA: ProviderConfig(
             name="DeepInfra",
@@ -85,7 +90,7 @@ class Promptinator:
             api_key_env="DEEPINFRA_API_KEY",
             default_model="meta-llama/Meta-Llama-3.1-8B-Instruct",
             chat_model="meta-llama/Meta-Llama-3.1-8B-Instruct",
-            ping_endpoint="https://api.deepinfra.com/v1/openai/models"
+            ping_endpoint="https://api.deepinfra.com/v1/openai/models",
         ),
         LLMProvider.FIREWORKS: ProviderConfig(
             name="Fireworks",
@@ -93,8 +98,8 @@ class Promptinator:
             api_key_env="FIREWORKS_API_KEY",
             default_model="accounts/fireworks/models/llama-v3p1-8b-instruct",
             chat_model="accounts/fireworks/models/llama-v3p1-8b-instruct",
-            ping_endpoint="https://api.fireworks.ai/inference/v1/models"
-        )
+            ping_endpoint="https://api.fireworks.ai/inference/v1/models",
+        ),
     }
 
     def __init__(self, provider: str = "openai", model: str | None = None):
@@ -113,13 +118,15 @@ class Promptinator:
         # Get API key
         self.api_key = os.getenv(self.config.api_key_env)
         if not self.api_key:
-            raise ValueError(f"API key not found in environment: {self.config.api_key_env}")
+            raise ValueError(
+                f"API key not found in environment: {self.config.api_key_env}"
+            )
 
         # Initialize OpenAI client with provider configuration
         self.client = openai.OpenAI(
             api_key=self.api_key,
             base_url=self.config.base_url,
-            default_headers=self.config.headers or {}
+            default_headers=self.config.headers or {},
         )
 
         # Validate connection
@@ -134,9 +141,7 @@ class Promptinator:
                 headers.update(self.config.headers)
 
             response = requests.get(
-                self.config.ping_endpoint,
-                headers=headers,
-                timeout=10
+                self.config.ping_endpoint, headers=headers, timeout=10
             )
             return response.status_code == 200
         except Exception:
@@ -161,7 +166,7 @@ class Promptinator:
         if not prompt_path.exists():
             raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
 
-        return prompt_path.read_text(encoding='utf-8')
+        return prompt_path.read_text(encoding="utf-8")
 
     def list_available_prompts(self) -> list[str]:
         """List all available prompt files."""
@@ -174,7 +179,7 @@ class Promptinator:
         prompt_file: str | None = None,
         model: str | None = None,
         temperature: float = 0.7,
-        max_tokens: int | None = None
+        max_tokens: int | None = None,
     ) -> LLMResponse:
         """
         Send query to LLM provider.
@@ -207,18 +212,18 @@ class Promptinator:
                 model=model or self.model,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
             )
 
             # Extract response data
             content = response.choices[0].message.content or ""
-            usage = getattr(response, 'usage', None)
+            usage = getattr(response, "usage", None)
 
             # Extract detailed token information
             if usage:
-                total_tokens = getattr(usage, 'total_tokens', None)
-                input_tokens = getattr(usage, 'prompt_tokens', None)
-                output_tokens = getattr(usage, 'completion_tokens', None)
+                total_tokens = getattr(usage, "total_tokens", None)
+                input_tokens = getattr(usage, "prompt_tokens", None)
+                output_tokens = getattr(usage, "completion_tokens", None)
             else:
                 total_tokens = None
                 input_tokens = None
@@ -234,7 +239,7 @@ class Promptinator:
                 tokens_used=total_tokens,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                cost=cost
+                cost=cost,
             )
 
         except Exception as e:
@@ -244,7 +249,7 @@ class Promptinator:
                 model=model or self.model,
                 input_tokens=None,
                 output_tokens=None,
-                error=str(e)
+                error=str(e),
             )
 
     def chat(
@@ -252,7 +257,7 @@ class Promptinator:
         messages: list[dict[str, str]],
         model: str | None = None,
         temperature: float = 0.7,
-        max_tokens: int | None = None
+        max_tokens: int | None = None,
     ) -> LLMResponse:
         """
         Multi-turn chat conversation.
@@ -271,17 +276,17 @@ class Promptinator:
                 model=model or self.config.chat_model,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
             )
 
             content = response.choices[0].message.content or ""
-            usage = getattr(response, 'usage', None)
+            usage = getattr(response, "usage", None)
 
             # Extract detailed token information
             if usage:
-                total_tokens = getattr(usage, 'total_tokens', None)
-                input_tokens = getattr(usage, 'prompt_tokens', None)
-                output_tokens = getattr(usage, 'completion_tokens', None)
+                total_tokens = getattr(usage, "total_tokens", None)
+                input_tokens = getattr(usage, "prompt_tokens", None)
+                output_tokens = getattr(usage, "completion_tokens", None)
             else:
                 total_tokens = None
                 input_tokens = None
@@ -296,7 +301,7 @@ class Promptinator:
                 tokens_used=total_tokens,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                cost=cost
+                cost=cost,
             )
 
         except Exception as e:
@@ -306,7 +311,7 @@ class Promptinator:
                 model=model or self.config.chat_model,
                 input_tokens=None,
                 output_tokens=None,
-                error=str(e)
+                error=str(e),
             )
 
     def _estimate_cost(self, tokens: int | None) -> float | None:
@@ -331,11 +336,13 @@ class Promptinator:
             "provider": self.config.name,
             "model": self.model,
             "base_url": self.config.base_url,
-            "available": self._ping_provider()
+            "available": self._ping_provider(),
         }
 
     @classmethod
-    def auto_select_provider(cls, preferred_order: list[str] | None = None) -> 'Promptinator':
+    def auto_select_provider(
+        cls, preferred_order: list[str] | None = None
+    ) -> "Promptinator":
         """
         Auto-select the first available provider.
 
@@ -345,7 +352,12 @@ class Promptinator:
         Returns:
             Promptinator instance with working provider
         """
-        order = preferred_order or ["openai", "openrouter", "deepinfra", "fireworks"]
+        order = preferred_order or [
+            "openai",
+            "openrouter",
+            "deepinfra",
+            "fireworks",
+        ]
 
         for provider_name in order:
             try:
@@ -357,7 +369,9 @@ class Promptinator:
 
 
 # Convenience functions for analyze_dialogues.py integration
-def create_llm_client(provider: str = "openai", model: str | None = None) -> Promptinator:
+def create_llm_client(
+    provider: str = "openai", model: str | None = None
+) -> Promptinator:
     """Create LLM client instance."""
     return Promptinator(provider=provider, model=model)
 
@@ -366,7 +380,7 @@ def analyze_dialogue_with_llm(
     group_data: dict[str, Any],
     messages_text: list[str],
     promptinator: Promptinator,
-    prompt_file: str = "prompt_1.md"
+    prompt_file: str = "prompt_1.md",
 ) -> str:
     """
     Analyze dialogue using specified LLM provider and prompt.
@@ -388,18 +402,28 @@ def analyze_dialogue_with_llm(
         messages_joined = chr(10).join(messages_text)
 
         # Create a custom formatter that handles the template variables
-        formatted_prompt = prompt_template.replace(
-            "{group['chat_name']}", str(group_data.get('chat_name', 'Unknown'))
-        ).replace(
-            "{group['message_count']}", str(group_data.get('message_count', 0))
-        ).replace(
-            "{group['total_words']:,}", f"{group_data.get('total_words', 0):,}"
-        ).replace(
-            "{group['participants']}", str(group_data.get('participants', 0))
-        ).replace(
-            "{group['avg_words_per_message']:.1f}", f"{group_data.get('avg_words_per_message', 0):.1f}"
-        ).replace(
-            "{chr(10).join(messages_text)}", messages_joined
+        formatted_prompt = (
+            prompt_template.replace(
+                "{group['chat_name']}",
+                str(group_data.get("chat_name", "Unknown")),
+            )
+            .replace(
+                "{group['message_count']}",
+                str(group_data.get("message_count", 0)),
+            )
+            .replace(
+                "{group['total_words']:,}",
+                f"{group_data.get('total_words', 0):,}",
+            )
+            .replace(
+                "{group['participants']}",
+                str(group_data.get("participants", 0)),
+            )
+            .replace(
+                "{group['avg_words_per_message']:.1f}",
+                f"{group_data.get('avg_words_per_message', 0):.1f}",
+            )
+            .replace("{chr(10).join(messages_text)}", messages_joined)
         )
 
         # Get system prompt for dialogue analysis
@@ -409,7 +433,7 @@ def analyze_dialogue_with_llm(
         response = promptinator.query(
             user_input=formatted_prompt,
             system_prompt=system_prompt,
-            temperature=0.7
+            temperature=0.7,
         )
 
         if response.error:

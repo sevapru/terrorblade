@@ -11,7 +11,6 @@ Usage:
 """
 
 import argparse
-import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -24,18 +23,20 @@ from rich.panel import Panel
 from rich.table import Table
 
 from terrorblade.data.database.telegram_database import TelegramDatabase
-from terrorblade.examples.prompts.promptinator import Promptinator, analyze_dialogue_with_llm
+from terrorblade.examples.prompts.promptinator import (
+    Promptinator,
+    analyze_dialogue_with_llm,
+)
 from terrorblade.examples.prompts.provider_configs import (
     PROVIDER_MODEL_COMBINATIONS,
     get_available_prompts,
-    get_all_provider_model_pairs,
-    format_provider_model_display,
+    get_recommended_models,
     validate_provider_model,
-    get_recommended_models
 )
 from terrorblade.utils.config import get_db_path
 
 load_dotenv()
+
 
 @dataclass
 class Config:
@@ -103,15 +104,19 @@ class LLMManager:
         """Initialize LLM provider with current configuration."""
         try:
             self.promptinator = Promptinator(
-                provider=self.config.provider,
-                model=self.config.model
+                provider=self.config.provider, model=self.config.model
             )
         except Exception as e:
             print(f"Warning: Failed to initialize {self.config.provider}: {e}")
             self.promptinator = None
 
-    def update_config(self, provider: str | None = None, model: str | None = None,
-                     prompt_file: str | None = None, temperature: float | None = None) -> bool:
+    def update_config(
+        self,
+        provider: str | None = None,
+        model: str | None = None,
+        prompt_file: str | None = None,
+        temperature: float | None = None,
+    ) -> bool:
         """Update LLM configuration and reinitialize if needed."""
         config_changed = False
 
@@ -131,7 +136,9 @@ class LLMManager:
 
         return self.promptinator is not None
 
-    def analyze_dialogue(self, group: dict[str, Any], messages_text: list[str]) -> str:
+    def analyze_dialogue(
+        self, group: dict[str, Any], messages_text: list[str]
+    ) -> str:
         """Analyze dialogue using configured LLM and prompt."""
         if not self.promptinator:
             return "Error: LLM not properly initialized. Check your API keys and configuration."
@@ -141,7 +148,7 @@ class LLMManager:
                 group_data=group,
                 messages_text=messages_text,
                 promptinator=self.promptinator,
-                prompt_file=self.config.prompt_file
+                prompt_file=self.config.prompt_file,
             )
         except Exception as e:
             return f"Error analyzing dialogue: {e}"
@@ -149,7 +156,9 @@ class LLMManager:
     def get_provider_info(self) -> str:
         """Get current provider information for display."""
         if not self.promptinator:
-            return f"❌ {self.config.provider}:{self.config.model} (Not connected)"
+            return (
+                f"❌ {self.config.provider}:{self.config.model} (Not connected)"
+            )
 
         info = self.promptinator.get_provider_info()
         status = "✅" if info["available"] else "❌"
@@ -174,9 +183,15 @@ class SentimentAnalyser:
 
         self._cached_messages_df: pl.DataFrame | None = None
         self._cached_quantiles: dict[str, float | int] | None = None
-        self._cached_chat_id: str | None = None  # Track which chat the cache is for
-        self._cached_filtered_df: pl.DataFrame | None = None  # Filtered by current threshold
-        self._cached_threshold: int | None = None  # Current threshold used for filtering
+        self._cached_chat_id: str | None = (
+            None  # Track which chat the cache is for
+        )
+        self._cached_filtered_df: pl.DataFrame | None = (
+            None  # Filtered by current threshold
+        )
+        self._cached_threshold: int | None = (
+            None  # Current threshold used for filtering
+        )
 
     def _invalidate_cache(self) -> None:
         """Invalidate cached data when parameters change."""
@@ -186,10 +201,14 @@ class SentimentAnalyser:
         self._cached_filtered_df = None
         self._cached_threshold = None
 
-    def _get_group_text_preview(self, group_id: int, all_messages_df: pl.DataFrame) -> str:
+    def _get_group_text_preview(
+        self, group_id: int, all_messages_df: pl.DataFrame
+    ) -> str:
         """Get text preview from the first message in a group."""
         try:
-            group_messages = all_messages_df.filter(pl.col("group_id") == group_id)
+            group_messages = all_messages_df.filter(
+                pl.col("group_id") == group_id
+            )
             if group_messages.is_empty():
                 return "No messages available"
 
@@ -208,14 +227,18 @@ class SentimentAnalyser:
         except Exception:
             return "Error getting text"
 
-    def _get_filtered_messages_df(self, chat_id: str | None = None, threshold: int | None = None) -> pl.DataFrame:
+    def _get_filtered_messages_df(
+        self, chat_id: str | None = None, threshold: int | None = None
+    ) -> pl.DataFrame:
         """Get filtered messages DataFrame, using cache when possible."""
         if threshold is None:
             threshold = self.params.min_words
 
-        if (self._cached_filtered_df is not None and
-            self._cached_threshold == threshold and
-            self._cached_chat_id == chat_id):
+        if (
+            self._cached_filtered_df is not None
+            and self._cached_threshold == threshold
+            and self._cached_chat_id == chat_id
+        ):
             return self._cached_filtered_df
 
         # Fetch and filter data
@@ -251,8 +274,10 @@ class SentimentAnalyser:
             elif choice == "4":
                 groups_df = self._handle_sorting(groups_df)
             elif choice == "5":
-                groups_df, all_messages_df, params = self._handle_chat_selection(
-                    groups_df, all_messages_df, params
+                groups_df, all_messages_df, params = (
+                    self._handle_chat_selection(
+                        groups_df, all_messages_df, params
+                    )
                 )
             elif choice == "6":
                 self._handle_llm_configuration()
@@ -276,29 +301,30 @@ class SentimentAnalyser:
             use_cache
             and self._cached_messages_df is not None
             and self._cached_quantiles is not None
-            and self._cached_chat_id == chat_id  # Ensure cache is for the same chat filter
+            and self._cached_chat_id
+            == chat_id  # Ensure cache is for the same chat filter
         ):
             return self._cached_messages_df, self._cached_quantiles
 
         try:
             chat_filter = f"AND m.chat_id = {chat_id}" if chat_id else ""
-            
+
             # Optimized SQL with word counting done in database
             sql = f"""
-            SELECT 
-                m.text, 
-                m.date, 
+            SELECT
+                m.text,
+                m.date,
                 m.chat_id::BIGINT,
                 -- Optimized word counting in SQL
-                CASE 
+                CASE
                     WHEN TRIM(m.text) = '' THEN 0
                     ELSE LENGTH(TRIM(m.text)) - LENGTH(REPLACE(TRIM(m.text), ' ', '')) + 1
                 END AS word_count,
                 EXTRACT(year FROM m.date) AS year,
                 EXTRACT(month FROM m.date) AS month
             FROM {self.messages_table} m
-            WHERE m.text IS NOT NULL 
-              AND LENGTH(TRIM(m.text)) > 0 
+            WHERE m.text IS NOT NULL
+              AND LENGTH(TRIM(m.text)) > 0
               {chat_filter}
             ORDER BY m.date
             """
@@ -340,9 +366,10 @@ class SentimentAnalyser:
             self.console.print("Select analysis area:", style="bold cyan")
             chat_id = self._get_chat_selection()
 
-
         threshold = min_words if min_words > 0 else self.params.min_words
-        messages_df = self._get_filtered_messages_df(chat_id=chat_id or None, threshold=threshold)
+        messages_df = self._get_filtered_messages_df(
+            chat_id=chat_id or None, threshold=threshold
+        )
 
         if messages_df.is_empty():
             self.console.print(
@@ -360,10 +387,12 @@ class SentimentAnalyser:
 
         activity_df = (
             messages_df.group_by(["year", "month"])
-            .agg([
-                pl.col("word_count").mean().alias("avg_words"),
-                pl.col("word_count").count().alias("message_count"),
-            ])
+            .agg(
+                [
+                    pl.col("word_count").mean().alias("avg_words"),
+                    pl.col("word_count").count().alias("message_count"),
+                ]
+            )
             .sort(["year", "month"])
         )
 
@@ -381,8 +410,13 @@ class SentimentAnalyser:
                 matrix[year_idx, month_idx] = row["avg_words"]
 
         self._print_heatmap(
-            matrix, years, months, "Average words per message",
-            main_color="green", threshold=0.0, emoji="🔥"
+            matrix,
+            years,
+            months,
+            "Average words per message",
+            main_color="green",
+            threshold=0.0,
+            emoji="🔥",
         )
 
     def create_threshold_heatmap(self, messages_df: pl.DataFrame) -> None:
@@ -391,11 +425,13 @@ class SentimentAnalyser:
 
         activity_df = (
             messages_df.group_by(["year", "month"])
-            .agg([
-                pl.col("word_count").mean().alias("avg_words"),
-                pl.col("word_count").max().alias("max_words"),
-                pl.col("word_count").count().alias("message_count"),
-            ])
+            .agg(
+                [
+                    pl.col("word_count").mean().alias("avg_words"),
+                    pl.col("word_count").max().alias("max_words"),
+                    pl.col("word_count").count().alias("message_count"),
+                ]
+            )
             .sort(["year", "month"])
         )
 
@@ -417,9 +453,13 @@ class SentimentAnalyser:
                     row["max_words"] - self.params.min_words
                 )
         self._print_heatmap(
-            matrix, years, months,
-            f"(found groups with threshold)",
-            main_color="yellow", threshold=self.params.min_words, emoji="🟡"
+            matrix,
+            years,
+            months,
+            "(found groups with threshold)",
+            main_color="yellow",
+            threshold=self.params.min_words,
+            emoji="🟡",
         )
 
     def create_quantiles_bar_chart(
@@ -464,8 +504,25 @@ class SentimentAnalyser:
         bar_width = 40
 
         data = []
-        for _i, (label, value) in enumerate(zip([f"{self.params.min_words}", "Q25", "Q50", "Q75", "Q90", "Q95", "Q99.7", "MAX"], quantile_values, strict=False)):
-            bar_length = int((value / max_val) * bar_width) if max_val > 0 else 0
+        for _i, (label, value) in enumerate(
+            zip(
+                [
+                    f"{self.params.min_words}",
+                    "Q25",
+                    "Q50",
+                    "Q75",
+                    "Q90",
+                    "Q95",
+                    "Q99.7",
+                    "MAX",
+                ],
+                quantile_values,
+                strict=False,
+            )
+        ):
+            bar_length = (
+                int((value / max_val) * bar_width) if max_val > 0 else 0
+            )
             bar = "█" * bar_length + "░" * (bar_width - bar_length)
             data.append((label, value, bar))
 
@@ -492,12 +549,12 @@ class SentimentAnalyser:
 
         try:
             chat_filter = f"AND m.chat_id = {chat_id}" if chat_id else ""
-            
+
             sql = f"""
             WITH latest_names AS (
-                SELECT chat_id, chat_name 
+                SELECT chat_id, chat_name
                 FROM (
-                    SELECT chat_id, chat_name, 
+                    SELECT chat_id, chat_name,
                            ROW_NUMBER() OVER (PARTITION BY chat_id ORDER BY COALESCE(last_seen, first_seen) DESC) AS rn
                     FROM {self.chat_names_table}
                 ) t WHERE rn = 1
@@ -552,7 +609,7 @@ class SentimentAnalyser:
                 GROUP BY chat_id, temp_group_id, chat_name
                 HAVING COUNT(*) >= {min_consecutive}
             )
-            SELECT 
+            SELECT
                 ROW_NUMBER() OVER (ORDER BY start_time) - 1 as group_id,
                 chat_id,
                 chat_name,
@@ -573,17 +630,17 @@ class SentimentAnalyser:
 
             if groups_df.is_empty():
                 return pl.DataFrame(), pl.DataFrame()
-            
+
             # Get detailed messages for each group with overlap
             all_messages_list = []
-            
+
             if len(groups_df) > 0:
                 for group_row in groups_df.iter_rows(named=True):
                     group_id = group_row["group_id"]
                     chat_id_val = group_row["chat_id"]
                     start_time = group_row["start_time"]
                     end_time = group_row["end_time"]
-                    
+
                     # Get core messages and context with single query
                     messages_sql = f"""
                     WITH core_messages AS (
@@ -634,10 +691,10 @@ class SentimentAnalyser:
                         SELECT * FROM core_messages
                         UNION ALL
                         SELECT * FROM overlap_after
-                    ) 
+                    )
                     ORDER BY date
                     """
-                    
+
                     messages_result = self.db.db.execute(messages_sql).arrow()
                     group_messages_df = pl.from_arrow(messages_result)
                     if not group_messages_df.is_empty():
@@ -653,11 +710,16 @@ class SentimentAnalyser:
             return groups_df, all_messages_df
 
         except Exception as e:
-            self.console.print(f"Error in find_long_message_groups: {e}", style="red")
+            self.console.print(
+                f"Error in find_long_message_groups: {e}", style="red"
+            )
             return pl.DataFrame(), pl.DataFrame()
 
     def display_groups(
-        self, groups_df: pl.DataFrame, sort_by: str = "total_words", all_messages_df: pl.DataFrame | None = None,
+        self,
+        groups_df: pl.DataFrame,
+        sort_by: str = "total_words",
+        all_messages_df: pl.DataFrame | None = None,
     ) -> None:
         """Display groups using original field names."""
         if groups_df.is_empty():
@@ -684,8 +746,10 @@ class SentimentAnalyser:
                 pl.when(all_messages_df is not None)
                 .then(
                     pl.struct(["group_id"]).map_elements(
-                        lambda x: self._get_group_text_preview(x["group_id"], all_messages_df),
-                        return_dtype=pl.String
+                        lambda x: self._get_group_text_preview(
+                            x["group_id"], all_messages_df
+                        ),
+                        return_dtype=pl.String,
                     )
                 )
                 .otherwise(pl.lit("No messages available"))
@@ -714,10 +778,19 @@ class SentimentAnalyser:
         try:
             messages_text = []
             for row in group["group_messages"].iter_rows(named=True):
-                timestamp = row["date"].strftime("%H:%M") if hasattr(row["date"], "strftime") else str(row["date"])
-                messages_text.append(f"[{timestamp}] ({row['word_count']}w): {row['text']}")
+                timestamp = (
+                    row["date"].strftime("%H:%M")
+                    if hasattr(row["date"], "strftime")
+                    else str(row["date"])
+                )
+                messages_text.append(
+                    f"[{timestamp}] ({row['word_count']}w): {row['text']}"
+                )
 
-            self.console.print(f"🤖 Analyzing with {self.llm_manager.get_provider_info()}...", style="dim")
+            self.console.print(
+                f"🤖 Analyzing with {self.llm_manager.get_provider_info()}...",
+                style="dim",
+            )
 
             return self.llm_manager.analyze_dialogue(group, messages_text)
         except Exception as e:
@@ -810,8 +883,6 @@ class SentimentAnalyser:
 
         return quantiles, intensity_matrix
 
-
-
     def _handle_cluster_analysis(
         self, groups_df: pl.DataFrame, all_messages_df: pl.DataFrame
     ) -> None:
@@ -842,7 +913,9 @@ class SentimentAnalyser:
 
                 preview_messages = group_messages.head(5).select(
                     [
-                        pl.col("date").dt.strftime("%Y-%m-%d %H:%M").alias("time"),
+                        pl.col("date")
+                        .dt.strftime("%Y-%m-%d %H:%M")
+                        .alias("time"),
                         pl.col("word_count"),
                         pl.col("text")
                         .str.slice(0, self.config.MAX_TEXT_PREVIEW_LENGTH)
@@ -857,19 +930,23 @@ class SentimentAnalyser:
                 )
 
                 # Ask for confirmation before sending to OpenAI
-                self.console.print("\n🤖 Send this cluster to OpenAI for analysis?", style="bold yellow")
+                self.console.print(
+                    "\n🤖 Send this cluster to OpenAI for analysis?",
+                    style="bold yellow",
+                )
                 self.console.print("  • Press 'y' to proceed with AI analysis")
                 self.console.print("  • Press any other key to cancel")
                 confirm = input("Choice (y/N): ").strip().lower()
 
-                if confirm != 'y':
+                if confirm != "y":
                     self.console.print("❌ Analysis cancelled", style="dim")
                     return
 
                 # Check if LLM is properly configured
                 if not self.llm_manager.promptinator:
                     self.console.print(
-                        "❌ LLM not configured. Please check your API keys and go to LLM Configuration.", style="red"
+                        "❌ LLM not configured. Please check your API keys and go to LLM Configuration.",
+                        style="red",
                     )
                     return
 
@@ -878,18 +955,17 @@ class SentimentAnalyser:
                     "message_count": group_row["message_count"],
                     "total_words": group_row["total_words"],
                     "participants": group_row["participants"],
-                    "avg_words_per_message": group_row[
-                        "avg_words_per_message"
-                    ],
+                    "avg_words_per_message": group_row["avg_words_per_message"],
                     "group_messages": group_messages,
                 }
 
-                self.console.print(f"🤖 Analyzing with {self.llm_manager.config.provider}...", style="bold cyan")
+                self.console.print(
+                    f"🤖 Analyzing with {self.llm_manager.config.provider}...",
+                    style="bold cyan",
+                )
                 summary = self.generate_summary(group_dict)
                 self.console.print(
-                    Panel(
-                        summary, title="🤖 AI Analysis", border_style="blue"
-                    )
+                    Panel(summary, title="🤖 AI Analysis", border_style="blue")
                 )
 
         except (ValueError, IndexError):
@@ -909,7 +985,6 @@ class SentimentAnalyser:
         self.console.print("\nSelect chat scope:", style="bold cyan")
         selected_chat = self._get_chat_selection()
         params.chat_id = selected_chat
-
 
         self._get_search_recommendations(self._cached_quantiles)
 
@@ -938,7 +1013,9 @@ class SentimentAnalyser:
             )
 
             # Recalculate quantiles after parameter changes
-            _, quantiles = self.analyze_word_quantiles(chat_id=params.chat_id, use_cache=False)
+            _, quantiles = self.analyze_word_quantiles(
+                chat_id=params.chat_id, use_cache=False
+            )
 
             self.console.print(
                 f"\n📊 Word analysis (current threshold: {self.params.min_words} words)",
@@ -987,18 +1064,23 @@ class SentimentAnalyser:
             return groups_df
 
     def _handle_chat_selection(
-        self, groups_df: pl.DataFrame, all_messages_df: pl.DataFrame, params: SearchParams
+        self,
+        groups_df: pl.DataFrame,
+        all_messages_df: pl.DataFrame,
+        params: SearchParams,
     ) -> tuple[pl.DataFrame, pl.DataFrame, SearchParams]:
         """Handle chat selection and recalculate groups."""
         self.console.print("\n💬 Chat Selection", style="bold cyan")
         self.console.print(
             f"Current chat: {'All chats' if not params.chat_id else params.chat_id}"
         )
-        
+
         selected_chat = self._get_chat_selection()
         params.chat_id = selected_chat
 
-        self.console.print("🔄 Recalculating with new chat selection...", style="yellow")
+        self.console.print(
+            "🔄 Recalculating with new chat selection...", style="yellow"
+        )
 
         # Invalidate cache when chat selection changes
         self._invalidate_cache()
@@ -1023,7 +1105,9 @@ class SentimentAnalyser:
             )
 
             # Recalculate quantiles after chat selection changes
-            _, quantiles = self.analyze_word_quantiles(chat_id=params.chat_id, use_cache=False)
+            _, quantiles = self.analyze_word_quantiles(
+                chat_id=params.chat_id, use_cache=False
+            )
 
             self.console.print(
                 f"\n📊 Word analysis (current threshold: {self.params.min_words} words)",
@@ -1036,7 +1120,7 @@ class SentimentAnalyser:
                 "❌ No data for analysis with selected chat",
                 style="red",
             )
-        
+
         return groups_df, all_messages_df, params
 
     def _handle_llm_configuration(self) -> None:
@@ -1086,14 +1170,19 @@ class SentimentAnalyser:
         selected_provider = providers[int(choice) - 1]
         provider_config = PROVIDER_MODEL_COMBINATIONS[selected_provider]
 
-        self.console.print(f"\n📋 Available models for {provider_config['display_name']}:", style="bold blue")
+        self.console.print(
+            f"\n📋 Available models for {provider_config['display_name']}:",
+            style="bold blue",
+        )
         models = provider_config["models"]
         for i, model in enumerate(models, 1):
             self.console.print(f"  {i}) {model}")
 
         model_choice = input(f"\nSelect model (1-{len(models)}): ").strip()
 
-        if not model_choice.isdigit() or not (1 <= int(model_choice) <= len(models)):
+        if not model_choice.isdigit() or not (
+            1 <= int(model_choice) <= len(models)
+        ):
             self.console.print("❌ Invalid choice", style="red")
             return
 
@@ -1101,36 +1190,49 @@ class SentimentAnalyser:
 
         # Try to initialize with new configuration
         success = self.llm_manager.update_config(
-            provider=selected_provider,
-            model=selected_model
+            provider=selected_provider, model=selected_model
         )
 
         if success:
-            self.console.print(f"✅ Successfully configured: {selected_provider}:{selected_model}", style="green")
+            self.console.print(
+                f"✅ Successfully configured: {selected_provider}:{selected_model}",
+                style="green",
+            )
         else:
-            self.console.print(f"❌ Failed to configure {selected_provider}:{selected_model}. Check your API key: {provider_config['env_key']}", style="red")
+            self.console.print(
+                f"❌ Failed to configure {selected_provider}:{selected_model}. Check your API key: {provider_config['env_key']}",
+                style="red",
+            )
 
     def _configure_prompt_file(self) -> None:
         """Configure prompt file."""
         available_prompts = get_available_prompts()
 
         if not available_prompts:
-            self.console.print("❌ No prompt files found in prompts directory", style="red")
+            self.console.print(
+                "❌ No prompt files found in prompts directory", style="red"
+            )
             return
 
         self.console.print("\n📋 Available Prompts:", style="bold blue")
         for i, prompt in enumerate(available_prompts, 1):
             self.console.print(f"  {i}) {prompt}")
 
-        choice = input(f"\nSelect prompt (1-{len(available_prompts)}): ").strip()
+        choice = input(
+            f"\nSelect prompt (1-{len(available_prompts)}): "
+        ).strip()
 
-        if not choice.isdigit() or not (1 <= int(choice) <= len(available_prompts)):
+        if not choice.isdigit() or not (
+            1 <= int(choice) <= len(available_prompts)
+        ):
             self.console.print("❌ Invalid choice", style="red")
             return
 
         selected_prompt = available_prompts[int(choice) - 1]
         self.llm_manager.update_config(prompt_file=selected_prompt)
-        self.console.print(f"✅ Prompt file changed to: {selected_prompt}", style="green")
+        self.console.print(
+            f"✅ Prompt file changed to: {selected_prompt}", style="green"
+        )
 
     def _show_available_prompts(self) -> None:
         """Show available prompt files with previews."""
@@ -1145,12 +1247,19 @@ class SentimentAnalyser:
         for prompt in available_prompts:
             try:
                 from pathlib import Path
+
                 prompt_path = Path(__file__).parent / "prompts" / prompt
-                content = prompt_path.read_text(encoding='utf-8')
-                preview = content[:100].replace('\n', ' ') + "..." if len(content) > 100 else content
+                content = prompt_path.read_text(encoding="utf-8")
+                preview = (
+                    content[:100].replace("\n", " ") + "..."
+                    if len(content) > 100
+                    else content
+                )
                 self.console.print(f"  • {prompt}: {preview}", style="dim")
             except Exception:
-                self.console.print(f"  • {prompt}: (Unable to read)", style="dim")
+                self.console.print(
+                    f"  • {prompt}: (Unable to read)", style="dim"
+                )
 
     def _show_recommended_models(self) -> None:
         """Show recommended models for different use cases."""
@@ -1158,7 +1267,9 @@ class SentimentAnalyser:
 
         self.console.print("\n💡 Recommended Models:", style="bold magenta")
         for use_case, model in recommendations.items():
-            self.console.print(f"  • {use_case.replace('_', ' ').title()}: {model}")
+            self.console.print(
+                f"  • {use_case.replace('_', ' ').title()}: {model}"
+            )
 
     def _test_llm_configuration(self) -> None:
         """Test current LLM configuration with a simple query."""
@@ -1166,33 +1277,47 @@ class SentimentAnalyser:
             self.console.print("❌ LLM not configured", style="red")
             return
 
-        self.console.print(f"\n🧪 Testing {self.llm_manager.get_provider_info()}...", style="yellow")
+        self.console.print(
+            f"\n🧪 Testing {self.llm_manager.get_provider_info()}...",
+            style="yellow",
+        )
 
         try:
             test_response = self.llm_manager.promptinator.query(
                 "Respond with exactly: 'Configuration test successful!'",
-                temperature=0.1
+                temperature=0.1,
             )
 
             if test_response.error:
-                self.console.print(f"❌ Test failed: {test_response.error}", style="red")
+                self.console.print(
+                    f"❌ Test failed: {test_response.error}", style="red"
+                )
             else:
-                self.console.print(f"✅ Test successful!", style="green")
-                self.console.print(f"Response: {test_response.content[:100]}...", style="dim")
+                self.console.print("✅ Test successful!", style="green")
+                self.console.print(
+                    f"Response: {test_response.content[:100]}...", style="dim"
+                )
                 if test_response.tokens_used:
-                    if test_response.input_tokens and test_response.output_tokens:
-                        self.console.print(f"Tokens: {test_response.input_tokens:,}/{test_response.output_tokens:,} (in/out)", style="dim")
+                    if (
+                        test_response.input_tokens
+                        and test_response.output_tokens
+                    ):
+                        self.console.print(
+                            f"Tokens: {test_response.input_tokens:,}/{test_response.output_tokens:,} (in/out)",
+                            style="dim",
+                        )
                     else:
-                        self.console.print(f"Tokens used: {test_response.tokens_used}", style="dim")
+                        self.console.print(
+                            f"Tokens used: {test_response.tokens_used}",
+                            style="dim",
+                        )
         except Exception as e:
             self.console.print(f"❌ Test failed: {e}", style="red")
 
     def _update_visualisation(self, messages_df: pl.DataFrame) -> None:
         """Update all three charts: quantiles, activity and threshold."""
         if messages_df is None or len(messages_df) == 0:
-            self.console.print(
-                "❌ No data for updating charts", style="red"
-            )
+            self.console.print("❌ No data for updating charts", style="red")
             return
 
         self._cached_messages_df = messages_df
@@ -1200,10 +1325,11 @@ class SentimentAnalyser:
         self.create_threshold_heatmap(messages_df)
         self.create_quantiles_bar_chart(self._cached_quantiles, messages_df)
 
-
         self._get_search_recommendations(self._cached_quantiles)
 
-    def _get_search_recommendations(self, quantiles: dict[str, float | int] | None) -> None:
+    def _get_search_recommendations(
+        self, quantiles: dict[str, float | int] | None
+    ) -> None:
         """Generate suggestions for search parameters."""
         if not quantiles:
             return
@@ -1211,21 +1337,37 @@ class SentimentAnalyser:
         self.console.print(
             "\n💡 Recommendations for search parameters", style="bold magenta"
         )
-        self.console.print(f"  • Just long messages: --min-words {int(quantiles['q95'])}", style="dim")
-        self.console.print(f"  • Unique longread messages: --min-words {int(quantiles['q99.7'])}", style="dim")
+        self.console.print(
+            f"  • Just long messages: --min-words {int(quantiles['q95'])}",
+            style="dim",
+        )
+        self.console.print(
+            f"  • Unique longread messages: --min-words {int(quantiles['q99.7'])}",
+            style="dim",
+        )
 
-    def _print_dataframe(self, df: pl.DataFrame, title: str = "Data", max_rows: int = 20) -> None:
+    def _print_dataframe(
+        self, df: pl.DataFrame, title: str = "Data", max_rows: int = 20
+    ) -> None:
         if len(df) == 0:
             self.console.print(f"❌ {title}: no data available", style="red")
             return
 
-        self.console.print(f"\n📋 {title} ({len(df)} records)", style="bold blue")
+        self.console.print(
+            f"\n📋 {title} ({len(df)} records)", style="bold blue"
+        )
 
-        with pl.Config(tbl_rows=max_rows, tbl_hide_column_data_types=True, tbl_hide_dataframe_shape=True):
+        with pl.Config(
+            tbl_rows=max_rows,
+            tbl_hide_column_data_types=True,
+            tbl_hide_dataframe_shape=True,
+        ):
             self.console.print(df)
 
         if len(df) > max_rows:
-            self.console.print(f"... and {len(df) - max_rows} more records", style="dim")
+            self.console.print(
+                f"... and {len(df) - max_rows} more records", style="dim"
+            )
 
     def _print_heatmap(
         self,
@@ -1243,7 +1385,20 @@ class SentimentAnalyser:
         intensity_chars = [" ", "░", "▒", "▓", "█"]
         color_styles = self._generate_color_gradient(main_color)
 
-        month_names = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+        month_names = [
+            "J",
+            "F",
+            "M",
+            "A",
+            "M",
+            "J",
+            "J",
+            "A",
+            "S",
+            "O",
+            "N",
+            "D",
+        ]
         header = "      " + "  ".join(f"{m:^2}" for m in month_names)
         self.console.print(header, style="dim")
 
@@ -1268,7 +1423,9 @@ class SentimentAnalyser:
 
         max_val = np.max(matrix) if np.max(matrix) > 0 else 1
         threshold = threshold if threshold == 0 else self.params.min_words
-        threshold_info = f" (threshold: {threshold:.1f})" if threshold > 0 else ""
+        threshold_info = (
+            f" (threshold: {threshold:.1f})" if threshold > 0 else ""
+        )
         legend = f"Range: {threshold:.1f} - {max_val:.1f} words/message{threshold_info}"
         self.console.print(f"\n{legend}", style="dim")
 
@@ -1288,15 +1445,16 @@ class SentimentAnalyser:
             f"dim {main_color}",
             main_color,
             f"bright_{main_color}",
-            f"bold bright_{main_color}"
+            f"bold bright_{main_color}",
         ]
+
 
 def main() -> None:
     config = Config()
     parser = argparse.ArgumentParser(
         description="Long Message Analysis Tool for Telegram chats with LLM integration",
         epilog=f"Example: python analyze_dialogues.py --phone {config.DEFAULT_PHONE} --provider openrouter --model google/gemini-2.5-pro",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--phone",
@@ -1304,7 +1462,10 @@ def main() -> None:
         help="Phone number (e.g., +1234567890)",
     )
     parser.add_argument(
-        "--interactive", default=True, action="store_true", help="Launch interactive mode"
+        "--interactive",
+        default=True,
+        action="store_true",
+        help="Launch interactive mode",
     )
 
     # LLM Configuration arguments
@@ -1313,32 +1474,31 @@ def main() -> None:
         "--provider",
         default=config.DEFAULT_PROVIDER,
         choices=list(PROVIDER_MODEL_COMBINATIONS.keys()),
-        help=f"LLM provider (default: {config.DEFAULT_PROVIDER})"
+        help=f"LLM provider (default: {config.DEFAULT_PROVIDER})",
     )
     llm_group.add_argument(
-        "--model",
-        help="LLM model (if not specified, uses provider default)"
+        "--model", help="LLM model (if not specified, uses provider default)"
     )
     llm_group.add_argument(
         "--prompt",
         default=config.DEFAULT_PROMPT,
-        help=f"Prompt file to use (default: {config.DEFAULT_PROMPT})"
+        help=f"Prompt file to use (default: {config.DEFAULT_PROMPT})",
     )
     llm_group.add_argument(
         "--temperature",
         type=float,
         default=0.7,
-        help="LLM temperature (default: 0.7)"
+        help="LLM temperature (default: 0.7)",
     )
     llm_group.add_argument(
         "--list-providers",
         action="store_true",
-        help="List available providers and models"
+        help="List available providers and models",
     )
     llm_group.add_argument(
         "--list-prompts",
         action="store_true",
-        help="List available prompt files"
+        help="List available prompt files",
     )
 
     args = parser.parse_args()
@@ -1346,13 +1506,19 @@ def main() -> None:
     # Handle list commands
     if args.list_providers:
         console = Console()
-        console.print("🤖 Available LLM Providers and Models:", style="bold cyan")
+        console.print(
+            "🤖 Available LLM Providers and Models:", style="bold cyan"
+        )
         for provider, config in PROVIDER_MODEL_COMBINATIONS.items():
-            console.print(f"\n{config['display_name']} ({provider}):", style="bold blue")
+            console.print(
+                f"\n{config['display_name']} ({provider}):", style="bold blue"
+            )
             console.print(f"  Environment key: {config['env_key']}")
-            console.print(f"  Default model: {config.get('default_model', 'N/A')}")
+            console.print(
+                f"  Default model: {config.get('default_model', 'N/A')}"
+            )
             console.print("  Available models:")
-            for model in config['models']:
+            for model in config["models"]:
                 console.print(f"    • {model}")
         return
 
@@ -1377,8 +1543,13 @@ def main() -> None:
 
     # Validate model if specified
     if model and not validate_provider_model(args.provider, model):
-        analyzer.console.print(f"❌ Invalid model '{model}' for provider '{args.provider}'", style="red")
-        analyzer.console.print("Use --list-providers to see available combinations", style="dim")
+        analyzer.console.print(
+            f"❌ Invalid model '{model}' for provider '{args.provider}'",
+            style="red",
+        )
+        analyzer.console.print(
+            "Use --list-providers to see available combinations", style="dim"
+        )
         return
 
     # Update LLM configuration
@@ -1386,14 +1557,23 @@ def main() -> None:
         provider=args.provider,
         model=model,
         prompt_file=args.prompt,
-        temperature=args.temperature
+        temperature=args.temperature,
     )
 
     if not success:
-        analyzer.console.print(f"❌ Failed to initialize {args.provider}. Check your API key.", style="red")
-        analyzer.console.print(f"Required environment variable: {PROVIDER_MODEL_COMBINATIONS[args.provider]['env_key']}", style="dim")
+        analyzer.console.print(
+            f"❌ Failed to initialize {args.provider}. Check your API key.",
+            style="red",
+        )
+        analyzer.console.print(
+            f"Required environment variable: {PROVIDER_MODEL_COMBINATIONS[args.provider]['env_key']}",
+            style="dim",
+        )
 
-    analyzer.console.print(f"🤖 LLM Configuration: {analyzer.llm_manager.get_provider_info()}", style="dim green")
+    analyzer.console.print(
+        f"🤖 LLM Configuration: {analyzer.llm_manager.get_provider_info()}",
+        style="dim green",
+    )
 
     try:
         _, quantiles = analyzer.analyze_word_quantiles()
@@ -1427,17 +1607,17 @@ def main() -> None:
         if not args.interactive and not groups_df.is_empty():
             analyzer.display_groups(groups_df)
             analyzer.console.print(
-                    "\n💡 Use --interactive for interactive mode", style="dim"
-                )
+                "\n💡 Use --interactive for interactive mode", style="dim"
+            )
             return
 
         analyzer.interactive_mode(groups_df, all_messages_df, params)
-
 
     except KeyboardInterrupt:
         analyzer.console.print("\n👋 Goodbye!", style="yellow")
     finally:
         analyzer.db.close()
+
 
 if __name__ == "__main__":
     main()

@@ -139,7 +139,9 @@ def main() -> int:
     logger.info(f"Test Results: {passed} passed, {failed} failed")
 
     if failed == 0:
-        logger.info("🎉 All tests passed! Modular architecture is working correctly.")
+        logger.info(
+            "🎉 All tests passed! Modular architecture is working correctly."
+        )
         return 0
     else:
         logger.error("⚠️ Some tests failed. Please check the implementation.")

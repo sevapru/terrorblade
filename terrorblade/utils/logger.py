@@ -25,7 +25,9 @@ class ColorFormatter(logging.Formatter):
         logging.WARNING: yellow + format_str + reset,
         logging.ERROR: red + format_str + reset,
         logging.CRITICAL: bold_red + format_str + reset,
-        25: green + format_str + reset,  # NICE level between INFO(20) and WARNING(30)
+        25: green
+        + format_str
+        + reset,  # NICE level between INFO(20) and WARNING(30)
     }
 
     def format(self, record: logging.LogRecord) -> str:
@@ -85,10 +87,14 @@ def Logger(  # pylint: disable=invalid-name
         log_path = Path(log_dir)
         log_path.mkdir(parents=True, exist_ok=True)
 
-        file_handler = logging.FileHandler(log_path / log_file, encoding="utf-8")
+        file_handler = logging.FileHandler(
+            log_path / log_file, encoding="utf-8"
+        )
         file_handler.setLevel(level)
         # Use simple formatter for file logs (without colors)
-        file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)-8s - %(message)s")
+        file_formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)-8s - %(message)s"
+        )
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
 

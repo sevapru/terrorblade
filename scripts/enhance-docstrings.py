@@ -26,7 +26,7 @@ class DocstringEnhancer:
             # Import the module
             spec = importlib.util.spec_from_file_location(
                 module_path,
-                self.project_root / f"{module_path.replace('.', '/')}.py"
+                self.project_root / f"{module_path.replace('.', '/')}.py",
             )
             if not spec or not spec.loader:
                 return {}
@@ -38,7 +38,7 @@ class DocstringEnhancer:
                 "classes": [],
                 "functions": [],
                 "constants": [],
-                "usage_examples": []
+                "usage_examples": [],
             }
 
             # Analyze classes
@@ -57,18 +57,28 @@ class DocstringEnhancer:
 
             # Analyze constants
             for name in dir(module):
-                if (not name.startswith('_') and
-                    not inspect.isclass(getattr(module, name)) and
-                    not inspect.isfunction(getattr(module, name)) and
-                    not inspect.ismodule(getattr(module, name))):
+                if (
+                    not name.startswith("_")
+                    and not inspect.isclass(getattr(module, name))
+                    and not inspect.isfunction(getattr(module, name))
+                    and not inspect.ismodule(getattr(module, name))
+                ):
 
                     value = getattr(module, name)
-                    if isinstance(value, str | int | float | bool | list | dict | tuple):
-                        info["constants"].append({
-                            "name": name,
-                            "value": str(value)[:100] + "..." if len(str(value)) > 100 else str(value),
-                            "type": type(value).__name__
-                        })
+                    if isinstance(
+                        value, str | int | float | bool | list | dict | tuple
+                    ):
+                        info["constants"].append(
+                            {
+                                "name": name,
+                                "value": (
+                                    str(value)[:100] + "..."
+                                    if len(str(value)) > 100
+                                    else str(value)
+                                ),
+                                "type": type(value).__name__,
+                            }
+                        )
 
             return info
 
@@ -82,22 +92,25 @@ class DocstringEnhancer:
             "docstring": inspect.getdoc(cls) or "",
             "methods": [],
             "properties": [],
-            "inheritance": [base.__name__ for base in cls.__bases__ if base != object]
+            "inheritance": [
+                base.__name__ for base in cls.__bases__ if base is not object
+            ],
         }
 
         # Analyze methods
         for name, method in inspect.getmembers(cls, inspect.ismethod):
-            if not name.startswith('_') or name in ['__init__', '__call__']:
+            if not name.startswith("_") or name in ["__init__", "__call__"]:
                 method_info = self._analyze_function(method)
                 method_info["name"] = name
                 info["methods"].append(method_info)
 
         # Analyze properties
-        for name, prop in inspect.getmembers(cls, lambda x: isinstance(x, property)):
-            info["properties"].append({
-                "name": name,
-                "docstring": inspect.getdoc(prop) or ""
-            })
+        for name, prop in inspect.getmembers(
+            cls, lambda x: isinstance(x, property)
+        ):
+            info["properties"].append(
+                {"name": name, "docstring": inspect.getdoc(prop) or ""}
+            )
 
         return info
 
@@ -107,7 +120,7 @@ class DocstringEnhancer:
             "docstring": inspect.getdoc(func) or "",
             "signature": str(inspect.signature(func)),
             "parameters": [],
-            "returns": None
+            "returns": None,
         }
 
         try:
@@ -115,8 +128,16 @@ class DocstringEnhancer:
             for param_name, param in sig.parameters.items():
                 param_info = {
                     "name": param_name,
-                    "type": str(param.annotation) if param.annotation != inspect.Parameter.empty else None,
-                    "default": str(param.default) if param.default != inspect.Parameter.empty else None
+                    "type": (
+                        str(param.annotation)
+                        if param.annotation != inspect.Parameter.empty
+                        else None
+                    ),
+                    "default": (
+                        str(param.default)
+                        if param.default != inspect.Parameter.empty
+                        else None
+                    ),
                 }
                 info["parameters"].append(param_info)
 
@@ -135,7 +156,7 @@ class DocstringEnhancer:
         if not info:
             return f"# {module_path.split('.')[-1]}\n\n::: {module_path}\n"
 
-        module_name = module_path.split('.')[-1]
+        module_name = module_path.split(".")[-1]
         content = f"# {module_name}\n\n"
 
         # Add module overview
@@ -184,4 +205,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

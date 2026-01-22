@@ -43,7 +43,10 @@ from .message_analyzer import MessageAnalyzer
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("/tmp/terrorblade_tui.log"), logging.StreamHandler()],
+    handlers=[
+        logging.FileHandler("/tmp/terrorblade_tui.log"),
+        logging.StreamHandler(),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -142,19 +145,29 @@ class ChatSelectionScreen(Screen):
     def compose(self) -> ComposeResult:
         """Compose the chat selection screen."""
         with Container(classes="chat-selection-container"):
-            yield Label("Terrorblade - Select Chat for Analysis", classes="header")
+            yield Label(
+                "Terrorblade - Select Chat for Analysis", classes="header"
+            )
 
             with Container(classes="search-section"):
                 yield Label("🔍 Search Chats")
-                yield Input(placeholder="Type to search chats...", id="search-input")
+                yield Input(
+                    placeholder="Type to search chats...", id="search-input"
+                )
 
             with Container(classes="chat-list-section"):
                 yield Label("💬 Available Chats")
                 yield ListView(id="chat-list")
 
             with Container(classes="button-section"), Horizontal():
-                yield Button("🔄 Refresh Chats", id="refresh-btn", variant="default")
-                yield Button("➡️ Analyze Selected Chat", id="analyze-btn", variant="primary")
+                yield Button(
+                    "🔄 Refresh Chats", id="refresh-btn", variant="default"
+                )
+                yield Button(
+                    "➡️ Analyze Selected Chat",
+                    id="analyze-btn",
+                    variant="primary",
+                )
 
             # Logging terminal
             with Container(classes="logging-terminal-container"):
@@ -192,7 +205,9 @@ class ChatSelectionScreen(Screen):
         self.chat_selector.update_chat_list_display(chat_list)
 
         if len(chats_data) > 0:
-            self.notify(f"✅ Loaded {len(chats_data)} chats. Click on a chat name, then press the blue button below.")
+            self.notify(
+                f"✅ Loaded {len(chats_data)} chats. Click on a chat name, then press the blue button below."
+            )
             logger.info(f"Loaded {len(chats_data)} chats successfully")
         else:
             self.notify("⚠️ No chats found")
@@ -204,7 +219,7 @@ class ChatSelectionScreen(Screen):
 
     def _on_chat_selected(self, chat: dict[str, Any] | None) -> None:
         """Handle chat selection."""
-        self.selected_chat = chat # type: ignore
+        self.selected_chat = chat  # type: ignore
         chat_name = chat.get("chat_name", "Unknown") if chat else "Unknown"
         chat_id = chat.get("chat_id", "Unknown") if chat else "Unknown"
         logger.info(f"Chat selected: {chat_name} (ID: {chat_id})")
@@ -282,17 +297,23 @@ class ChatSelectionScreen(Screen):
     def analyze_selected_chat(self) -> None:
         """Switch to analysis screen for selected chat."""
         current_chat = self.chat_selector.get_current_chat()
-        logger.info(f"analyze_selected_chat called. Current chat: {current_chat}")
+        logger.info(
+            f"analyze_selected_chat called. Current chat: {current_chat}"
+        )
 
         if current_chat:
             chat_name = current_chat.get("chat_name", "Unknown")
             chat_id = current_chat.get("chat_id", "Unknown")
 
-            logger.info(f"Switching to analysis for chat: {chat_name} (ID: {chat_id})")
+            logger.info(
+                f"Switching to analysis for chat: {chat_name} (ID: {chat_id})"
+            )
             self.notify(f"🔄 Loading analysis for {chat_name}...")
 
             try:
-                analysis_screen = ChatAnalysisScreen(self.analyzer, current_chat, self.logging_terminal)
+                analysis_screen = ChatAnalysisScreen(
+                    self.analyzer, current_chat, self.logging_terminal
+                )
                 logger.info("Created ChatAnalysisScreen, pushing to app...")
                 self.app.push_screen(analysis_screen)
                 logger.info("Successfully pushed analysis screen")
@@ -394,7 +415,9 @@ class ChatAnalysisScreen(Screen):
         Binding("enter", "analyze_cluster", "Analyze Selected Cluster"),
     ]
 
-    def __init__(self, analyzer: Any, chat: dict[str, Any], logging_terminal: Any) -> None:
+    def __init__(
+        self, analyzer: Any, chat: dict[str, Any], logging_terminal: Any
+    ) -> None:
         super().__init__()
         self.analyzer = analyzer
         self.chat = chat
@@ -416,20 +439,54 @@ class ChatAnalysisScreen(Screen):
                     )
                     yield DataTable(id="cluster-table")
                     with Container(classes="button-bar"), Horizontal():
-                        yield Button("🔄 Refresh", id="refresh-clusters-btn", variant="default")
-                        yield Button("⬆️ Sort by Messages/h", id="sort-messages-btn", variant="default")
-                        yield Button("⬆️ Sort by Intensity", id="sort-intensity-btn", variant="default")
-                        yield Button("📊 Analyze Selected", id="analyze-cluster-btn", variant="primary")
+                        yield Button(
+                            "🔄 Refresh",
+                            id="refresh-clusters-btn",
+                            variant="default",
+                        )
+                        yield Button(
+                            "⬆️ Sort by Messages/h",
+                            id="sort-messages-btn",
+                            variant="default",
+                        )
+                        yield Button(
+                            "⬆️ Sort by Intensity",
+                            id="sort-intensity-btn",
+                            variant="default",
+                        )
+                        yield Button(
+                            "📊 Analyze Selected",
+                            id="analyze-cluster-btn",
+                            variant="primary",
+                        )
 
-                with TabPane("📋 Analysis", id="analysis-tab"), Container(classes="analysis-content"):
-                    yield Static("Select a cluster from the Clusters tab to analyze", id="analysis-content")
+                with (
+                    TabPane("📋 Analysis", id="analysis-tab"),
+                    Container(classes="analysis-content"),
+                ):
+                    yield Static(
+                        "Select a cluster from the Clusters tab to analyze",
+                        id="analysis-content",
+                    )
 
                 with TabPane("🤖 Summary", id="summary-tab"):
                     yield TextArea("", id="summary-content", read_only=True)
                     with Container(classes="button-bar"):
-                        yield Button("🤖 Generate Summary", id="generate-summary-btn", variant="primary")
-                        yield Button("💾 Save to DB", id="save-summary-btn", variant="default")
-                        yield Button("⬅️ Back to Chat Selection", id="back-btn", variant="default")
+                        yield Button(
+                            "🤖 Generate Summary",
+                            id="generate-summary-btn",
+                            variant="primary",
+                        )
+                        yield Button(
+                            "💾 Save to DB",
+                            id="save-summary-btn",
+                            variant="default",
+                        )
+                        yield Button(
+                            "⬅️ Back to Chat Selection",
+                            id="back-btn",
+                            variant="default",
+                        )
 
             # Logging terminal
             with Container(classes="logging-terminal-container"):
@@ -440,7 +497,9 @@ class ChatAnalysisScreen(Screen):
         """Load clusters when screen mounts."""
         chat_name = self.chat.get("chat_name", "Unknown")
         chat_id = self.chat.get("chat_id", "Unknown")
-        logger.info(f"Analysis screen mounted for chat: {chat_name} (ID: {chat_id})")
+        logger.info(
+            f"Analysis screen mounted for chat: {chat_name} (ID: {chat_id})"
+        )
 
         # Show immediate feedback
         self.notify(f"📊 Loading clusters for {chat_name}...")
@@ -458,7 +517,9 @@ class ChatAnalysisScreen(Screen):
         logger.info(f"load_clusters called for chat_id: {chat_id}")
 
         def callback(clusters_data: list[dict[str, Any]]) -> None:
-            logger.info(f"Clusters loaded callback called with {len(clusters_data)} clusters")
+            logger.info(
+                f"Clusters loaded callback called with {len(clusters_data)} clusters"
+            )
             self.app.call_from_thread(self._update_clusters_ui, clusters_data)
 
         try:
@@ -473,7 +534,9 @@ class ChatAnalysisScreen(Screen):
 
     def _update_clusters_ui(self, clusters_data: list[dict[str, Any]]) -> None:
         """Update UI with loaded clusters."""
-        logger.info(f"_update_clusters_ui called with {len(clusters_data)} clusters")
+        logger.info(
+            f"_update_clusters_ui called with {len(clusters_data)} clusters"
+        )
 
         try:
             self.message_analyzer.update_clusters_data(clusters_data)
@@ -487,10 +550,14 @@ class ChatAnalysisScreen(Screen):
             logger.info("Updated cluster table with data")
 
             if len(clusters_data) > 0:
-                self.notify(f"✅ Loaded {len(clusters_data)} clusters. Click on a cluster to analyze it.")
+                self.notify(
+                    f"✅ Loaded {len(clusters_data)} clusters. Click on a cluster to analyze it."
+                )
             else:
                 self.notify("⚠️ No clusters found for this chat.")
-            logger.info(f"Successfully loaded {len(clusters_data)} clusters for analysis")
+            logger.info(
+                f"Successfully loaded {len(clusters_data)} clusters for analysis"
+            )
 
         except Exception as e:
             logger.error(f"Error in _update_clusters_ui: {e}")
@@ -559,7 +626,9 @@ class ChatAnalysisScreen(Screen):
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle cluster selection."""
         if event.cursor_row is not None:
-            selected_cluster = self.message_analyzer.select_cluster_by_index(event.cursor_row)
+            selected_cluster = self.message_analyzer.select_cluster_by_index(
+                event.cursor_row
+            )
             if selected_cluster:
                 chat_id = int(self.chat["chat_id"])
                 group_id = selected_cluster["group_id"]
@@ -579,7 +648,10 @@ class ChatAnalysisScreen(Screen):
             self.notify(f"📊 Analyzing cluster {group_id}...")
             self.analyze_cluster(chat_id, group_id)
         else:
-            self.notify("⚠️ Please select a cluster from the table first", severity="warning")
+            self.notify(
+                "⚠️ Please select a cluster from the table first",
+                severity="warning",
+            )
 
     def sort_clusters_by_messages_per_hour(self) -> None:
         """Sort clusters by messages per hour (highest first)."""
@@ -680,7 +752,9 @@ class OptimizedClusterAnalysisTUI(App):
     def on_mount(self) -> None:
         """Start with chat selection screen."""
         logger.info("Starting TUI with chat selection screen")
-        chat_selection = ChatSelectionScreen(self.analyzer, self.logging_terminal)
+        chat_selection = ChatSelectionScreen(
+            self.analyzer, self.logging_terminal
+        )
         self.push_screen(chat_selection)
 
     def action_quit(self) -> None:
@@ -695,7 +769,9 @@ def main() -> None:
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Terrorblade Cluster Analysis TUI")
+    parser = argparse.ArgumentParser(
+        description="Terrorblade Cluster Analysis TUI"
+    )
     parser.add_argument("--phone", default="+79992004210", help="Phone number")
     parser.add_argument("--db-path", default="auto", help="Database path")
 

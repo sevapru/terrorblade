@@ -44,8 +44,16 @@ def sample_chat_data() -> pl.DataFrame:
             "chat_name": ["Test Family Group", "Work Team", "Book Club"],
             "message_count": [2847, 1592, 892],
             "participant_count": [8, 12, 6],
-            "first_message": [datetime(2024, 1, 1), datetime(2024, 1, 15), datetime(2024, 2, 1)],
-            "last_message": [datetime(2024, 3, 1), datetime(2024, 3, 15), datetime(2024, 3, 1)],
+            "first_message": [
+                datetime(2024, 1, 1),
+                datetime(2024, 1, 15),
+                datetime(2024, 2, 1),
+            ],
+            "last_message": [
+                datetime(2024, 3, 1),
+                datetime(2024, 3, 15),
+                datetime(2024, 3, 1),
+            ],
             "cluster_count": [45, 28, 15],
             "clustered_messages": [1200, 800, 400],
             "avg_cluster_size": [26.7, 28.6, 26.7],
@@ -60,8 +68,18 @@ def sample_cluster_data() -> pl.DataFrame:
     return pl.DataFrame(
         {
             "group_id": [15, 23, 8, 42],
-            "chat_id": [-1001234567890, -1002345678901, -1001234567890, -1003456789012],
-            "chat_name": ["Test Family Group", "Work Team", "Test Family Group", "Book Club"],
+            "chat_id": [
+                -1001234567890,
+                -1002345678901,
+                -1001234567890,
+                -1003456789012,
+            ],
+            "chat_name": [
+                "Test Family Group",
+                "Work Team",
+                "Test Family Group",
+                "Book Club",
+            ],
             "message_count": [127, 89, 65, 43],
             "participant_count": [6, 8, 5, 6],
             "start_time": [
@@ -115,10 +133,12 @@ class TestClusterAnalyzer:
     def analyzer(self, mock_db: Generator[tuple[str, str]]) -> ClusterAnalyzer:
         """Create ClusterAnalyzer instance with mock database."""
         db_path, phone = mock_db
-        analyzer = ClusterAnalyzer(phone=phone, db_path=db_path) # type: ignore
+        analyzer = ClusterAnalyzer(phone=phone, db_path=db_path)  # type: ignore
         return analyzer
 
-    def test_cluster_analyzer_init(self, mock_db: Generator[tuple[str, str]]) -> None:
+    def test_cluster_analyzer_init(
+        self, mock_db: Generator[tuple[str, str]]
+    ) -> None:
         """Test ClusterAnalyzer initialization."""
         db_path, phone = mock_db
         analyzer = ClusterAnalyzer(phone=phone, db_path=db_path)
@@ -135,7 +155,11 @@ class TestClusterAnalyzer:
         """Test finding chat by name."""
         # Mock the find_chat_by_name method instead of DB connection
         with patch.object(
-            analyzer, "find_chat_by_name", side_effect=lambda name: -1001234567890 if name == "family" else None
+            analyzer,
+            "find_chat_by_name",
+            side_effect=lambda name: (
+                -1001234567890 if name == "family" else None
+            ),
         ):
             result = analyzer.find_chat_by_name("family")
             assert result == -1001234567890
@@ -144,7 +168,9 @@ class TestClusterAnalyzer:
             result = analyzer.find_chat_by_name("nonexistent")
             assert result is None
 
-    def test_get_chats_list(self, analyzer: ClusterAnalyzer, sample_chat_data: pl.DataFrame) -> None:
+    def test_get_chats_list(
+        self, analyzer: ClusterAnalyzer, sample_chat_data: pl.DataFrame
+    ) -> None:
         """Test getting chats list."""
         with patch.object(analyzer, "get_chats_list") as mock_get_chats:
             mock_get_chats.return_value = sample_chat_data
@@ -157,15 +183,23 @@ class TestClusterAnalyzer:
             assert "message_count" in result.columns
             assert "cluster_count" in result.columns
 
-    @pytest.mark.skip(reason="DuckDB connection mocking issue - will be fixed in future iteration")
-    def test_get_large_clusters(self, analyzer: ClusterAnalyzer, sample_cluster_data: pl.DataFrame) -> None:
+    @pytest.mark.skip(
+        reason="DuckDB connection mocking issue - will be fixed in future iteration"
+    )
+    def test_get_large_clusters(
+        self, analyzer: ClusterAnalyzer, sample_cluster_data: pl.DataFrame
+    ) -> None:
         """Test getting large clusters."""
         with patch.object(analyzer, "get_large_clusters"):
             # Add the additional columns that get created in the query
             enhanced_data = sample_cluster_data.with_columns(
                 [
-                    pl.col("start_time").dt.strftime("%Y-%m-%d %H:%M").alias("start_time_str"),
-                    pl.col("end_time").dt.strftime("%Y-%m-%d %H:%M").alias("end_time_str"),
+                    pl.col("start_time")
+                    .dt.strftime("%Y-%m-%d %H:%M")
+                    .alias("start_time_str"),
+                    pl.col("end_time")
+                    .dt.strftime("%Y-%m-%d %H:%M")
+                    .alias("end_time_str"),
                     pl.when(pl.col("messages_per_hour") >= 20)
                     .then(pl.lit("🔥 Very High"))
                     .when(pl.col("messages_per_hour") >= 10)
@@ -178,7 +212,9 @@ class TestClusterAnalyzer:
             )
 
             with patch.object(analyzer.db, "execute") as mock_execute:
-                mock_execute.return_value.arrow.return_value = enhanced_data.to_arrow()
+                mock_execute.return_value.arrow.return_value = (
+                    enhanced_data.to_arrow()
+                )
 
             result = analyzer.get_large_clusters(min_size=10)
 
@@ -188,10 +224,14 @@ class TestClusterAnalyzer:
             assert "start_time_str" in result.columns
 
             # Test specific chat filter
-            result_filtered = analyzer.get_large_clusters(chat_id=-1001234567890, min_size=10)
+            result_filtered = analyzer.get_large_clusters(
+                chat_id=-1001234567890, min_size=10
+            )
             assert isinstance(result_filtered, pl.DataFrame)
 
-    @pytest.mark.skip(reason="DuckDB connection mocking issue - will be fixed in future iteration")
+    @pytest.mark.skip(
+        reason="DuckDB connection mocking issue - will be fixed in future iteration"
+    )
     def test_analyze_cluster_details(self, analyzer: ClusterAnalyzer) -> None:
         """Test detailed cluster analysis."""
         # Sample cluster messages data
@@ -200,7 +240,13 @@ class TestClusterAnalyzer:
                 "message_id": [1, 2, 3, 4, 5],
                 "chat_id": [-1001234567890] * 5,
                 "chat_name": ["Test Family Group"] * 5,
-                "text": ["Hello everyone!", "How are you?", "I'm doing well", "Great to hear!", "See you later"],
+                "text": [
+                    "Hello everyone!",
+                    "How are you?",
+                    "I'm doing well",
+                    "Great to hear!",
+                    "See you later",
+                ],
                 "from_id": [123, 456, 789, 123, 456],
                 "from_name": ["Alice", "Bob", "Charlie", "Alice", "Bob"],
                 "date": [
@@ -216,9 +262,13 @@ class TestClusterAnalyzer:
 
         with patch.object(analyzer, "get_large_clusters"):
             with patch.object(analyzer.db, "execute") as mock_execute:
-                mock_execute.return_value.arrow.return_value = sample_messages.to_arrow()
+                mock_execute.return_value.arrow.return_value = (
+                    sample_messages.to_arrow()
+                )
 
-            result = analyzer.analyze_cluster_details(chat_id=-1001234567890, group_id=15)
+            result = analyzer.analyze_cluster_details(
+                chat_id=-1001234567890, group_id=15
+            )
 
             assert "cluster_id" in result
             assert "chat_name" in result
@@ -234,12 +284,17 @@ class TestClusterAnalyzer:
             assert result["message_count"] == 5
             assert result["participant_count"] == 3
 
-    @pytest.mark.skip(reason="DuckDB connection mocking issue - will be fixed in future iteration")
+    @pytest.mark.skip(
+        reason="DuckDB connection mocking issue - will be fixed in future iteration"
+    )
     def test_get_cluster_summary_data(self, analyzer: ClusterAnalyzer) -> None:
         """Test getting cluster data formatted for summarization."""
         sample_messages = pl.DataFrame(
             {
-                "date": [datetime(2024, 1, 15, 9, 30), datetime(2024, 1, 15, 9, 35)],
+                "date": [
+                    datetime(2024, 1, 15, 9, 30),
+                    datetime(2024, 1, 15, 9, 35),
+                ],
                 "from_name": ["Alice", "Bob"],
                 "text": ["Hello everyone!", "How are you?"],
             }
@@ -247,9 +302,13 @@ class TestClusterAnalyzer:
 
         with patch.object(analyzer, "get_large_clusters"):
             with patch.object(analyzer.db, "execute") as mock_execute:
-                mock_execute.return_value.arrow.return_value = sample_messages.to_arrow()
+                mock_execute.return_value.arrow.return_value = (
+                    sample_messages.to_arrow()
+                )
 
-            result = analyzer.get_cluster_summary_data(chat_id=-1001234567890, group_id=15)
+            result = analyzer.get_cluster_summary_data(
+                chat_id=-1001234567890, group_id=15
+            )
 
             assert isinstance(result, str)
             assert "Alice: Hello everyone!" in result
@@ -273,7 +332,9 @@ class TestAIFunctions:
         # Mock the OpenAI response
         mock_response = Mock()
         mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = "This is a test summary of the cluster discussion."
+        mock_response.choices[0].message.content = (
+            "This is a test summary of the cluster discussion."
+        )
 
         mock_client = Mock()
         mock_client.chat.completions.create.return_value = mock_response
@@ -301,7 +362,9 @@ class TestAIFunctions:
         # Mock the OpenAI response
         mock_response = Mock()
         mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = "Once upon a time, Alice and Bob had a conversation..."
+        mock_response.choices[0].message.content = (
+            "Once upon a time, Alice and Bob had a conversation..."
+        )
 
         mock_client = Mock()
         mock_client.chat.completions.create.return_value = mock_response
@@ -311,11 +374,15 @@ class TestAIFunctions:
         api_key = "test-api-key"
 
         # Test third person perspective
-        result = extract_story_from_cluster(cluster_text, api_key, "third_person")
+        result = extract_story_from_cluster(
+            cluster_text, api_key, "third_person"
+        )
         assert result == "Once upon a time, Alice and Bob had a conversation..."
 
         # Test first person perspective
-        result = extract_story_from_cluster(cluster_text, api_key, "first_person")
+        result = extract_story_from_cluster(
+            cluster_text, api_key, "first_person"
+        )
         assert result == "Once upon a time, Alice and Bob had a conversation..."
 
         assert mock_client.chat.completions.create.call_count == 2
@@ -358,8 +425,12 @@ class TestDatabaseFunctions:
         if Path(db_path).exists():
             Path(db_path).unlink()
 
-    @pytest.mark.skip(reason="Database constraint issue - will be fixed in future iteration")
-    def test_save_story_to_db(self, mock_db_with_stories: Generator[tuple[TelegramDatabase, str]]) -> None:
+    @pytest.mark.skip(
+        reason="Database constraint issue - will be fixed in future iteration"
+    )
+    def test_save_story_to_db(
+        self, mock_db_with_stories: Generator[tuple[TelegramDatabase, str]]
+    ) -> None:
         """Test saving story to database."""
         db, phone = mock_db_with_stories
 
@@ -370,7 +441,9 @@ class TestDatabaseFunctions:
 class TestDisplayFunctions:
     """Test cases for display functions."""
 
-    def test_display_chats_table(self, capsys: pytest.CaptureFixture, sample_chat_data: pl.DataFrame) -> None:
+    def test_display_chats_table(
+        self, capsys: pytest.CaptureFixture, sample_chat_data: pl.DataFrame
+    ) -> None:
         """Test displaying chats table."""
         display_chats_table(sample_chat_data)
         captured = capsys.readouterr()
@@ -380,7 +453,9 @@ class TestDisplayFunctions:
         assert "Work Team" in captured.out
         assert "Book Club" in captured.out
 
-    def test_display_chats_table_empty(self, capsys: pytest.CaptureFixture) -> None:
+    def test_display_chats_table_empty(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test displaying empty chats table."""
         empty_df = pl.DataFrame()
         display_chats_table(empty_df)
@@ -388,13 +463,19 @@ class TestDisplayFunctions:
 
         assert "No chats found." in captured.out
 
-    def test_display_clusters_table(self, capsys: pytest.CaptureFixture, sample_cluster_data: pl.DataFrame) -> None:
+    def test_display_clusters_table(
+        self, capsys: pytest.CaptureFixture, sample_cluster_data: pl.DataFrame
+    ) -> None:
         """Test displaying clusters table."""
         # Add required columns
         enhanced_data = sample_cluster_data.with_columns(
             [
-                pl.col("start_time").dt.strftime("%Y-%m-%d %H:%M").alias("start_time_str"),
-                pl.col("end_time").dt.strftime("%Y-%m-%d %H:%M").alias("end_time_str"),
+                pl.col("start_time")
+                .dt.strftime("%Y-%m-%d %H:%M")
+                .alias("start_time_str"),
+                pl.col("end_time")
+                .dt.strftime("%Y-%m-%d %H:%M")
+                .alias("end_time_str"),
                 pl.when(pl.col("messages_per_hour") >= 20)
                 .then(pl.lit("🔥 Very High"))
                 .when(pl.col("messages_per_hour") >= 10)
@@ -413,7 +494,9 @@ class TestDisplayFunctions:
         assert "🔥 Very High" in captured.out
         assert "🔴 High" in captured.out
 
-    def test_display_clusters_table_empty(self, capsys: pytest.CaptureFixture) -> None:
+    def test_display_clusters_table_empty(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test displaying empty clusters table."""
         empty_df = pl.DataFrame()
         display_clusters_table(empty_df)
@@ -421,7 +504,9 @@ class TestDisplayFunctions:
 
         assert "No large clusters found." in captured.out
 
-    def test_display_cluster_analysis(self, capsys: pytest.CaptureFixture) -> None:
+    def test_display_cluster_analysis(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test displaying cluster analysis."""
         stats = {
             "cluster_id": 15,
@@ -432,7 +517,12 @@ class TestDisplayFunctions:
             "messages_per_hour": 30.2,
             "start_time": datetime(2024, 1, 15, 9, 30),
             "end_time": datetime(2024, 1, 15, 13, 42),
-            "peak_hour": {"date": datetime(2024, 1, 15).date(), "hour": 11, "messages": 45, "active_users": 4},
+            "peak_hour": {
+                "date": datetime(2024, 1, 15).date(),
+                "hour": 11,
+                "messages": 45,
+                "active_users": 4,
+            },
             "participants": pl.DataFrame(
                 {
                     "from_id": [123, 456, 789],
@@ -442,7 +532,12 @@ class TestDisplayFunctions:
                 }
             ),
             "time_analysis": pl.DataFrame(
-                {"date_only": [datetime(2024, 1, 15).date()], "hour": [11], "messages": [45], "active_users": [4]}
+                {
+                    "date_only": [datetime(2024, 1, 15).date()],
+                    "hour": [11],
+                    "messages": [45],
+                    "active_users": [4],
+                }
             ),
         }
 
@@ -458,7 +553,9 @@ class TestDisplayFunctions:
         assert "Bob" in captured.out
         assert "Charlie" in captured.out
 
-    def test_display_cluster_analysis_with_error(self, capsys: pytest.CaptureFixture) -> None:
+    def test_display_cluster_analysis_with_error(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test displaying cluster analysis with error."""
         stats = {"error": "Test error message"}
         display_cluster_analysis(stats)
@@ -473,7 +570,9 @@ class TestIntegration:
     @pytest.fixture
     def sample_env_file(self) -> Generator[str]:
         """Create a temporary .env file for testing."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".env", delete=False
+        ) as tmp_file:
             tmp_file.write("OPENAI_API_KEY=test-api-key-123\n")
             tmp_file.write("DUCKDB_PATH=/tmp/test.db\n")
             env_path = tmp_file.name
@@ -486,20 +585,28 @@ class TestIntegration:
 
     @patch("terrorblade.examples.cluster_analysis_cli.TelegramDatabase")
     @patch("terrorblade.examples.cluster_analysis_cli.get_db_path")
-    def test_environment_loading(self, mock_get_db_path: Mock, mock_db_class: Mock, sample_env_file: str) -> None:
+    def test_environment_loading(
+        self, mock_get_db_path: Mock, mock_db_class: Mock, sample_env_file: str
+    ) -> None:
         """Test that environment variables are loaded correctly."""
         mock_get_db_path.return_value = "/tmp/test.db"
         mock_db_instance = Mock()
         mock_db_class.return_value = mock_db_instance
-        with patch("terrorblade.examples.cluster_analysis_cli.load_dotenv") as mock_load_dotenv:
+        with patch(
+            "terrorblade.examples.cluster_analysis_cli.load_dotenv"
+        ) as mock_load_dotenv:
             mock_load_dotenv.return_value = None
             with patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key-123"}):
                 # Import should work without issues
-                from terrorblade.examples.cluster_analysis_cli import ClusterAnalyzer
+                from terrorblade.examples.cluster_analysis_cli import (
+                    ClusterAnalyzer,
+                )
 
                 analyzer = ClusterAnalyzer("+1234567890")
                 assert analyzer.phone == "+1234567890"
-                mock_db_class.assert_called_once_with(db_path="/tmp/test.db", read_only=True)
+                mock_db_class.assert_called_once_with(
+                    db_path="/tmp/test.db", read_only=True
+                )
 
     def test_analyzer_with_real_data_structure(self) -> None:
         """Test analyzer with realistic data structure."""

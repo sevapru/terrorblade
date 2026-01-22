@@ -57,6 +57,8 @@ dev = [
     "isort>=5.12.0",
     "mypy>=1.5.0",
     "ruff>=0.1.0",
+    "pylint>=3.0.0",
+    "pandas>=2.0.0",
     "watchdog",
     "build",
     "wheel",
@@ -113,8 +115,7 @@ use_parentheses = true
 
 [tool.black]
 line-length = 80
-target-version = ['py312']
-include = '\\.pyi?$'
+target-version = ['py313']
 
 [tool.mypy]
 python_version = "3.12"

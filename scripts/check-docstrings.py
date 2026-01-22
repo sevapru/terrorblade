@@ -21,7 +21,7 @@ class DocstringChecker:
         """Analyze a Python file for docstring quality."""
 
         try:
-            with open(file_path, encoding='utf-8') as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             tree = ast.parse(content)
@@ -30,7 +30,7 @@ class DocstringChecker:
                 "file": str(file_path.relative_to(self.project_root)),
                 "classes": [],
                 "functions": [],
-                "module_docstring": ast.get_docstring(tree) is not None
+                "module_docstring": ast.get_docstring(tree) is not None,
             }
 
             for node in ast.walk(tree):
@@ -39,19 +39,25 @@ class DocstringChecker:
                         "name": node.name,
                         "has_docstring": ast.get_docstring(node) is not None,
                         "docstring_length": len(ast.get_docstring(node) or ""),
-                        "line": node.lineno
+                        "line": node.lineno,
                     }
                     stats["classes"].append(class_info)
 
                 elif isinstance(node, ast.FunctionDef):
                     # Skip private functions and methods
-                    if not node.name.startswith('_') or node.name in ['__init__', '__call__']:
+                    if not node.name.startswith("_") or node.name in [
+                        "__init__",
+                        "__call__",
+                    ]:
                         func_info = {
                             "name": node.name,
-                            "has_docstring": ast.get_docstring(node) is not None,
-                            "docstring_length": len(ast.get_docstring(node) or ""),
+                            "has_docstring": ast.get_docstring(node)
+                            is not None,
+                            "docstring_length": len(
+                                ast.get_docstring(node) or ""
+                            ),
                             "line": node.lineno,
-                            "args_count": len(node.args.args)
+                            "args_count": len(node.args.args),
                         }
                         stats["functions"].append(func_info)
 
@@ -71,7 +77,7 @@ class DocstringChecker:
             "classes_with_docstring": 0,
             "total_functions": 0,
             "functions_with_docstring": 0,
-            "detailed_results": []
+            "detailed_results": [],
         }
 
         for py_file in self.terrorblade_path.rglob("*.py"):
@@ -108,9 +114,16 @@ class DocstringChecker:
         stats = self.check_all_files()
 
         # Calculate percentages
-        module_coverage = (stats["files_with_module_docstring"] / max(stats["files_analyzed"], 1)) * 100
-        class_coverage = (stats["classes_with_docstring"] / max(stats["total_classes"], 1)) * 100
-        function_coverage = (stats["functions_with_docstring"] / max(stats["total_functions"], 1)) * 100
+        module_coverage = (
+            stats["files_with_module_docstring"]
+            / max(stats["files_analyzed"], 1)
+        ) * 100
+        class_coverage = (
+            stats["classes_with_docstring"] / max(stats["total_classes"], 1)
+        ) * 100
+        function_coverage = (
+            stats["functions_with_docstring"] / max(stats["total_functions"], 1)
+        ) * 100
 
         report = f"""# Docstring Quality Report
 
@@ -125,7 +138,9 @@ class DocstringChecker:
 
 """
 
-        overall_score = (module_coverage + class_coverage + function_coverage) / 3
+        overall_score = (
+            module_coverage + class_coverage + function_coverage
+        ) / 3
 
         if overall_score >= 90:
             grade = "A (Excellent)"
@@ -151,7 +166,9 @@ class DocstringChecker:
                 report += "⚠️ **Missing module docstring**\n\n"
 
             # Report missing class docstrings
-            missing_class_docs = [cls for cls in file_stats["classes"] if not cls["has_docstring"]]
+            missing_class_docs = [
+                cls for cls in file_stats["classes"] if not cls["has_docstring"]
+            ]
             if missing_class_docs:
                 report += "**Classes missing docstrings:**\n"
                 for cls in missing_class_docs:
@@ -159,14 +176,22 @@ class DocstringChecker:
                 report += "\n"
 
             # Report missing function docstrings
-            missing_func_docs = [func for func in file_stats["functions"] if not func["has_docstring"]]
+            missing_func_docs = [
+                func
+                for func in file_stats["functions"]
+                if not func["has_docstring"]
+            ]
             if missing_func_docs:
                 report += "**Functions missing docstrings:**\n"
                 for func in missing_func_docs:
                     report += f"- `{func['name']}` (line {func['line']})\n"
                 report += "\n"
 
-            if not missing_class_docs and not missing_func_docs and file_stats["module_docstring"]:
+            if (
+                not missing_class_docs
+                and not missing_func_docs
+                and file_stats["module_docstring"]
+            ):
                 report += "✅ **All docstrings present**\n\n"
 
         return report
@@ -183,22 +208,29 @@ def main():
     report = checker.generate_report()
 
     # Save report to file
-    report_path = project_root / "docs-mkdocs" / "docs" / "development" / "docstring-quality.md"
+    report_path = (
+        project_root
+        / "docs-mkdocs"
+        / "docs"
+        / "development"
+        / "docstring-quality.md"
+    )
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(report_path, 'w') as f:
+    with open(report_path, "w") as f:
         f.write(report)
 
     print(f"📊 Docstring quality report saved to: {report_path}")
 
     # Also print summary to console
-    lines = report.split('\n')
-    summary_end = next(i for i, line in enumerate(lines) if line.startswith("## Overall Grade"))
+    lines = report.split("\n")
+    summary_end = next(
+        i for i, line in enumerate(lines) if line.startswith("## Overall Grade")
+    )
 
-    for line in lines[:summary_end + 3]:
+    for line in lines[: summary_end + 3]:
         print(line)
 
 
 if __name__ == "__main__":
     main()
-

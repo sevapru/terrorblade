@@ -4,7 +4,9 @@ import asyncio
 
 from terrorblade.data.database.telegram_database import TelegramDatabase
 from terrorblade.data.loaders.telegram.parse_telegram_client import update_telegram_data  # type: ignore
-from terrorblade.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
+from terrorblade.data.preprocessing.TelegramPreprocessor import (
+    TelegramPreprocessor,
+)
 
 
 def run_processor(phone_number: str) -> None:

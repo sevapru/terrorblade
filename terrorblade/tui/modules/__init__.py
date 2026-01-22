@@ -9,4 +9,9 @@ from .logging_terminal import LoggingTerminal
 from .message_analyzer import MessageAnalyzer
 from .optimized_tui import OptimizedClusterAnalysisTUI
 
-__all__ = ["ChatSelector", "MessageAnalyzer", "LoggingTerminal", "OptimizedClusterAnalysisTUI"]
+__all__ = [
+    "ChatSelector",
+    "MessageAnalyzer",
+    "LoggingTerminal",
+    "OptimizedClusterAnalysisTUI",
+]

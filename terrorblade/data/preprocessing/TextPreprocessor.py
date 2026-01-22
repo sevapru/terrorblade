@@ -74,7 +74,9 @@ class TextPreprocessor:
         # Log GPU info if available
         if self.device == "cuda":
             gpu_name = torch.cuda.get_device_name(0)
-            gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3  # GB
+            gpu_memory = (
+                torch.cuda.get_device_properties(0).total_memory / 1024**3
+            )  # GB
             print(f"GPU: {gpu_name} ({gpu_memory:.1f} GB)")
         else:
             print("💻 Using CPU for computations")
@@ -102,10 +104,14 @@ class TextPreprocessor:
         if self._embeddings_model is None:
             from sentence_transformers import SentenceTransformer
 
-            self._embeddings_model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2")
+            self._embeddings_model = SentenceTransformer(
+                "paraphrase-multilingual-mpnet-base-v2"
+            )
         return self._embeddings_model
 
-    def concat_author_messages(self, df: pl.DataFrame, time_window_minutes: int = 5) -> pl.DataFrame:
+    def concat_author_messages(
+        self, df: pl.DataFrame, time_window_minutes: int = 5
+    ) -> pl.DataFrame:
         """
         Concatenate consecutive messages from the same author within a time window.
 
@@ -132,14 +138,24 @@ class TextPreprocessor:
         time_window = timedelta(minutes=time_window_minutes)
         df = df.with_columns(
             [
-                (pl.col("from_id") != pl.col("from_id").shift(1)).alias("author_changed"),
-                ((pl.col("date") - pl.col("date").shift(1)) > time_window).fill_null(True).alias("time_exceeded"),
+                (pl.col("from_id") != pl.col("from_id").shift(1)).alias(
+                    "author_changed"
+                ),
+                ((pl.col("date") - pl.col("date").shift(1)) > time_window)
+                .fill_null(True)
+                .alias("time_exceeded"),
             ]
         )
 
-        df = df.with_columns((pl.col("author_changed") | pl.col("time_exceeded")).alias("new_group"))
+        df = df.with_columns(
+            (pl.col("author_changed") | pl.col("time_exceeded")).alias(
+                "new_group"
+            )
+        )
 
-        df = df.with_columns(pl.col("new_group").cum_sum().alias("message_group"))
+        df = df.with_columns(
+            pl.col("new_group").cum_sum().alias("message_group")
+        )
 
         df = df.group_by("message_group").agg(
             [
@@ -147,7 +163,9 @@ class TextPreprocessor:
                 pl.col("date").min().alias("date"),
                 pl.col("from_name").first().alias("from_name"),
                 pl.col("text").str.join(". ").alias("text"),
-                pl.col("reply_to_message_id").first().alias("reply_to_message_id"),
+                pl.col("reply_to_message_id")
+                .first()
+                .alias("reply_to_message_id"),
                 pl.col("forwarded_from").first().alias("forwarded_from"),
                 pl.col("message_id").alias("message_id"),
                 pl.col("from_id").first().alias("from_id"),
@@ -197,10 +215,15 @@ class TextPreprocessor:
             window_duration = timedelta(minutes=int(time_window[:-1]))
         else:
             raise ValueError("time_window must be formatted as '1h' or '5m'.")
-        time_diffs = df.with_columns((pl.col("date").diff().dt.total_seconds()).alias("time_diff"))
+        time_diffs = df.with_columns(
+            (pl.col("date").diff().dt.total_seconds()).alias("time_diff")
+        )
 
         breaks = (
-            time_diffs["time_diff"].fill_null(window_duration.total_seconds() * 2) > window_duration.total_seconds()
+            time_diffs["time_diff"].fill_null(
+                window_duration.total_seconds() * 2
+            )
+            > window_duration.total_seconds()
         )
         cluster_ids = breaks.cum_sum().alias("pre_cluster")
         df = df.with_columns(cluster_ids)
@@ -209,7 +232,9 @@ class TextPreprocessor:
             pl.when(pl.col("size") > cluster_size)
             .then(pl.col("pre_cluster"))
             .otherwise(None)
-            .alias("cluster"),  # Only qualify as a cluster if it contains more than 'cluster_size' messages
+            .alias(
+                "cluster"
+            ),  # Only qualify as a cluster if it contains more than 'cluster_size' messages
         )
         return df.drop(["size"])
 
@@ -235,7 +260,9 @@ class TextPreprocessor:
         """
 
         embeddings = embeddings.to(self.device)
-        similarities = torch.zeros((len(embeddings), len(embeddings)), device=self.device)
+        similarities = torch.zeros(
+            (len(embeddings), len(embeddings)), device=self.device
+        )
 
         for i in range(0, len(embeddings), self.squared_batch_size):
             end = min(i + self.squared_batch_size, len(embeddings))
@@ -245,7 +272,9 @@ class TextPreprocessor:
         distances = 1 - similarities
         return distances.cpu()
 
-    def calculate_sliding_distances(self, embeddings: torch.Tensor, window_size: int = 5) -> torch.Tensor:
+    def calculate_sliding_distances(
+        self, embeddings: torch.Tensor, window_size: int = 5
+    ) -> torch.Tensor:
         """
         Compute average cosine distance within a sliding window for each embedding.
 
@@ -277,7 +306,9 @@ class TextPreprocessor:
         distances = torch.zeros(len(embeddings), device=self.device)
 
         gpu_batch_size = (
-            min(self.squared_batch_size * 4, len(embeddings)) if self.device == "cuda" else self.squared_batch_size
+            min(self.squared_batch_size * 4, len(embeddings))
+            if self.device == "cuda"
+            else self.squared_batch_size
         )
 
         for i in range(0, len(embeddings), gpu_batch_size):
@@ -350,7 +381,9 @@ class TextPreprocessor:
         combined_df = pl.concat(processed_dfs)
 
         # Now process temporal clusters and groups globally to ensure proper continuity
-        combined_df = self.create_clusters(combined_df, time_window, cluster_size)
+        combined_df = self.create_clusters(
+            combined_df, time_window, cluster_size
+        )
         final_result = self.calculate_groups(combined_df)
 
         return final_result
@@ -422,7 +455,9 @@ class TextPreprocessor:
         embeddings_f32 = embeddings.cpu().float()
 
         if embeddings_f32.shape[1] != 768:
-            raise ValueError(f"Expected embeddings dimension 768, got {embeddings_f32.shape[1]}")
+            raise ValueError(
+                f"Expected embeddings dimension 768, got {embeddings_f32.shape[1]}"
+            )
 
         return df.with_columns(pl.Series("embeddings", embeddings_f32))
 
@@ -449,9 +484,9 @@ class TextPreprocessor:
             ```
         """
         # Fixed: Use OR instead of AND - a group boundary occurs when EITHER changes
-        group_changes = (df["semantic_segment"] != df["semantic_segment"].shift(1)) | (
-            df["pre_cluster"] != df["pre_cluster"].shift(1)
-        )
+        group_changes = (
+            df["semantic_segment"] != df["semantic_segment"].shift(1)
+        ) | (df["pre_cluster"] != df["pre_cluster"].shift(1))
         df = df.with_columns(group_changes.cum_sum().alias("group_id")).drop(
             ["pre_cluster", "cluster", "semantic_segment"]
         )
@@ -495,7 +530,9 @@ class TextPreprocessor:
         semantic_segment_ids = breaks.cumsum(dim=0)
 
         return df.with_columns(
-            pl.Series("semantic_segment", semantic_segment_ids.cpu().numpy()).fill_null(strategy="forward")
+            pl.Series(
+                "semantic_segment", semantic_segment_ids.cpu().numpy()
+            ).fill_null(strategy="forward")
         )
 
     ####
@@ -542,7 +579,9 @@ class TextPreprocessor:
         Larger batches for GPUs with more memory to maximize throughput.
         """
         if self.device == "cuda":
-            gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            gpu_memory_gb = (
+                torch.cuda.get_device_properties(0).total_memory / 1024**3
+            )
 
             if gpu_memory_gb >= 24:  # High-end GPU (RTX 4090, A100, etc.)
                 self.squared_batch_size = 4096
@@ -563,4 +602,6 @@ class TextPreprocessor:
                 )
         else:
             self.squared_batch_size = 256
-            print(f"📊 Using batch_size={self.batch_size}, squared_batch_size={self.squared_batch_size} for CPU")
+            print(
+                f"📊 Using batch_size={self.batch_size}, squared_batch_size={self.squared_batch_size} for CPU"
+            )

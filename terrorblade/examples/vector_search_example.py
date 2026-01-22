@@ -22,7 +22,9 @@ class VectorSearcher:
         self.db_path = db_path
         self.phone = phone
         self._preprocessor: TextPreprocessor = TextPreprocessor()
-        self._vector_store: VectorStore = VectorStore(db_path=self.db_path, phone=self.phone)
+        self._vector_store: VectorStore = VectorStore(
+            db_path=self.db_path, phone=self.phone
+        )
 
     def _setup(self) -> None:
         """Setup preprocessor and vector store."""
@@ -86,7 +88,9 @@ class VectorSearcher:
                 keywords = [keywords]
 
             stats = self._vector_store.get_table_stats()
-            print(f"Database: {stats.get('total_embeddings', 0)} embeddings, {stats.get('unique_chats', 0)} chats")
+            print(
+                f"Database: {stats.get('total_embeddings', 0)} embeddings, {stats.get('unique_chats', 0)} chats"
+            )
             self._vector_store.print_index_stats()
 
             for keyword in keywords:
@@ -96,12 +100,19 @@ class VectorSearcher:
 
                 query_vector = self._encode_query(keyword)
                 results_df = self._vector_store.get_similar_messages_with_text(
-                    query_vector=query_vector, top_k=top_k, similarity_threshold=0.3
+                    query_vector=query_vector,
+                    top_k=top_k,
+                    similarity_threshold=0.3,
                 )
 
                 if len(results_df) > 0:
                     display_df = self._format_results(results_df)
-                    with pl.Config(tbl_width_chars=1200, fmt_str_lengths=1000, tbl_cols=-1, tbl_rows=100):
+                    with pl.Config(
+                        tbl_width_chars=1200,
+                        fmt_str_lengths=1000,
+                        tbl_cols=-1,
+                        tbl_rows=100,
+                    ):
                         print(display_df)
                 else:
                     print("No results found.")
@@ -116,7 +127,12 @@ def main() -> None:
     parser.add_argument("keywords", nargs="+", help="Keywords to search for")
     parser.add_argument("--db", required=True, help="Database path")
     parser.add_argument("--phone", required=True, help="Phone number")
-    parser.add_argument("--top-k", type=int, default=10, help="Results per keyword (default: 10)")
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=10,
+        help="Results per keyword (default: 10)",
+    )
 
     args = parser.parse_args()
     searcher = VectorSearcher(args.db, args.phone)

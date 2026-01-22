@@ -29,7 +29,12 @@ def parse_links(chat_df: pl.DataFrame) -> pl.DataFrame:
     for idx in range(len(text_series)):
         val = text_series[idx]
         if isinstance(val, list):
-            if len(val) == 1 and isinstance(val[0], dict) and "type" in val[0] and "text" in val[0]:
+            if (
+                len(val) == 1
+                and isinstance(val[0], dict)
+                and "type" in val[0]
+                and "text" in val[0]
+            ):
                 chat_df = (
                     chat_df.with_row_count("idx")
                     .with_columns(
@@ -90,7 +95,13 @@ def parse_members(chat_df: pl.DataFrame) -> pl.DataFrame:
 def parse_reactions(chat_df: pl.DataFrame) -> pl.DataFrame:
     if "reactions" in chat_df.columns:
         chat_df = chat_df.with_columns(
-            [pl.col("reactions").map_elements(lambda x: x[0]["emoji"] if isinstance(x, list) else x).alias("reactions")]
+            [
+                pl.col("reactions")
+                .map_elements(
+                    lambda x: x[0]["emoji"] if isinstance(x, list) else x
+                )
+                .alias("reactions")
+            ]
         )
     return chat_df
 
@@ -112,4 +123,10 @@ def standartize_chat(chat: pl.DataFrame) -> pl.DataFrame:
     chat = chat.select([col for col in polars_schema if col in chat.columns])
 
     # Cast columns to their respective types
-    return chat.with_columns([pl.col(col).cast(dtype) for col, dtype in polars_schema.items() if col in chat.columns])
+    return chat.with_columns(
+        [
+            pl.col(col).cast(dtype)
+            for col, dtype in polars_schema.items()
+            if col in chat.columns
+        ]
+    )

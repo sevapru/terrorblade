@@ -11,7 +11,9 @@ Perfect for fixing cluster logic without recomputing expensive embeddings!
 import logging
 from pathlib import Path
 
-from terrorblade.data.preprocessing.TelegramPreprocessor import TelegramPreprocessor
+from terrorblade.data.preprocessing.TelegramPreprocessor import (
+    TelegramPreprocessor,
+)
 from terrorblade.utils.config import get_db_path
 
 
@@ -26,7 +28,9 @@ def fast_cluster_reprocessing() -> None:
     - ❌ Skips semantic segmentation recalculation
     """
     # Setup logging
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
     logger = logging.getLogger(__name__)
 
     # Your configuration
@@ -40,11 +44,15 @@ def fast_cluster_reprocessing() -> None:
         logger.error(f"❌ Database not found: {db_path}")
         return
 
-    logger.info("🚀 Starting FAST cluster reprocessing using existing embeddings")
+    logger.info(
+        "🚀 Starting FAST cluster reprocessing using existing embeddings"
+    )
 
     try:
         # Initialize TelegramPreprocessor
-        preprocessor = TelegramPreprocessor(phone=phone, db_path=db_path, use_duckdb=True)
+        preprocessor = TelegramPreprocessor(
+            phone=phone, db_path=db_path, use_duckdb=True
+        )
 
         # Use the new fast method that only reprocesses clusters
         # Using shorter time windows to prevent extremely long clusters
@@ -56,7 +64,9 @@ def fast_cluster_reprocessing() -> None:
         )
 
         logger.info("✅ Fast cluster reprocessing completed!")
-        logger.info("💡 Check cluster statistics - they should now be realistic!")
+        logger.info(
+            "💡 Check cluster statistics - they should now be realistic!"
+        )
 
     except Exception as e:
         logger.error(f"❌ Error during fast reprocessing: {e}")
@@ -75,7 +85,9 @@ def fast_reprocess_single_chat() -> None:
     logger.info(f"Using database: {db_path}")
     logger.info(f"🧪 Testing fast reprocessing on chat {test_chat_id}")
     try:
-        preprocessor = TelegramPreprocessor(phone=phone, db_path=db_path, use_duckdb=True)
+        preprocessor = TelegramPreprocessor(
+            phone=phone, db_path=db_path, use_duckdb=True
+        )
         # Process only one chat for testing
         preprocessor.reprocess_clusters_only(
             phone=phone,
@@ -92,7 +104,9 @@ if __name__ == "__main__":
     print("🚀 Fast Cluster Reprocessing")
     print("=" * 40)
     print()
-    print("This script uses existing embeddings for much faster cluster reprocessing!")
+    print(
+        "This script uses existing embeddings for much faster cluster reprocessing!"
+    )
     print()
     print("Benefits:")
     print("  ⚡ 10-100x faster than full reprocessing")

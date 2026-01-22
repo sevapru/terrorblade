@@ -162,7 +162,9 @@ FILES_SCHEMA: dict[str, SchemaInfo] = {
 # Helper functions to extract specific type definitions
 def get_polars_schema() -> dict[str, Any]:
     """Return the Polars schema dictionary for Telegram messages."""
-    return {field: info["polars_type"] for field, info in TELEGRAM_SCHEMA.items()}
+    return {
+        field: info["polars_type"] for field, info in TELEGRAM_SCHEMA.items()
+    }
 
 
 def get_duckdb_schema() -> dict[str, str]:
@@ -172,7 +174,9 @@ def get_duckdb_schema() -> dict[str, str]:
 
 def get_field_descriptions() -> dict[str, str]:
     """Return a dictionary of field descriptions."""
-    return {field: info["description"] for field, info in TELEGRAM_SCHEMA.items()}
+    return {
+        field: info["description"] for field, info in TELEGRAM_SCHEMA.items()
+    }
 
 
 def get_column_names() -> list[str]:
@@ -224,7 +228,13 @@ def get_process_schema() -> dict[str, Any]:
         if field in TELEGRAM_SCHEMA:
             process_schema[field] = TELEGRAM_SCHEMA[field]["polars_type"]
         else:
-            if field in ("chat_name", "from_name", "forwarded_from", "file_name", "text"):
+            if field in (
+                "chat_name",
+                "from_name",
+                "forwarded_from",
+                "file_name",
+                "text",
+            ):
                 process_schema[field] = pl.Utf8
             elif field == "date":
                 process_schema[field] = pl.Datetime  # type: ignore
@@ -243,7 +253,9 @@ def create_message_template() -> dict[str, None]:
     return dict.fromkeys(TELEGRAM_SCHEMA.keys())
 
 
-def map_telethon_message_to_schema(message: Any, chat_id: int, dialog_name: str | None = None) -> dict[str, Any]:
+def map_telethon_message_to_schema(
+    message: Any, chat_id: int, dialog_name: str | None = None
+) -> dict[str, Any]:
     """
     Maps a Telethon message object to our centralized schema format.
 
@@ -262,10 +274,14 @@ def map_telethon_message_to_schema(message: Any, chat_id: int, dialog_name: str 
         "text": message.text,
         "chat_id": chat_id,
         "reply_to_message_id": message.reply_to_msg_id,
-        "media_type": (message.media.__class__.__name__ if message.media else None),
+        "media_type": (
+            message.media.__class__.__name__ if message.media else None
+        ),
         "file_name": message.file.name if message.file else None,
         "chat_name": dialog_name,
-        "forwarded_from": (message.fwd_from.from_name if message.fwd_from else None),
+        "forwarded_from": (
+            message.fwd_from.from_name if message.fwd_from else None
+        ),
         "from_name": None,  # This will be filled separately after getting entity info
     }
 

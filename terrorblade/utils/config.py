@@ -1,5 +1,6 @@
 """Configuration utilities for terrorblade."""
 
+import contextlib
 import os
 from pathlib import Path
 
@@ -90,7 +91,9 @@ def get_db_path(db_path: str = "auto") -> str:
         # Local path handling
         path_obj = Path(db_path).expanduser()
         # Only resolve if not already absolute to avoid symlink resolution on macOS
-        resolved = str(path_obj.resolve() if not path_obj.is_absolute() else path_obj)
+        resolved = str(
+            path_obj.resolve() if not path_obj.is_absolute() else path_obj
+        )
         return resolved
 
     # 2) check for remote URL in environment
@@ -107,7 +110,9 @@ def get_db_path(db_path: str = "auto") -> str:
 
         path_obj = Path(env_path).expanduser()
         # Only resolve if not already absolute to avoid symlink resolution on macOS
-        resolved = str(path_obj.resolve() if not path_obj.is_absolute() else path_obj)
+        resolved = str(
+            path_obj.resolve() if not path_obj.is_absolute() else path_obj
+        )
         return resolved
 
     # 4) default in parent of project
@@ -129,20 +134,27 @@ def configure_duckdb_remote(conn) -> None:
     remote_config = get_remote_db_config()
 
     # Install and load httpfs for HTTP/S3 support
-    try:
+    with contextlib.suppress(Exception):
         conn.execute("INSTALL httpfs; LOAD httpfs;")
-    except Exception:
-        pass  # Extension might already be loaded
 
     # Configure AWS credentials if present
-    if remote_config["aws_access_key_id"] and remote_config["aws_secret_access_key"]:
-        conn.execute(f"SET s3_access_key_id='{remote_config['aws_access_key_id']}';")
-        conn.execute(f"SET s3_secret_access_key='{remote_config['aws_secret_access_key']}';")
+    if (
+        remote_config["aws_access_key_id"]
+        and remote_config["aws_secret_access_key"]
+    ):
+        conn.execute(
+            f"SET s3_access_key_id='{remote_config['aws_access_key_id']}';"
+        )
+        conn.execute(
+            f"SET s3_secret_access_key='{remote_config['aws_secret_access_key']}';"
+        )
         conn.execute(f"SET s3_region='{remote_config['aws_region']}';")
 
     # Configure MotherDuck token if present
     if remote_config["motherduck_token"]:
-        conn.execute(f"SET motherduck_token='{remote_config['motherduck_token']}';")
+        conn.execute(
+            f"SET motherduck_token='{remote_config['motherduck_token']}';"
+        )
 
 
 def get_db_connection_kwargs(db_path: str) -> dict:
@@ -162,7 +174,9 @@ def get_db_connection_kwargs(db_path: str) -> dict:
         # and may need config for extensions
         if db_path.startswith("md:"):
             # MotherDuck connection
-            kwargs["config"] = {"motherduck_token": os.getenv("MOTHERDUCK_TOKEN", "")}
+            kwargs["config"] = {
+                "motherduck_token": os.getenv("MOTHERDUCK_TOKEN", "")
+            }
         # HTTP/S3 connections are read-only by nature
         elif db_path.startswith(("http://", "https://", "s3://")):
             kwargs["read_only"] = True
