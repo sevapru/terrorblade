@@ -11,10 +11,18 @@ from terrorblade import Logger
 class VectorStore:
     """Vector store class for managing embeddings and performing semantic search using DuckDB VSS extension."""
 
-    def __init__(self, db_path: str, phone: str) -> None:
-        """Initialize the vector store with DuckDB connection."""
+    def __init__(self, db_path: str, phone: str, read_only: bool = False) -> None:
+        """Initialize the vector store with DuckDB connection.
+
+        Args:
+            db_path: Path to the DuckDB database file.
+            phone: User phone identifier.
+            read_only: If True, open database in read-only mode.
+                       Use read_only=True for search-only operations (e.g., MCP server).
+        """
         self.db_path = db_path
         self.phone = phone.replace("+", "")
+        self.read_only = read_only
         self.embeddings_table = f"chat_embeddings_{self.phone}"
         self.messages_table = f"messages_{self.phone}"
         self.clusters_table = f"message_clusters_{self.phone}"
@@ -29,7 +37,7 @@ class VectorStore:
         )
 
         try:
-            self.db = duckdb.connect(db_path)
+            self.db = duckdb.connect(db_path, read_only=read_only)
             self._install_vss_extension()
             self._verify_embeddings_table()
         except Exception as e:
@@ -39,7 +47,9 @@ class VectorStore:
     def _install_vss_extension(self) -> None:
         """Install and load DuckDB VSS extension for vector operations."""
         try:
-            self.db.execute("INSTALL vss;")
+            # INSTALL requires write access, skip in read-only mode
+            if not self.read_only:
+                self.db.execute("INSTALL vss;")
             self.db.execute("LOAD vss;")
             self.db.execute("SET hnsw_enable_experimental_persistence = true;")
         except Exception as e:
@@ -189,7 +199,15 @@ class VectorStore:
         print("=" * 50)
 
     def create_hnsw_index(self, index_name: str | None = None, force_recreate: bool = False) -> bool:
-        """Create HNSW index on embeddings column for fast vector similarity search."""
+        """Create HNSW index on embeddings column for fast vector similarity search.
+
+        Note: This method requires write access. In read-only mode, it will return False
+        without attempting to create the index.
+        """
+        if self.read_only:
+            self.logger.warning("Cannot create HNSW index in read-only mode")
+            return False
+
         if index_name is None:
             index_name = f"idx_embeddings_{self.phone}"
 

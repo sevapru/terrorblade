@@ -161,11 +161,7 @@ def vector_search(
 
     from terrorblade.data.database.vector_store import VectorStore
 
-    vs = VectorStore(db_path=real_db_path, phone=phone)
-
-    # Best-effort index creation (idempotent)
-    with contextlib.suppress(Exception):
-        vs.create_hnsw_index()
+    vs = VectorStore(db_path=real_db_path, phone=phone, read_only=True)
 
     query_vec = _encode_query(query)
 
@@ -220,10 +216,7 @@ def cluster_search(
 
     from terrorblade.data.database.vector_store import VectorStore
 
-    vs = VectorStore(db_path=real_db_path, phone=phone)
-
-    with contextlib.suppress(Exception):
-        vs.create_hnsw_index()
+    vs = VectorStore(db_path=real_db_path, phone=phone, read_only=True)
 
     query_vec = _encode_query(query)
 

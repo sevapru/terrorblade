@@ -203,8 +203,6 @@ class Promptinator:
 
             messages.append({"role": "user", "content": user_input})
 
-            # Make API call
-            time.time()
             response = self.client.chat.completions.create(
                 model=model or self.model,
                 messages=messages,
