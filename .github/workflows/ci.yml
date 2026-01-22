@@ -22,64 +22,52 @@ jobs:
   lint:
     name: Code Quality
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12", "3.13"]
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python 3.13
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.13"
         
     - name: Install uv
       uses: astral-sh/setup-uv@v4
       with:
         enable-cache: true
-        cache-dependency-glob: "scripts/requirements*.in"
+        cache-dependency-glob: "uv.lock"
         
-    - name: Set up virtual environment
+    - name: Install dependencies
       run: |
-        uv venv --python ${{ matrix.python-version }}
-        echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
-        echo "$PWD/.venv/bin" >> $GITHUB_PATH
-        
-    - name: Compile and install dependencies
-      run: |
-        uv pip compile scripts/requirements.in --output-file requirements.txt
-        uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt
-        uv pip install -r requirements-dev.txt
-        uv pip install -e "."
+        uv sync --extra dev --extra security
         
     - name: Cache mypy
       uses: actions/cache@v4
       with:
         path: .mypy_cache
-        key: mypy-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+        key: mypy-3.13-${{ hashFiles('**/pyproject.toml') }}
         restore-keys: |
-          mypy-${{ matrix.python-version }}-
+          mypy-3.13-
           
     - name: Run formatting checks
       run: |
         echo "::group::Black formatting check"
-        black --check --diff .
+        uv run black --check --diff .
         echo "::endgroup::"
         
         echo "::group::isort import sorting check"
-        isort --check-only --diff .
+        uv run isort --check-only --diff .
         echo "::endgroup::"
         
     - name: Run linting
       run: |
         echo "::group::Ruff linting"
-        ruff check --fix . --output-format=github
+        uv run ruff check --fix . --output-format=github
         echo "::endgroup::"
         
         echo "::group::Pylint code quality"
-        pylint terrorblade --output-format=colorized || true
+        uv run pylint terrorblade --output-format=colorized || true
         echo "::endgroup::"
         
     - name: Run MyPy type checking
@@ -87,7 +75,7 @@ jobs:
       run: |
         echo "::group::MyPy type checking"
         rm -rf .mypy_cache
-        mypy terrorblade --exclude "tests/"
+        uv run mypy terrorblade --exclude "tests/"
         echo "::endgroup::"
         
 
@@ -102,30 +90,24 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         
-    - name: Set up Python
+    - name: Set up Python 3.13
       uses: actions/setup-python@v5
       with:
-        python-version: "3.12"
+        python-version: "3.13"
         
     - name: Install uv
       uses: astral-sh/setup-uv@v4
-      
-    - name: Set up virtual environment
-      run: |
-        uv venv --python 3.12
-        echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
-        echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
         
-    - name: Compile and install dependencies
+    - name: Install dependencies
       run: |
-        uv pip compile scripts/requirements.in --output-file requirements.txt
-        uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt
-        uv pip install -r requirements-dev.txt
-        uv pip install -e "."
+        uv sync --extra dev
         
     - name: Run auto-formatting
       run: |
-        make format
+        uv run make format
         
     - name: Check for changes
       id: verify-changed-files
@@ -152,39 +134,29 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.12", "3.13"]
         
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python 3.13
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.13"
         
     - name: Install uv
       uses: astral-sh/setup-uv@v4
       with:
         enable-cache: true
-        cache-dependency-glob: "scripts/requirements*.in"
+        cache-dependency-glob: "uv.lock"
         
-    - name: Set up virtual environment
+    - name: Install dependencies
       run: |
-        uv venv --python ${{ matrix.python-version }}
-        
-    - name: Compile and install dependencies
-      run: |
-        source .venv/bin/activate
-        uv pip compile scripts/requirements.in --output-file requirements.txt
-        uv pip compile scripts/requirements-dev.in --output-file requirements-dev.txt
-        uv pip install -r requirements-dev.txt
-        uv pip install -e "."
+        uv sync --extra dev
         
     - name: Run tests
       run: |
-        source .venv/bin/activate
-        python -m pytest tests/ -v --tb=short
+        uv run python -m pytest tests/ -v --tb=short
 
   # dependency-review:
   #   name: Dependency Review
