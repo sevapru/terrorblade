@@ -33,7 +33,9 @@ stats/
 
 # Virtual environment
 .venv/
+# Exclude all *.lock files except uv.lock
 *.lock
+!uv.lock
 
 # Environment variables
 .env
