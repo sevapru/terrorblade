@@ -26,6 +26,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Tailscale
+        # Ephemeral node - automatically removed when CI job finishes
+        # (default behavior with OAuth + tags)
         uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
