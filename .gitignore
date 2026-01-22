@@ -85,3 +85,8 @@ tests/data/messages_test.json
 
 # Cursor agents
 .cursor/
+
+# Docker
+docker/logs/
+docker/data/
+docker/.env

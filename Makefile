@@ -54,17 +54,9 @@ help:
 # Main installation target - unified dev environment
 install: setup-venv check-env
 	$(call log_section,🚀 Installing Terrorblade)
-	$(call log_info,Installing development dependencies from pyproject.toml...)
-	@if [ -n "$$VIRTUAL_ENV" ]; then \
-		echo -e "$(GREEN)[✓]$(NC) Using active environment: $$VIRTUAL_ENV"; \
-		uv pip install -e ".[dev,security]"; \
-	elif [ -d ".venv" ]; then \
-		echo -e "$(BLUE)[INFO]$(NC) Using .venv environment"; \
-		uv pip install -e ".[dev,security]" --python .venv/bin/python; \
-	else \
-		echo -e "$(BLUE)[INFO]$(NC) Installing in current Python environment"; \
-		uv pip install -e ".[dev,security]"; \
-	fi
+	$(call log_info,Installing dependencies from uv.lock...)
+	@uv sync --frozen --extra dev --extra security
+	$(call log_success,Dependencies installed from lockfile)
 	
 	@if [ -d "thoth" ]; then \
 		echo -e "$(BLUE)[INFO]$(NC) Installing thoth in editable mode..."; \
