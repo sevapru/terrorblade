@@ -1,8 +1,13 @@
 # Deploy Terrorblade MCP Server to VPS via Tailscale
 # Supports separate deployment of MCP service and/or DuckDB
+# Manual trigger only - use "Run workflow" button in Actions tab
 name: Deploy MCP to VPS
 
 on:
+  # Make workflow visible in Actions tab (won't run on push, only shows in UI)
+  push:
+    paths:
+      - '.github/workflows/deploy-mcp.yml'
   workflow_dispatch:
     inputs:
       deploy_mcp:
@@ -18,6 +23,8 @@ on:
 
 jobs:
   deploy:
+    # Only run on manual trigger, not on push
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: mcp-prod
     
