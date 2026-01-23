@@ -1,13 +1,15 @@
 # Deploy Terrorblade MCP Server to VPS via Tailscale
-# Supports separate deployment of MCP service and/or DuckDB
-# Manual trigger only - use "Run workflow" button in Actions tab
+# - Auto-deploys on merge to main
+# - Manual deploy available for dev branch
 name: Deploy MCP to VPS
 
 on:
-  # Make workflow visible in Actions tab (won't run on push, only shows in UI)
   push:
-    paths:
-      - '.github/workflows/deploy-mcp.yml'
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'tests/**'
   workflow_dispatch:
     inputs:
       deploy_mcp:
@@ -21,38 +23,36 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
-    # Only run on manual trigger, not on push
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    environment: mcp-prod
+    name: Deploy to VPS
+    runs-on: ubuntu-slim
+    environment: ${{ github.ref == 'refs/heads/main' && 'mcp-prod' || 'mcp-prod' }}
     
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup Tailscale
-        # Ephemeral node - automatically removed when CI job finishes
-        # (default behavior with OAuth + tags)
         uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:compute
-          # Optional: specific Tailscale version
-          # version: 1.56.1
 
       - name: Setup SSH connection
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          # Use Tailscale hostname - no need for ssh-keyscan with known Tailscale hosts
           ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Sync MCP service files to VPS
-        if: ${{ inputs.deploy_mcp }}
+        if: github.event_name == 'push' || inputs.deploy_mcp
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
@@ -72,7 +72,7 @@ jobs:
             ./ "$VPS_USER@$VPS_HOST:$VPS_PATH/"
 
       - name: Sync DuckDB database to VPS
-        if: ${{ inputs.deploy_duckdb }}
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy_duckdb
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
@@ -80,22 +80,17 @@ jobs:
           VPS_DB_PATH: ${{ secrets.VPS_DB_PATH }}
           LOCAL_DB_PATH: ${{ secrets.LOCAL_DB_PATH }}
         run: |
-          # Sync only the database file
           rsync -az --progress \
             -e "ssh -p $VPS_PORT -i ~/.ssh/id_ed25519" \
             "$LOCAL_DB_PATH" "$VPS_USER@$VPS_HOST:$VPS_DB_PATH"
 
       - name: Deploy MCP service to VPS
-        if: ${{ inputs.deploy_mcp }}
+        if: github.event_name == 'push' || inputs.deploy_mcp
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PATH: ${{ secrets.VPS_PATH }}
-          VPS_DB_PATH: ${{ secrets.VPS_DB_PATH }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          DUCKDB_REMOTE_URL: ${{ secrets.DUCKDB_REMOTE_URL }}
-          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
         run: |
           ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" bash << 'EOF'
           set -euo pipefail
@@ -119,7 +114,7 @@ jobs:
           EOF
 
       - name: Verify deployment
-        if: ${{ inputs.deploy_mcp }}
+        if: github.event_name == 'push' || inputs.deploy_mcp
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
@@ -133,3 +128,12 @@ jobs:
           echo "📋 Recent logs:"
           docker logs terrorblade-mcp --tail 20 2>&1 || true
           EOF
+
+      - name: Deployment summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

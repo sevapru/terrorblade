@@ -2,6 +2,7 @@ nemesis
 reports/nemesis*
 CLAUDE.md
 
+.secrets*
 # Python
 */__pycache__/
 *.py[cod]

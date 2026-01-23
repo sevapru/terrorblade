@@ -39,6 +39,7 @@ jobs:
       with:
         enable-cache: true
         cache-dependency-glob: "uv.lock"
+        github-token: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Install dependencies
       run: |
